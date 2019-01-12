@@ -175,23 +175,52 @@ def connect():
         differentPlacesByUser = defaultdict(list)
         cellIDsPairsByUser = defaultdict(list)
         originatingIDsByMonths = defaultdict(list)
-        temp = defaultdict(list)
-        temp2 = defaultdict(list)
         frequenciesWeekdays = defaultdict(int)
         originatingIDsByDate = defaultdict(list)
         frequenciesHours = defaultdict(int)
 
+        temp = defaultdict(list)
+        temp2 = defaultdict(list)
+
+        usersDurationsDict = defaultdict(float)
+        monthDurationsDict = defaultdict(float)
+        weekdaysDurationsDict = defaultdict(float)
+        hoursDurationsDict = defaultdict(float)
+        dateDurationsDict  = defaultdict(float)
+
+        monthCallNumber = defaultdict(int)
+        weekdayCallNumber = defaultdict(int)
+        dateCallNumber = defaultdict(int)
+        hoursCallNumber = defaultdict(float)
+
         weekday2 = ""
         hour2 = ""
-
         for index, val in enumerate(allOriginatingIDs):
-            if allTerminatingCellIDs[index] in cellIDs and allOriginatingCellIDs[index] in cellIDs:             #this is because there are some originatingCellIDs and terminatingCellIDs that don't happear in cellID
-                cellIDsPairsByUser[val].append([allOriginatingCellIDs[index], allTerminatingCellIDs[index]])
 
             month = getExactTime(allDateIDs[index], "nameMonth")
             weekday = getExactTime(allDateIDs[index], "weekday")
             date = getExactTime(allDateIDs[index], "date")
             hour = getExactTime(allDateIDs[index], "hour")
+
+            usersDurationsDict[val] += allDurations[index] / 60.0
+            monthDurationsDict[month] += allDurations[index] / 60.0
+            weekdaysDurationsDict[weekday] += allDurations[index] / 60.0
+            dateDurationsDict[date] += allDurations[index] / 60.0
+            hoursDurationsDict[hour] += allDurations[index] / 60.0
+
+            monthCallNumber[month] += 1
+            weekdayCallNumber[weekday] += 1
+            dateCallNumber[date] += 1
+            hoursCallNumber[hour] += 1
+
+            originatingCellIDsByUser[val].append(allOriginatingCellIDs[index])
+
+            if allTerminatingCellIDs[index] in cellIDs and allOriginatingCellIDs[index] in cellIDs:             #this is because there are some originatingCellIDs and terminatingCellIDs that don't happear in cellID
+                cellIDsPairsByUser[val].append([allOriginatingCellIDs[index], allTerminatingCellIDs[index]])
+
+            if val not in originatingIDsByMonths[month]: originatingIDsByMonths[month].append(val)
+
+            if val not in originatingIDsByDate[date]: originatingIDsByDate[date].append(val)
 
             if val not in temp2[hour]:
                 temp2[hour].append(val)
@@ -202,35 +231,48 @@ def connect():
                 temp2[hour2] = []
                 hour2 = hour
 
-            if index == len(allOriginatingIDs)-1: #last one
-                numberUsersByHour[hour] += len(temp2[hour])
-                temp2[hour] = []
+            if val not in temp[weekday]:
+                temp[weekday].append(val)
 
-            if val not in originatingIDsByMonths[month]: originatingIDsByMonths[month].append(val)
-            if val not in originatingIDsByDate[date]: originatingIDsByDate[date].append(val)
-            if val not in temp[weekday]: temp[weekday].append(val)
             if weekday2 != weekday:
                 frequenciesWeekdays[weekday] += 1
                 numberUsersByWeekday[weekday2] += len(temp[weekday2])
                 temp[weekday2] = []
                 weekday2 = weekday
+
             if index == len(allOriginatingIDs)-1: #last one
                 numberUsersByWeekday[weekday] += len(temp[weekday])
                 temp[weekday] = []
+                numberUsersByHour[hour] += len(temp2[hour])
+                temp2[hour] = []
 
 
-            originatingCellIDsByUser[val].append(allOriginatingCellIDs[index])
 
             if allOriginatingCellIDs[index] not in differentPlacesByUser[val]:
                 numberDifferentPlacesByUser[val] += 1
                 differentPlacesByUser[val].append(allOriginatingCellIDs[index])
 
-        print(numberUsersByHour)
-        """ ------  number of different active users  (calls) x calls activity throughout the year ------ """
+        """ --------------------------------  calls activity (calls) x duration of the calls throughout the year ------------------------------- """
+        """
+        durationsMinutes = [round(x / 60) for x in allDurations]
+        frequenciesOfCallsByUser = dict(collections.Counter(durationsMinutes))
+        differentDurations, NumberOfUsers = zip(*frequenciesOfCallsByUser.items())
+
+        fig = plt.figure()
+        ax = plt.axes()
+        plt.title("Call Frequency per Different Durations Throughout the Year")
+        plt.xlabel("Duration of the Calls (in minutes)")
+        plt.ylabel("Number of Calls")
+        ax.plot(differentDurations, NumberOfUsers,'rx')
+        plt.grid(True)
+        plt.show()
+        """
+
+        """ --------------------------------  number of different active users  (calls) x calls activity throughout the year ------------------------------- """
         """
         frequenciesOfCallsByUser = dict(collections.Counter(allOriginatingIDs))
         numberOfCallsByNumberOfUsers = collections.Counter(frequenciesOfCallsByUser.values()).most_common()
-        numberOfCalls, NumberOfUsersCalls = zip(*numberOfCallsByNumberOfUsers.items())
+        numberOfCalls, NumberOfUsersCalls = zip(*numberOfCallsByNumberOfUsers)
           
         fig = plt.figure()
         ax = plt.axes()
@@ -244,9 +286,9 @@ def connect():
         plt.show()
         """
 
-        """ ------  number of different active users in each month  ------ """
+        """ -----------------------------------  number of different active users in each month  ------------------------------------------------------------ """
         """
-        moths = []
+        months = []
         frequencies = []
         for key, value in originatingIDsByMonths.items():
             months.append(key)
@@ -262,11 +304,10 @@ def connect():
         plt.show()
 
         """
-        """ ------  number of different active users in each weekday  (on average) ------ """
+        """ -------------------------------------  number of different active users in each weekday (on average) -------------------------------------------- """
         """
         for key in frequenciesWeekdays.keys():
             numberUsersByWeekday[key] /= frequenciesWeekdays[key]
-
 
         weekdays, frequencies = zip(*numberUsersByWeekday.items())
         weekdays = weekdays[1:]
@@ -282,7 +323,7 @@ def connect():
         plt.show()
         """
 
-        """ ------  number of different active users in each day throughout the year ------ """
+        """ --------------------------------------------  number of different active users in each day throughout the year ---------------------------------- """
         """
         for key in originatingIDsByDate.keys():
             originatingIDsByDate[key] = len(originatingIDsByDate[key])
@@ -299,7 +340,7 @@ def connect():
         plt.show()
         """
 
-        """ ------  number of different active users in each hour  (on average) ------ """
+        """ -----------------------------------------------  number of different active users in each hour  (on average) ------------------------------------ """
         """
         for key in frequenciesHours.keys():
             numberUsersByHour[key] /= frequenciesHours[key]
@@ -319,14 +360,10 @@ def connect():
         plt.show()
         """
 
-        """ ------ number of different active users (calls) x duration calls throughout the year ------ """
+        """ ----------------------------------------------- number of different active users (calls) x duration of the calls throughout the year ------------ """
         """
-        usersDurationsDict = defaultdict(float)
-        for index, val in enumerate(allOriginatingIDs):
-            usersDurationsDict[val] += allDurations[index]/60.0
-
         durationsByNumberOfUsers = collections.Counter(usersDurationsDict.values()).most_common()
-        differentDurations, NumberOfUsersDurations = zip(*durationsByNumberOfUsers.items())
+        differentDurations, NumberOfUsersDurations = zip(*durationsByNumberOfUsers)
 
         fig = plt.figure()
         ax = plt.axes()
@@ -338,11 +375,157 @@ def connect():
         plt.show()
         """
 
+        """ ---------------------------------------------- duration of the calls in each month  ------------------------------------------------------------- """
+        """
+        months, durations = zip(*monthDurationsDict.items())
+
+        y_pos = np.arange(len(list(months)))
+        plt.bar(y_pos, durations, align='center', alpha=0.5)
+
+        plt.xticks(y_pos, months)
+        plt.title("Duration of the Calls in Each Month")
+        plt.ylabel("Duration of the Calls (in minutes)")
+        plt.xlabel("months")
+        plt.grid(True)
+        plt.show()
+        """
+
+        """ --------------------------------------------  duration of the calls  in each weekday (on average) ----------------------------------------------- """
+        """
+        for key in frequenciesWeekdays.keys():
+            weekdaysDurationsDict[key] /= frequenciesWeekdays[key]
+
+        weekdays, durations = zip(*weekdaysDurationsDict.items())
+        
+        y_pos = np.arange(len(list(weekdays)))
+        plt.bar(y_pos, durations, align='center', alpha=0.5)
+
+        plt.xticks(y_pos, weekdays)
+        plt.title("Duration of the Calls in Each Weekday (on average)")
+        plt.ylabel("Duration of the Calls (in minutes)")
+        plt.xlabel("Weekdays")
+        plt.grid(True)
+        plt.show()
+        """
+
+        """ --------------------------------------------  duration of the calls in each day throughout the year - --------------------------------- """
+        """
+        dates, durations = zip(*dateDurationsDict.items())
+
+        y_pos = np.arange(len(list(dates)))
+        plt.bar(y_pos, durations, align='center', alpha=0.5)
+
+        plt.xticks(y_pos, dates)
+        plt.title("Duration of the Calls in Each Day")
+        plt.ylabel("Duration of the Calls (in minutes)")
+        plt.xlabel("Days")
+        plt.grid(True)
+        plt.show()
+        """
+        """ --------------------------------------------  duration of the calls in each hour ------------------------------------------------------ """
+        """
+        for key in frequenciesHours.keys():
+            hoursDurationsDict[key] /= frequenciesHours[key]
+
+        hours, durations = zip(*hoursDurationsDict.items())
+
+        y_pos = np.arange(len(list(hours)))
+        plt.bar(y_pos, durations, align='center', alpha=0.5)
+
+        plt.xticks(y_pos, hours)
+        plt.title("Duration of the Calls in Each Hour (average)")
+        plt.ylabel("Duration of the Calls (in minutes)")
+        plt.xlabel("Hours")
+        plt.grid(True)
+        plt.show()
+        """
+
+        """ -----------------------------------  Call Activity (number of calls) in each month  ------------------------------------------------------------ """
+        """
+        months, frequencies = zip(*monthCallNumber.items())
+
+        y_pos = np.arange(len(list(months)))
+        plt.bar(y_pos, frequencies, align='center', alpha=0.5)
+
+        plt.xticks(y_pos, months)
+        plt.title("Number of Calls Made in Each Month")
+        plt.ylabel("Number of Calls")
+        plt.xlabel("Months")
+        plt.grid(True)
+        plt.show()
+        """
+
+        """ -----------------------------------  Call Activity (number of calls) in each weekday (on average)  ------------------------------------------------------------ """
+        """
+        for key in frequenciesWeekdays.keys():
+            weekdayCallNumber[key] /= frequenciesWeekdays[key]
+
+
+        weekday, frequencies = zip(*weekdayCallNumber.items())
+
+        y_pos = np.arange(len(list(weekday)))
+        plt.bar(y_pos, frequencies, align='center', alpha=0.5)
+
+        plt.xticks(y_pos, weekday)
+        plt.title("Number of Calls Made in Each Weekday (on average)")
+        plt.ylabel("Number of Calls")
+        plt.xlabel("Weekday")
+        plt.grid(True)
+        plt.show()
+        """
+
+        """ -----------------------------------  Call Activity (number of calls) in each day throughout the year  ------------------------------------------------------------ """
+        """
+        dates, frequencies = zip(*dateCallNumber.items())
+
+        y_pos = np.arange(len(list(dates)))
+        plt.bar(y_pos, frequencies, align='center', alpha=0.5)
+
+        plt.xticks(y_pos, dates)
+        plt.title("Number of Calls in Each Day")
+        plt.ylabel("Number of Calls in Each Day")
+        plt.xlabel("Days")
+        plt.grid(True)
+        plt.show()
+        """
+
+        """ -----------------------------------  Call Activity (number of calls) in each hour  ------------------------------------------------------------ """
+        """
+        for key in frequenciesHours.keys():
+            hoursCallNumber[key] /= frequenciesHours[key]
+
+        hours, frequencies = zip(*hoursCallNumber.items())
+
+        y_pos = np.arange(len(list(hours)))
+        plt.bar(y_pos, frequencies, align='center', alpha=0.5)
+
+        plt.xticks(y_pos, hours)
+        plt.title("Number of Calls in Each Hour ( on average)")
+        plt.ylabel("Number of Calls in Each Hour")
+        plt.xlabel("Hours")
+        plt.grid(True)
+        plt.show()
+        """
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
         """------  number of different visited cells (only calls) x number of subjects throughout the year ------ """
 
         """
         numberDifferentPlacesByNumberOfUsers = collections.Counter(numberDifferentPlacesByUser.values()).most_common()
-        numberDifferentPlaces, NumberOfUsersDifferentPlaces = zip(*numberDifferentPlacesByNumberOfUsers.items())
+        numberDifferentPlaces, NumberOfUsersDifferentPlaces = zip(*numberDifferentPlacesByNumberOfUsers)
         
         fig = plt.figure()
         ax = plt.axes()
