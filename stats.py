@@ -11,6 +11,7 @@ import psycopg2
 import configparser
 from collections import defaultdict
 import datetime
+import operator
 import collections
 import matplotlib.pyplot as plt
 import pandas as pd
@@ -166,17 +167,22 @@ def connect():
         allDateIDs = parseDBColumns(fetched, 4, int)
         allDurations = parseDBColumns(fetched, 5, int)
 
+        zipped = list(zip(allOriginatingIDs, allDateIDs, allOriginatingCellIDs))
+        zipped = sorted(zipped, key=operator.itemgetter(0, 1))
+
         """Constructing the necessary Dictionaries"""
         numberDifferentPlacesByUser = defaultdict(int)
         numberUsersByWeekday = defaultdict(int)
         numberUsersByHour = defaultdict(int)
-        terminatingCellIDsByUser = defaultdict(list)
-        originatingCellIDsByUser = defaultdict(list)
+
         differentPlacesByUser = defaultdict(list)
+
+        originatingCellIDsByUser = defaultdict(list)
         cellIDsPairsByUser = defaultdict(list)
         originatingIDsByMonths = defaultdict(list)
-        frequenciesWeekdays = defaultdict(int)
         originatingIDsByDate = defaultdict(list)
+
+        frequenciesWeekdays = defaultdict(int)
         frequenciesHours = defaultdict(int)
 
         temp = defaultdict(list)
@@ -247,10 +253,64 @@ def connect():
                 temp2[hour] = []
 
 
-
             if allOriginatingCellIDs[index] not in differentPlacesByUser[val]:
                 numberDifferentPlacesByUser[val] += 1
                 differentPlacesByUser[val].append(allOriginatingCellIDs[index])
+
+
+        numberDifferentPlacesByMonth = defaultdict(int)
+        numberDifferentPlacesByWeekday = defaultdict(int)
+        numberDifferentPlacesByHour = defaultdict(int)
+        differentPlacesByHourByUser = defaultdict(dict)
+        differentPlacesByMonthByUser = defaultdict(dict)
+        differentPlacesByWeekdayByUser = defaultdict(dict)
+
+        previousUser = ""
+        for i in set(allOriginatingIDs):
+            differentPlacesByMonthByUser[i] = defaultdict(list)
+            differentPlacesByWeekdayByUser[i] = defaultdict(list)
+            differentPlacesByHourByUser[i] = defaultdict(list)
+
+        for tuple in zipped:
+
+            user = tuple[0]
+            month = getExactTime(tuple[1], "nameMonth")
+            weekday = getExactTime(tuple[1], "weekday")
+            hour = getExactTime(tuple[1], "hour")
+
+            place = tuple[2]
+
+            if place not in differentPlacesByMonthByUser[user][month]:
+                differentPlacesByMonthByUser[user][month].append(place)
+                numberDifferentPlacesByMonth[month] += 1
+
+            if place not in differentPlacesByWeekdayByUser[user][weekday]:
+                differentPlacesByWeekdayByUser[user][weekday].append(place)
+                numberDifferentPlacesByWeekday[weekday] += 1
+
+            if place not in differentPlacesByHourByUser[user][hour]:
+                differentPlacesByHourByUser[user][hour].append(place)
+                numberDifferentPlacesByHour[hour] += 1
+
+
+            if previousUser != user:
+                for i in numberDifferentPlacesByWeekday.keys():
+                    numberDifferentPlacesByWeekday[i] /= frequenciesWeekdays[i]
+                for i in numberDifferentPlacesByHour.keys():
+                    numberDifferentPlacesByHour[i] /= frequenciesHours[i]
+
+            previousUser = user
+
+
+        for i in numberDifferentPlacesByMonth.keys():
+            numberDifferentPlacesByMonth[i] /= len(set(allOriginatingIDs))
+
+        for i in numberDifferentPlacesByWeekday.keys():
+            numberDifferentPlacesByWeekday[i] /= len(set(allOriginatingIDs))
+
+        for i in numberDifferentPlacesByHour.keys():
+            numberDifferentPlacesByHour[i] /= len(set(allOriginatingIDs))
+
 
         """ --------------------------------  calls activity (calls) x duration of the calls throughout the year ------------------------------- """
         """
@@ -507,20 +567,6 @@ def connect():
         plt.show()
         """
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
         """------  number of different visited cells (only calls) x number of subjects throughout the year ------ """
 
         """
@@ -533,6 +579,53 @@ def connect():
         plt.xlabel("Number of Users")
         plt.ylabel("Number of Different Visited Places")
         ax.plot(NumberOfUsersDifferentPlaces, numberDifferentPlaces,'ro')
+        plt.grid(True)
+        plt.show()
+        """
+
+        """----------------------------------  Different Visited Places By Each User on Average in Each Month ------------------------------------------------------ """
+        """
+        months, averageDifferentPlaces = zip(*numberDifferentPlacesByMonth.items())
+
+        y_pos = np.arange(len(list(months)))
+        plt.bar(y_pos, averageDifferentPlaces, align='center', alpha=0.5)
+
+        plt.xticks(y_pos, months)
+        plt.title("Different Visited Places By Each User on Average in Each Month")
+        plt.ylabel("Different Visited Places By Each User on Average")
+        plt.xlabel("Months")
+        plt.grid(True)
+        plt.show()
+        """
+
+        """------  Different Visited Places By Each User on Average in Each Weekday (on average) ------ """
+        """
+        weekdays, averageDifferentPlaces = zip(*numberDifferentPlacesByWeekday.items())
+
+        y_pos = np.arange(len(list(weekdays)))
+        plt.bar(y_pos, averageDifferentPlaces, align='center', alpha=0.5)
+
+        plt.xticks(y_pos, weekdays)
+        plt.title("Different Visited Places By Each User on Average in Each Weekday")
+        plt.ylabel("Different Visited Places By Each User on Average")
+        plt.xlabel("Weekday")
+        plt.grid(True)
+        plt.show()
+        """
+
+        """------  Different Visited Places By Each User on Average in Each Hour (on average) ------ """
+        """
+        differentPlacesByHour = sorted(numberDifferentPlacesByHour.items())
+
+        hours, averageDifferentPlaces = zip(*differentPlacesByHour)
+
+        y_pos = np.arange(len(list(hours)))
+        plt.bar(y_pos, averageDifferentPlaces, align='center', alpha=0.5)
+
+        plt.xticks(y_pos, hours)
+        plt.title("Different Visited Places By Each User on Average in Each Hour")
+        plt.ylabel("Different Visited Places By Each User on Average")
+        plt.xlabel("Hour")
         plt.grid(True)
         plt.show()
         """
@@ -562,6 +655,16 @@ def connect():
         plt.grid(True)
         plt.show()
         """
+
+
+
+
+
+
+
+
+
+
 
         """Average Distance between receivers and callers throughout the year"""
         """
@@ -589,30 +692,6 @@ def connect():
         plt.show()
         """
 
-        """ Range of Distances that cover all the different visited places (only people who call) x number of subjects throughout the year (cuidado que by year nao faz muito sentido)"""
-        """
-        distanceTravelledByUser = defaultdict(float)
-
-        for user, differentPlaces in differentPlacesByUser.items():
-
-            for index in range(len(differentPlaces)):
-                if index >= 1:
-                    distanceTravelledByUser[user] += distanceInKmBetweenEarthCoordinates(coordsByCellIDs[differentPlaces[index-1]][0], coordsByCellIDs[differentPlaces[index-1]][1], coordsByCellIDs[differentPlaces[index]][0], coordsByCellIDs[differentPlaces[index]][1])
-                else:
-                    distanceTravelledByUser[user] += 0
-
-        classes = [0, 0.000001, 5, 10, 20, 50, 100, 500, 1000]
-        classNames = ["[0]", "]0 to 5]",  "]5 to 10]", "]10 to 20]", "]20 to 50]", "]100 to 500]", "]500, 1000]"]
-        out = pd.cut(distanceTravelledByUser.values(), bins=classes, include_lowest=True)
-        ax = out.value_counts().plot.bar(rot=0, color="g",  figsize=(10, 10))
-        ax.set_xticklabels(classNames)
-
-        plt.title("Range of Travells Distance")
-        plt.ylabel("Number of Users")
-        plt.xlabel("Range of Travells Distance")
-        plt.grid(True)
-        plt.show()
-        """
 
 
         # close the communication with the PostgreSQL
