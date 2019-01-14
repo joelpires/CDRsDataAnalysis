@@ -264,6 +264,10 @@ def connect():
         differentPlacesByHourByUser = defaultdict(dict)
         differentPlacesByMonthByUser = defaultdict(dict)
         differentPlacesByWeekdayByUser = defaultdict(dict)
+        usersByMonth = defaultdict(list)
+        usersByWeekday = defaultdict(list)
+        usersByHour = defaultdict(list)
+
 
         previousUser = ""
         for i in set(allOriginatingIDs):
@@ -277,8 +281,16 @@ def connect():
             month = getExactTime(tuple[1], "nameMonth")
             weekday = getExactTime(tuple[1], "weekday")
             hour = getExactTime(tuple[1], "hour")
-
             place = tuple[2]
+
+            if user not in usersByMonth[month]:
+                usersByMonth[month].append(user)
+
+            if user not in usersByWeekday[weekday]:
+                usersByWeekday[weekday].append(user)
+
+            if user not in usersByHour[hour]:
+                usersByHour[hour].append(user)
 
             if place not in differentPlacesByMonthByUser[user][month]:
                 differentPlacesByMonthByUser[user][month].append(place)
@@ -303,13 +315,13 @@ def connect():
 
 
         for i in numberDifferentPlacesByMonth.keys():
-            numberDifferentPlacesByMonth[i] /= len(set(allOriginatingIDs))
+            numberDifferentPlacesByMonth[i] /= len(usersByMonth[i])
 
         for i in numberDifferentPlacesByWeekday.keys():
-            numberDifferentPlacesByWeekday[i] /= len(set(allOriginatingIDs))
+            numberDifferentPlacesByWeekday[i] /= len(usersByWeekday[i])
 
         for i in numberDifferentPlacesByHour.keys():
-            numberDifferentPlacesByHour[i] /= len(set(allOriginatingIDs))
+            numberDifferentPlacesByHour[i] /= len(usersByHour[i])
 
 
         """ --------------------------------  calls activity (calls) x duration of the calls throughout the year ------------------------------- """
@@ -656,15 +668,100 @@ def connect():
         plt.show()
         """
 
+        """----------------------------------- Range of Distances of all the different visited places By the Users on Average in each Month --------------------------------------------------"""
+        """
+        distanceTravelledByMonth = defaultdict(float)
 
+        for user, val in differentPlacesByMonthByUser.items():
+            for month, val2 in differentPlacesByMonthByUser[user].items():
+                for index, val3 in enumerate(differentPlacesByMonthByUser[user][month]):
+                    differentPlaces = differentPlacesByMonthByUser[user][month]
+                    if index >= 1:
+                        distanceTravelledByMonth[month] += distanceInKmBetweenEarthCoordinates(coordsByCellIDs[differentPlaces[index-1]][0], coordsByCellIDs[differentPlaces[index-1]][1], coordsByCellIDs[differentPlaces[index]][0], coordsByCellIDs[differentPlaces[index]][1])
+                    else:
+                        distanceTravelledByMonth[month] += 0
 
+        for i in distanceTravelledByMonth.keys():
+            distanceTravelledByMonth[i] /= len(usersByMonth[i])
 
+        months, averageDistanceTravelled = zip(*distanceTravelledByMonth.items())
 
+        y_pos = np.arange(len(list(months)))
+        plt.bar(y_pos, averageDistanceTravelled, align='center', alpha=0.5)
 
+        plt.xticks(y_pos, months)
+        plt.title("Range of Distances Travelled By Each user on Average in Each Month")
+        plt.ylabel("Range of Distances Travelled By Each user on Average (in Kms)")
+        plt.xlabel("Months")
+        plt.grid(True)
+        plt.show()
+        """
 
+        """----------------------------------- Range of Distances of all the different visited places By Each user on Average in each Hour --------------------------------------------------"""
+        """
+        distanceTravelledByHour = defaultdict(float)
 
+        for user, val in differentPlacesByHourByUser.items():
+            for hour, val2 in differentPlacesByHourByUser[user].items():
+                for index, val3 in enumerate(differentPlacesByHourByUser[user][hour]):
+                    differentPlaces = differentPlacesByHourByUser[user][hour]
+                    if index >= 1:
+                        distanceTravelledByHour[hour] += distanceInKmBetweenEarthCoordinates(coordsByCellIDs[differentPlaces[index-1]][0], coordsByCellIDs[differentPlaces[index-1]][1], coordsByCellIDs[differentPlaces[index]][0], coordsByCellIDs[differentPlaces[index]][1])
+                    else:
+                        distanceTravelledByHour[hour] += 0
 
+            for i in distanceTravelledByHour.keys():
+                distanceTravelledByHour[i] /= frequenciesHours[i]
 
+        for i in distanceTravelledByHour.keys():
+            distanceTravelledByHour[i] /= len(usersByHour[i])
+
+        distanceTravelledByHour = sorted(distanceTravelledByHour.items())
+        hours, averageDistanceTravelled = zip(*distanceTravelledByHour)
+
+        y_pos = np.arange(len(list(hours)))
+        plt.bar(y_pos, averageDistanceTravelled, align='center', alpha=0.5)
+
+        plt.xticks(y_pos, hours)
+        plt.title("Range of Distances Travelled By Each user on Average in Each Hour")
+        plt.ylabel("Range of Distances Travelled By Each user on Average (in Kms)")
+        plt.xlabel("Hours")
+        plt.grid(True)
+        plt.show()
+        """
+
+        """----------------------------------- Range of Distances of all the different visited places By Each user on Average in each Weekday --------------------------------------------------"""
+        """
+        distanceTravelledByWeekday = defaultdict(float)
+
+        for user, val in differentPlacesByWeekdayByUser.items():
+            for weekday, val2 in differentPlacesByWeekdayByUser[user].items():
+                for index, val3 in enumerate(differentPlacesByWeekdayByUser[user][weekday]):
+                    differentPlaces = differentPlacesByWeekdayByUser[user][weekday]
+                    if index >= 1:
+                        distanceTravelledByWeekday[weekday] += distanceInKmBetweenEarthCoordinates(coordsByCellIDs[differentPlaces[index-1]][0], coordsByCellIDs[differentPlaces[index-1]][1], coordsByCellIDs[differentPlaces[index]][0], coordsByCellIDs[differentPlaces[index]][1])
+                    else:
+                        distanceTravelledByWeekday[weekday] += 0
+
+            for i in distanceTravelledByWeekday.keys():
+                distanceTravelledByWeekday[i] /= frequenciesWeekdays[i]
+
+        for i in distanceTravelledByWeekday.keys():
+            distanceTravelledByWeekday[i] /= len(usersByWeekday[i])
+
+        distanceTravelledByWeekday = sorted(distanceTravelledByWeekday.items())
+        weekdays, averageDistanceTravelled = zip(*distanceTravelledByWeekday)
+
+        y_pos = np.arange(len(list(weekdays)))
+        plt.bar(y_pos, averageDistanceTravelled, align='center', alpha=0.5)
+
+        plt.xticks(y_pos, weekdays)
+        plt.title("Range of Distances Travelled By Each user on Average in Each Hour")
+        plt.ylabel("Range of Distances Travelled By Each user on Average (in Kms)")
+        plt.xlabel("Weekdays")
+        plt.grid(True)
+        plt.show()
+        """
 
         """Average Distance between receivers and callers throughout the year"""
         """
