@@ -168,7 +168,7 @@ def connect():
         for index, val in enumerate(cellIDs):
             coordsByCellIDs[val] = [cellIDsLats[index], cellIDsLons[index]]
 
-        cur.execute('SELECT originating_id, originating_cell_id, terminating_id, terminating_cell_id, date_id, duration_amt FROM public.call_fct WHERE duration_amt > 0 ORDER BY date_id LIMIT 10000')
+        cur.execute('SELECT originating_id, originating_cell_id, terminating_id, terminating_cell_id, date_id, duration_amt FROM public.call_fct WHERE duration_amt > 0 ORDER BY date_id')
 
         fetched = cur.fetchall()
 
@@ -338,7 +338,7 @@ def connect():
 
 
         """ --------------------------------  calls activity (calls) x duration of the calls throughout the year ------------------------------- """
-        """
+
         durationsMinutes = [x / 60 for x in allDurations]
         frequenciesOfCallsByDuration = dict(collections.Counter(durationsMinutes))
         differentDurations, numberOfCalls = zip(*frequenciesOfCallsByDuration.items())
@@ -375,11 +375,11 @@ def connect():
         print(str(differentDurations[indexMinCalls]) + " minutes was the duration recorded in the less amount of calls (" + str(minNumberCalls) + ")")
         print(str(differentDurations[indexMaxCalls]) + " minutes was the duration recorded in the most amount of calls (" + str(maxNumberCalls) + ")")
         print("-------------------------------------------------------------------------------------------------------------------------")
-        """
+
 
 
         """ --------------------------------  number of different active users  (calls) x calls activity throughout the year ------------------------------- """
-        """
+
         frequenciesOfCallsByUser = dict(collections.Counter(allOriginatingIDs))
         numberOfCallsByNumberOfUsers = collections.Counter(frequenciesOfCallsByUser.values()).most_common()
         numberOfCalls, NumberOfUsersCalls = zip(*numberOfCallsByNumberOfUsers)
@@ -415,10 +415,10 @@ def connect():
         print("There are " + str(NumberOfUsersCalls[indexMaxCalls]) + " different users that made " + str(maxNumberCalls) + " calls troughout the year - the highest number of calls registered.")
 
         print("-------------------------------------------------------------------------------------------------------------------------")
-        """
+
 
         """ -----------------------------------  number of different active users in each month  ------------------------------------------------------------ """
-        """
+
         months = []
         frequencies = []
         for key, value in originatingIDsByMonths.items():
@@ -427,10 +427,10 @@ def connect():
 
         freq_series = pd.Series(frequencies)
 
-        ax = freq_series.plot(kind='bar')
-        ax.set_title('Number of Active Users in Each Month')
-        ax.set_xlabel('Months')
-        ax.set_ylabel('Number of Active Users')
+        ax = freq_series.plot(kind='bar', figsize=(30, 20), fontsize=25)
+        ax.set_title('Number of Active Users in Each Month', fontsize=40)
+        ax.set_xlabel('Months', fontsize=30)
+        ax.set_ylabel('Number of Active Users', fontsize=30)
         ax.set_xticklabels(months, rotation=0)
         ax.margins(y=0.2, tight=True)
         plt.grid(True)
@@ -438,7 +438,7 @@ def connect():
 
         for rect, label in zip(rects, frequencies):
             height = rect.get_height()
-            ax.text(rect.get_x() + rect.get_width() / 2, height, label, ha='center', va='bottom')
+            ax.text(rect.get_x() + rect.get_width() / 2, height, label, ha='center', va='bottom', fontsize=19)
 
         plt.show()
         print("-------------------- STATISTICS: number of different active users in each month ------------------------")
@@ -452,10 +452,10 @@ def connect():
         print("The month with less active users (" + str(minUsers) + ") was: " + str(months[indexMinMonth]))
         print("The month with most active users (" + str(maxUsers) + ") was: " + str(months[indexMaxMonth]))
         print("-------------------------------------------------------------------------------------------------------------------------")
-        """
+
 
         """ -------------------------------------  number of different active users in each weekday (on average) -------------------------------------------- """
-        """
+
         for key in frequenciesWeekdays.keys():
             numberUsersByWeekday[key] /= frequenciesWeekdays[key]
 
@@ -465,10 +465,10 @@ def connect():
 
         freq_series = pd.Series(frequencies)
 
-        ax = freq_series.plot(kind='bar', color='r')
-        ax.set_title('Number of Active Users in Each Weekday (on Average)')
-        ax.set_xlabel('Weekday')
-        ax.set_ylabel('Number of Active Users')
+        ax = freq_series.plot(kind='bar', color='r', figsize=(30, 20), fontsize=25)
+        ax.set_title('Number of Active Users in Each Weekday (on Average)', fontsize=40)
+        ax.set_xlabel('Weekday', fontsize=30)
+        ax.set_ylabel('Number of Active Users', fontsize=30)
         ax.set_xticklabels(weekdays, rotation=0)
         ax.margins(y=0.2, tight=True)
         plt.grid(True)
@@ -476,7 +476,7 @@ def connect():
 
         for rect, label in zip(rects, frequencies):
             height = rect.get_height()
-            ax.text(rect.get_x() + rect.get_width() / 2, height, int(label), ha='center', va='bottom')
+            ax.text(rect.get_x() + rect.get_width() / 2, height, int(label), ha='center', va='bottom', fontsize=19)
 
         plt.show()
 
@@ -488,10 +488,10 @@ def connect():
         print("The Weekday with less active users on average (" + str(int(minUsers)) + ") was: " + str(weekdays[indexMinWeekday]))
         print("The Weekday with most active users on average (" + str(int(maxUsers)) + ") was: " + str(weekdays[indexMaxWeekday]))
         print("-------------------------------------------------------------------------------------------------------------------------")
-        """
+
 
         """ --------------------------------------------  number of different active users in each day throughout the year ---------------------------------- """
-        """
+
         for key in originatingIDsByDate.keys():
             originatingIDsByDate[key] = len(originatingIDsByDate[key])
 
@@ -499,10 +499,10 @@ def connect():
 
         freq_series = pd.Series(frequencies)
 
-        ax = freq_series.plot(kind='bar', color='g')
-        ax.set_title('Number of Active Users in Each Day')
-        ax.set_xlabel('Day')
-        ax.set_ylabel('Number of Active Users')
+        ax = freq_series.plot(kind='bar', color='g', figsize=(30, 20), fontsize=25)
+        ax.set_title('Number of Active Users in Each Day', fontsize=40)
+        ax.set_xlabel('Day', fontsize=30)
+        ax.set_ylabel('Number of Active Users', fontsize=30)
         ax.set_xticklabels(dates, rotation=0)
         ax.margins(y=0.2, tight=True)
         plt.grid(True)
@@ -510,7 +510,7 @@ def connect():
 
         for rect, label in zip(rects, frequencies):
             height = rect.get_height()
-            ax.text(rect.get_x() + rect.get_width() / 2, height, int(label), ha='center', va='bottom')
+            ax.text(rect.get_x() + rect.get_width() / 2, height, int(label), ha='center', va='bottom', fontsize=19)
 
         plt.show()
 
@@ -525,9 +525,9 @@ def connect():
         print("The Date with less active users on average (" + str(int(minUsers)) + ") was: " + str(dates[indexMinDate]))
         print("The Date with most active users on average (" + str(int(maxUsers)) + ") was: " + str(dates[indexMaxDate]))
         print("-------------------------------------------------------------------------------------------------------------------------")
-        """
+
         """ -----------------------------------------------  number of different active users in each hour  (on average) ------------------------------------ """
-        """
+
         for key in frequenciesHours.keys():
             numberUsersByHour[key] /= frequenciesHours[key]
 
@@ -538,10 +538,10 @@ def connect():
 
         freq_series = pd.Series(frequencies)
 
-        ax = freq_series.plot(kind='bar', color='y')
-        ax.set_title('Number of Active Users in Each Hour (on Average)')
-        ax.set_xlabel('Hour')
-        ax.set_ylabel('Number of Active Users')
+        ax = freq_series.plot(kind='bar', color='y', figsize=(30, 20), fontsize=25)
+        ax.set_title('Number of Active Users in Each Hour (on Average)', fontsize=40)
+        ax.set_xlabel('Hour', fontsize=30)
+        ax.set_ylabel('Number of Active Users', fontsize=30)
         ax.margins(y=0.2, tight=True)
         ax.set_xticklabels(hours, rotation=0)
         plt.grid(True)
@@ -549,7 +549,7 @@ def connect():
 
         for rect, label in zip(rects, frequencies):
             height = rect.get_height()
-            ax.text(rect.get_x() + rect.get_width() / 2, height, int(label), ha='center', va='bottom')
+            ax.text(rect.get_x() + rect.get_width() / 2, height, int(label), ha='center', va='bottom', fontsize=19)
 
         plt.show()
 
@@ -564,10 +564,10 @@ def connect():
         print("The Hour with less active users on average (" + str(int(minHours)) + ") was: " + str(hours[indexMinHour]))
         print("The Hour with most active users on average (" + str(int(maxHours)) + ") was: " + str(hours[indexMaxHour]))
         print("-------------------------------------------------------------------------------------------------------------------------")
-        """
+
 
         """ ----------------------------------------------- number of different active users (calls) x duration of the calls throughout the year ------------ """
-        """
+
         durationsByNumberOfUsers = collections.Counter(usersDurationsDict.values()).most_common()
         differentDurations, NumberOfUsersDurations = zip(*durationsByNumberOfUsers)
 
@@ -592,17 +592,17 @@ def connect():
         print("There are " + str(NumberOfUsersDurations[indexMinDuration]) + " users that spent " + str(minDuration) + " minutes on the phone throughout the year - the lowest number of minutes registered per user")
         print("There are " + str(NumberOfUsersDurations[indexMaxDuration]) + " users that spent " + str(maxDuration) + " minutes on the phone throughout the year - the highest number of minutes registered per user")
         print("-------------------------------------------------------------------------------------------------------------------------")
-        """
+
         """ ---------------------------------------------- duration of the calls in each month  ------------------------------------------------------------- """
-        """
+
         months, durations = zip(*monthDurationsDict.items())
 
         freq_series = pd.Series(durations)
 
-        ax = freq_series.plot(kind='bar', color='b')
-        ax.set_title('Duration of the Calls in Each Month')
-        ax.set_xlabel('Months')
-        ax.set_ylabel('Duration of the Calls (in minutes)')
+        ax = freq_series.plot(kind='bar', color='b', figsize=(30, 20), fontsize=25)
+        ax.set_title('Duration of the Calls in Each Month', fontsize=40)
+        ax.set_xlabel('Months', fontsize=30)
+        ax.set_ylabel('Duration of the Calls (in minutes)', fontsize=30)
         ax.margins(y=0.2, tight=True)
         ax.set_xticklabels(months, rotation=0)
         plt.grid(True)
@@ -610,7 +610,7 @@ def connect():
 
         for rect, label in zip(rects, durations):
             height = rect.get_height()
-            ax.text(rect.get_x() + rect.get_width() / 2, height, round(label, 2), ha='center', va='bottom')
+            ax.text(rect.get_x() + rect.get_width() / 2, height, round(label, 2), ha='center', va='bottom', fontsize=19)
 
         plt.show()
         print("-------------------- STATISTICS: duration of the calls in each month ------------------------")
@@ -624,9 +624,9 @@ def connect():
         print("The month with less duration of the calls (" + str(minDurations) + " minutes) was: " + str(months[indexMinMonth]))
         print("The month with more duration of the calls (" + str(maxDurations) + " minutes) was: " + str(months[indexMaxMonth]))
         print("-------------------------------------------------------------------------------------------------------------------------")
-        """
+
         """ --------------------------------------------  duration of the calls  in each weekday (on average) ----------------------------------------------- """
-        """
+
         for key in frequenciesWeekdays.keys():
             weekdaysDurationsDict[key] /= frequenciesWeekdays[key]
 
@@ -634,10 +634,10 @@ def connect():
 
         freq_series = pd.Series(durations)
 
-        ax = freq_series.plot(kind='bar', color='r')
-        ax.set_title('Duration of the Calls in Each Weekday (on average)')
-        ax.set_xlabel('Weekdays')
-        ax.set_ylabel('Duration of the Calls (in minutes)')
+        ax = freq_series.plot(kind='bar', color='r', figsize=(30, 20), fontsize=25)
+        ax.set_title('Duration of the Calls in Each Weekday (on average)', fontsize=40)
+        ax.set_xlabel('Weekdays', fontsize=30)
+        ax.set_ylabel('Duration of the Calls (in minutes)', fontsize=30)
         ax.margins(y=0.2, tight=True)
         ax.set_xticklabels(weekdays, rotation=0)
         plt.grid(True)
@@ -645,7 +645,7 @@ def connect():
 
         for rect, label in zip(rects, durations):
             height = rect.get_height()
-            ax.text(rect.get_x() + rect.get_width() / 2, height, round(label, 2), ha='center', va='bottom')
+            ax.text(rect.get_x() + rect.get_width() / 2, height, round(label, 2), ha='center', va='bottom', fontsize=19)
 
         plt.show()
 
@@ -657,18 +657,18 @@ def connect():
         print("The Weekday with less duration of the calls on Average (" + str(int(minUsers)) + " minutes) was: " + str(weekdays[indexMinWeekday]))
         print("The Weekday with more duration of the calls on Average (" + str(int(maxUsers)) + " minutes) was: " + str(weekdays[indexMaxWeekday]))
         print("-------------------------------------------------------------------------------------------------------------------------")
-        """
+
 
         """ --------------------------------------------  duration of the calls in each day throughout the year - --------------------------------- """
-        """
+
         dates, durations = zip(*dateDurationsDict.items())
 
         freq_series = pd.Series(durations)
 
-        ax = freq_series.plot(kind='bar', color='g')
-        ax.set_title('Duration of the Calls in Each Day')
-        ax.set_xlabel('Days')
-        ax.set_ylabel('Duration of the Calls (in minutes)')
+        ax = freq_series.plot(kind='bar', color='g', figsize=(30, 20), fontsize=25)
+        ax.set_title('Duration of the Calls in Each Day', fontsize=40)
+        ax.set_xlabel('Days', fontsize=30)
+        ax.set_ylabel('Duration of the Calls (in minutes)', fontsize=30)
         ax.margins(y=0.2, tight=True)
         ax.set_xticklabels(dates, rotation=0)
         plt.grid(True)
@@ -676,7 +676,7 @@ def connect():
 
         for rect, label in zip(rects, durations):
             height = rect.get_height()
-            ax.text(rect.get_x() + rect.get_width() / 2, height, round(label,2), ha='center', va='bottom')
+            ax.text(rect.get_x() + rect.get_width() / 2, height, round(label,2), ha='center', va='bottom', fontsize=19)
 
         plt.show()
 
@@ -691,10 +691,10 @@ def connect():
         print("The Day with less duration of the calls (" + str(int(minDurations)) + " minutes) was: " + str(dates[indexMinDate]))
         print("The Date with more duration of the calls (" + str(int(maxDurations)) + " minutes) was: " + str(dates[indexMaxDate]))
         print("-------------------------------------------------------------------------------------------------------------------------")
-        """
+
 
         """ --------------------------------------------  duration of the calls in each hour ------------------------------------------------------ """
-        """
+
         for key in frequenciesHours.keys():
             hoursDurationsDict[key] /= frequenciesHours[key]
 
@@ -702,18 +702,18 @@ def connect():
 
         freq_series = pd.Series(durations)
 
-        ax = freq_series.plot(kind='bar', color='y')
-        ax.set_title('Duration of the Calls in Each Hour (average)')
-        ax.set_xlabel('Hour')
-        ax.set_ylabel('Duration of the Calls (in minutes)')
+        ax = freq_series.plot(kind='bar', color='y', figsize=(30, 20), fontsize=25)
+        ax.set_title('Duration of the Calls in Each Hour (average)', fontsize=40)
+        ax.set_xlabel('Hour', fontsize=30)
+        ax.set_ylabel('Duration of the Calls (in minutes)', fontsize=30)
         ax.margins(y=0.2, tight=True)
-        ax.set_xticklabels(hours, rotation=0)
+        ax.set_xticklabels(hours, rotation=0, )
         plt.grid(True)
         rects = ax.patches
-
+        figure()
         for rect, label in zip(rects, durations):
             height = rect.get_height()
-            ax.text(rect.get_x() + rect.get_width() / 2, height, round(label,2), ha='center', va='bottom')
+            ax.text(rect.get_x() + rect.get_width() / 2, height, round(label,2), ha='center', va='bottom', fontsize=19)
 
         plt.show()
 
@@ -728,18 +728,18 @@ def connect():
         print("The Hour with less duration of the calls on Average (" + str(int(minHours)) + " minutes) was: " + str(hours[indexMinHour]))
         print("The Hour with more duration of the calls on Average (" + str(int(maxHours)) + " minutes) was: " + str(hours[indexMaxHour]))
         print("-------------------------------------------------------------------------------------------------------------------------")
-        """
+
 
         """ -----------------------------------  Call Activity (number of calls) in each month  ------------------------------------------------------------ """
-        """
+
         months, frequencies = zip(*monthCallNumber.items())
 
         freq_series = pd.Series(frequencies)
 
-        ax = freq_series.plot(kind='bar', color='b')
-        ax.set_title('Number of Calls Made in Each Month')
-        ax.set_xlabel('Months')
-        ax.set_ylabel('Number of Calls')
+        ax = freq_series.plot(kind='bar', color='b', figsize=(30, 20), fontsize=25)
+        ax.set_title('Number of Calls Made in Each Month', fontsize=40)
+        ax.set_xlabel('Months', fontsize=30)
+        ax.set_ylabel('Number of Calls', fontsize=30)
         ax.margins(y=0.2, tight=True)
         ax.set_xticklabels(months, rotation=0)
         plt.grid(True)
@@ -747,7 +747,7 @@ def connect():
 
         for rect, label in zip(rects, frequencies):
             height = rect.get_height()
-            ax.text(rect.get_x() + rect.get_width() / 2, height, int(label), ha='center', va='bottom')
+            ax.text(rect.get_x() + rect.get_width() / 2, height, int(label), ha='center', va='bottom', fontsize=19)
 
         plt.show()
         print("-------------------- Call Activity (number of calls) in each month ------------------------")
@@ -761,10 +761,10 @@ def connect():
         print("The month with less number of calls (" + str(minCalls) + ") was: " + str(months[indexMinMonth]))
         print("The month with more number of calls (" + str(maxCalls) + ") was: " + str(months[indexMaxMonth]))
         print("-------------------------------------------------------------------------------------------------------------------------")
-        """
+
 
         """ -----------------------------------  Call Activity (number of calls) in each weekday (on average)  ------------------------------------------------------------ """
-        """
+
         for key in frequenciesWeekdays.keys():
             weekdayCallNumber[key] /= frequenciesWeekdays[key]
 
@@ -772,18 +772,18 @@ def connect():
 
         freq_series = pd.Series(frequencies)
 
-        ax = freq_series.plot(kind='bar', color='r')
+        ax = freq_series.plot(kind='bar', color='r', figsize=(30, 20), fontsize=25)
         plt.margins(y=0.2, tight=True)
-        ax.set_title('Number of Calls Made in Each Weekday (on average)')
-        ax.set_xlabel('Weekdays')
-        ax.set_ylabel('Number of Calls')
+        ax.set_title('Number of Calls Made in Each Weekday (on average)', fontsize=40)
+        ax.set_xlabel('Weekdays', fontsize=30)
+        ax.set_ylabel('Number of Calls', fontsize=30)
         ax.set_xticklabels(weekdays, rotation=0)
         plt.grid(True)
         rects = ax.patches
 
         for rect, label in zip(rects, frequencies):
             height = rect.get_height()
-            ax.text(rect.get_x() + rect.get_width() / 2, height, int(label), ha='center', va='bottom')
+            ax.text(rect.get_x() + rect.get_width() / 2, height, int(label), ha='center', va='bottom', fontsize=19)
 
         plt.show()
 
@@ -795,18 +795,18 @@ def connect():
         print("The Weekday with less number of calls on Average (" + str(int(minCalls)) + ") was: " + str(weekdays[indexMinWeekday]))
         print("The Weekday with more number of calls on Average (" + str(int(maxCalls)) + ") was: " + str(weekdays[indexMaxWeekday]))
         print("-------------------------------------------------------------------------------------------------------------------------")
-        """
+
 
         """ -----------------------------------  Call Activity (number of calls) in each day throughout the year  ------------------------------------------------------------ """
-        """
+
         dates, frequencies = zip(*dateCallNumber.items())
 
         freq_series = pd.Series(frequencies)
 
-        ax = freq_series.plot(kind='bar', color='g')
-        ax.set_title('Number of Calls in Each Day')
-        ax.set_xlabel('Days')
-        ax.set_ylabel('Number of Calls in Each Day')
+        ax = freq_series.plot(kind='bar', color='g', figsize=(30, 20), fontsize=25)
+        ax.set_title('Number of Calls in Each Day', fontsize=40)
+        ax.set_xlabel('Days', fontsize=30)
+        ax.set_ylabel('Number of Calls in Each Day', fontsize=30)
         ax.margins(y=0.2, tight=True)
         ax.set_xticklabels(dates, rotation=0)
         plt.grid(True)
@@ -814,7 +814,7 @@ def connect():
 
         for rect, label in zip(rects, frequencies):
             height = rect.get_height()
-            ax.text(rect.get_x() + rect.get_width() / 2, height, int(label), ha='center', va='bottom')
+            ax.text(rect.get_x() + rect.get_width() / 2, height, int(label), ha='center', va='bottom', fontsize=19)
 
         plt.show()
 
@@ -829,9 +829,9 @@ def connect():
         print("The Day with less number of calls (" + str(int(minCalls)) + ") was: " + str(dates[indexMinDate]))
         print("The Date with more duration of the calls (" + str(int(maxCalls)) + ") was: " + str(dates[indexMaxDate]))
         print("-------------------------------------------------------------------------------------------------------------------------")
-        """
+
         """ -----------------------------------  Call Activity (number of calls) in each hour  ------------------------------------------------------------ """
-        """
+
         for key in frequenciesHours.keys():
             hoursCallNumber[key] /= frequenciesHours[key]
 
@@ -839,10 +839,10 @@ def connect():
 
         freq_series = pd.Series(frequencies)
 
-        ax = freq_series.plot(kind='bar', color='y')
-        ax.set_title('Number of Calls in Each Hour ( on average)')
-        ax.set_xlabel('Hour')
-        ax.set_ylabel('Number of Calls in Each Hour')
+        ax = freq_series.plot(kind='bar', color='y', figsize=(30, 20), fontsize=25)
+        ax.set_title('Number of Calls in Each Hour ( on average)', fontsize=40)
+        ax.set_xlabel('Hour', fontsize=30)
+        ax.set_ylabel('Number of Calls in Each Hour', fontsize=30)
         ax.set_xticklabels(hours, rotation=0)
         ax.margins(y=0.2, tight=True)
         plt.grid(True)
@@ -850,7 +850,7 @@ def connect():
 
         for rect, label in zip(rects, frequencies):
             height = rect.get_height()
-            ax.text(rect.get_x() + rect.get_width() / 2, height, int(label), ha='center', va='bottom')
+            ax.text(rect.get_x() + rect.get_width() / 2, height, int(label), ha='center', va='bottom', fontsize=19)
 
         plt.show()
 
@@ -865,10 +865,10 @@ def connect():
         print("The Hour with less number of calls (" + str(int(minHours)) + ") was: " + str(hours[indexMinHour]))
         print("The Hour with more number of calls (" + str(int(maxHours)) + ") was: " + str(hours[indexMaxHour]))
         print("-------------------------------------------------------------------------------------------------------------------------")
-        """
+
 
         """------  number of different visited cells (only calls) x number of subjects throughout the year ------ """
-        """
+
         numberDifferentPlacesByNumberOfUsers = collections.Counter(numberDifferentPlacesByUser.values()).most_common()
         numberDifferentPlaces, NumberOfUsersDifferentPlaces = zip(*numberDifferentPlacesByNumberOfUsers)
         
@@ -892,21 +892,21 @@ def connect():
         indexMinNumberPlaces = numberDifferentPlaces.index(minNumberPlaces)
         indexMaxNumberPlaces = numberDifferentPlaces.index(maxNumberPlaces)
 
-        print("There are " + str(NumberOfUsersDifferentPlaces[indexMinNumberPlaces]) + " users that travelled through " + str(minNumberPlaces) + " different places throughout the year - the highest number of different travelled places registered per user")
+        print("There are " + str(NumberOfUsersDifferentPlaces[indexMinNumberPlaces]) + " users that travelled through " + str(minNumberPlaces) + " different places throughout the year - the lowest number of different travelled places registered per user")
         print("There are " + str(NumberOfUsersDifferentPlaces[indexMaxNumberPlaces]) + " users that travelled through " + str(maxNumberPlaces) + " different places throughout the year - the highest number of different travelled places registered per user")
         print("-------------------------------------------------------------------------------------------------------------------------")
-        """
+
         """----------------------------------  Different Visited Places By Each User on Average in Each Month ------------------------------------------------------ """
-        """
+
         months, averageDifferentPlaces = zip(*numberDifferentPlacesByMonth.items())
 
         freq_series = pd.Series(averageDifferentPlaces)
 
 
-        ax = freq_series.plot(kind='bar', color='b')
-        ax.set_title('Different Visited Places By Each User on Average in Each Month')
-        ax.set_xlabel('Months')
-        ax.set_ylabel('Different Visited Places By Each User on Average')
+        ax = freq_series.plot(kind='bar', color='b', figsize=(30, 20), fontsize=25)
+        ax.set_title('Different Visited Places By Each User on Average in Each Month', fontsize=40)
+        ax.set_xlabel('Months', fontsize=30)
+        ax.set_ylabel('Different Visited Places By Each User on Average', fontsize=30)
         ax.set_xticklabels(months, rotation=0)
 
         plt.margins(y=0.2, tight=True)
@@ -915,7 +915,7 @@ def connect():
 
         for rect, label in zip(rects, averageDifferentPlaces):
             height = rect.get_height()
-            ax.text(rect.get_x() + rect.get_width() / 2, height, round(label,2), ha='center', va='bottom')
+            ax.text(rect.get_x() + rect.get_width() / 2, height, round(label,2), ha='center', va='bottom', fontsize=19)
 
         plt.show()
 
@@ -930,75 +930,141 @@ def connect():
         print("The month with less number of different visited places on average by each user (" + str(minDifferentPlaces) + ") was: " + str(months[indexMinMonth]))
         print("The month with more number of different visited places on average by each user (" + str(maxDifferentPlaces) + ") was: " + str(months[indexMaxMonth]))
         print("-------------------------------------------------------------------------------------------------------------------------")
-        """
+
 
         """------  Different Visited Places By Each User on Average in Each Weekday (on average) ------ """
 
         weekdays, averageDifferentPlaces = zip(*numberDifferentPlacesByWeekday.items())
 
-        y_pos = np.arange(len(list(weekdays)))
-        plt.bar(y_pos, averageDifferentPlaces, align='center', alpha=0.5)
+        freq_series = pd.Series(averageDifferentPlaces)
 
-        plt.xticks(y_pos, weekdays)
-        plt.title("Different Visited Places By Each User on Average in Each Weekday")
-        plt.ylabel("Different Visited Places By Each User on Average")
-        plt.xlabel("Weekday")
+        ax = freq_series.plot(kind='bar', color='r', figsize=(30, 20), fontsize=25)
+        plt.margins(y=0.2, tight=True)
+        ax.set_title('Different Visited Places By Each User on Average in Each Weekday', fontsize=40)
+        ax.set_xlabel('Weekdays', fontsize=30)
+        ax.set_ylabel('Different Visited Places By Each User on Average', fontsize=30)
+        ax.set_xticklabels(weekdays, rotation=0)
         plt.grid(True)
+        rects = ax.patches
+
+        for rect, label in zip(rects, averageDifferentPlaces):
+            height = rect.get_height()
+            ax.text(rect.get_x() + rect.get_width() / 2, height, round(label,2), ha='center', va='bottom', fontsize=19)
+
         plt.show()
 
+        print("-------------------- STATISTICS: Different Visited Places By Each User on Average in Each Weekday (on average) ------------------------")
+        minDifferentPlaces = np.min(averageDifferentPlaces)
+        maxDifferentPlaces = np.max(averageDifferentPlaces)
+        indexMinWeekday = averageDifferentPlaces.index(minDifferentPlaces)
+        indexMaxWeekday = averageDifferentPlaces.index(maxDifferentPlaces)
+        print("The Weekday with less number of different visited places on average by each user (" + str(int(minDifferentPlaces)) + ") was: " + str(weekdays[indexMinWeekday]))
+        print("The Weekday with more number of different visited places on average by each user (" + str(int(maxDifferentPlaces)) + ") was: " + str(weekdays[indexMaxWeekday]))
+        print("-------------------------------------------------------------------------------------------------------------------------")
 
         """------  Different Visited Places By Each User on Average in Each Hour (on average) ------ """
-        """
+
         differentPlacesByHour = sorted(numberDifferentPlacesByHour.items())
 
         hours, averageDifferentPlaces = zip(*differentPlacesByHour)
 
-        y_pos = np.arange(len(list(hours)))
-        plt.bar(y_pos, averageDifferentPlaces, align='center', alpha=0.5)
+        freq_series = pd.Series(averageDifferentPlaces)
 
-        plt.xticks(y_pos, hours)
-        plt.title("Different Visited Places By Each User on Average in Each Hour")
-        plt.ylabel("Different Visited Places By Each User on Average")
-        plt.xlabel("Hour")
+        ax = freq_series.plot(kind='bar', color='y', figsize=(30, 20), fontsize=25)
+        ax.set_title('Different Visited Places By Each User on Average in Each Hour', fontsize=40)
+        ax.set_xlabel('Hour', fontsize=30)
+        ax.set_ylabel('Different Visited Places By Each User on Average', fontsize=30)
+        ax.set_xticklabels(hours, rotation=0)
+        ax.margins(y=0.2, tight=True)
         plt.grid(True)
+        rects = ax.patches
+
+        for rect, label in zip(rects, averageDifferentPlaces):
+            height = rect.get_height()
+            ax.text(rect.get_x() + rect.get_width() / 2, height, round(label,2), ha='center', va='bottom', fontsize=19)
+
         plt.show()
 
+        print("-------------------- STATISTICS: Different Visited Places By Each User on Average in Each Hour (on average) ------------------------")
+        print("STATS OF DIFFERENT VISITED PLACES BY EACH USER ON AVERAGE PER HOUR:")
+        statistics = stats(averageDifferentPlaces)
+        print(statistics)
+        minHours = np.min(averageDifferentPlaces)
+        maxHours = np.max(averageDifferentPlaces)
+        indexMinHour = averageDifferentPlaces.index(minHours)
+        indexMaxHour = averageDifferentPlaces.index(maxHours)
+        print("The Hour with less number of different visited places on average by each user (" + str(int(minHours)) + ") was: " + str(hours[indexMinHour]))
+        print("The Hour with more number of different visited places on average by each user (" + str(int(maxHours)) + ") was: " + str(hours[indexMaxHour]))
+        print("-------------------------------------------------------------------------------------------------------------------------")
 
-        """
-        """ Range of Distances that cover all the different visited places (only people who call) x number of subjects throughout the year (cuidado que by year nao faz muito sentido)"""
-        """
+
+        """ Range of Distances that cover all the different visited places (only people who call) x number of subjects throughout the year """
+
         distanceTravelledByUser = defaultdict(float)
 
-        for user, differentPlaces in differentPlacesByUser.items():
+        plausibleDifferentPlacesByUser = defaultdict(list)
 
+        for user, differentPlaces in differentPlacesByUser.items():
+            for index in range(len(differentPlaces)):
+                if(len(coordsByCellIDs[differentPlaces[index]]) != 0):
+                    plausibleDifferentPlacesByUser[user].append(differentPlacesByUser[user][index])
+
+        for user, differentPlaces in plausibleDifferentPlacesByUser.items():
             for index in range(len(differentPlaces)):
                 if index >= 1:
                     distanceTravelledByUser[user] += distanceInKmBetweenEarthCoordinates(coordsByCellIDs[differentPlaces[index-1]][0], coordsByCellIDs[differentPlaces[index-1]][1], coordsByCellIDs[differentPlaces[index]][0], coordsByCellIDs[differentPlaces[index]][1])
                 else:
                     distanceTravelledByUser[user] += 0
 
-        classes = [0, 0.000001, 5, 10, 20, 50, 100, 500, 1000]
-        classNames = ["[0]", "]0 to 5]",  "]5 to 10]", "]10 to 20]", "]20 to 50]", "]100 to 500]", "]500, 1000]"]
-        out = pd.cut(distanceTravelledByUser.values(), bins=classes, include_lowest=True)
-        ax = out.value_counts().plot.bar(rot=0, color="g",  figsize=(10, 10))
+        classes = [0, 5, 25, 100, 500, 1250, 2500]
+        classNames = ["[0 to 5[",  "]5 to 25]", "]25 to 100]", "]100 to 500]", "]500, 1250]", "]1250, 2500]"]
+        out = pd.cut(list(distanceTravelledByUser.values()), bins=classes, include_lowest=True)
+        ax = out.value_counts().plot.bar(rot=0, color="g",  figsize=(30, 20), fontsize=25)
         ax.set_xticklabels(classNames)
+        ax.margins(y=0.2, tight=True)
+        plt.grid(True)
+        rects = ax.patches
 
-        plt.title("Range of Travells Distance")
-        plt.ylabel("Number of Users")
-        plt.xlabel("Range of Travells Distance")
+        values = []
+
+        allInfo = str(pd.Categorical.value_counts(out))
+        lines = allInfo.split("\n")
+
+        for i in range(len(lines)-1):
+            line = lines[i].split("]")
+            values.append(int(line[1].strip()))
+
+        for rect, label in zip(rects, values):
+            height = rect.get_height()
+            ax.text(rect.get_x() + rect.get_width() / 2, height, round(label, 2), ha='center', va='bottom', fontsize=19)
+
+
+        plt.title("Range of Travels Distance", fontsize=40)
+        plt.ylabel("Number of Users", fontsize=30)
+        plt.xlabel("Range of Travells Distance (in Kms)", fontsize=30)
         plt.grid(True)
         plt.show()
 
-        """
         """----------------------------------- Range of Distances of all the different visited places By the Users on Average in each Month --------------------------------------------------"""
-        """
+
         distanceTravelledByMonth = defaultdict(float)
 
-        for user, val in differentPlacesByMonthByUser.items():
-            for month, val2 in differentPlacesByMonthByUser[user].items():
-                for index, val3 in enumerate(differentPlacesByMonthByUser[user][month]):
-                    differentPlaces = differentPlacesByMonthByUser[user][month]
+        plausibleDifferentPlacesByMonthByUser = defaultdict(dict)
+
+        for i in set(allOriginatingIDs):
+            plausibleDifferentPlacesByMonthByUser[i] = defaultdict(list)
+
+        for user, dict1 in differentPlacesByMonthByUser.items():
+            for month, differentPlaces in dict1.items():
+                for place in differentPlaces:
+                    if (len(coordsByCellIDs[place]) != 0):
+                        plausibleDifferentPlacesByMonthByUser[user][month].append(place)
+
+        for user, dict1 in plausibleDifferentPlacesByMonthByUser.items():
+            for month, differentPlaces in dict1.items():
+                for index, place in enumerate(differentPlaces):
                     if index >= 1:
+
                         distanceTravelledByMonth[month] += distanceInKmBetweenEarthCoordinates(coordsByCellIDs[differentPlaces[index-1]][0], coordsByCellIDs[differentPlaces[index-1]][1], coordsByCellIDs[differentPlaces[index]][0], coordsByCellIDs[differentPlaces[index]][1])
                     else:
                         distanceTravelledByMonth[month] += 0
@@ -1008,64 +1074,124 @@ def connect():
 
         months, averageDistanceTravelled = zip(*distanceTravelledByMonth.items())
 
-        y_pos = np.arange(len(list(months)))
-        plt.bar(y_pos, averageDistanceTravelled, align='center', alpha=0.5)
 
-        plt.xticks(y_pos, months)
-        plt.title("Range of Distances Travelled By Each user on Average in Each Month")
-        plt.ylabel("Range of Distances Travelled By Each user on Average (in Kms)")
-        plt.xlabel("Months")
+        freq_series = pd.Series(averageDistanceTravelled)
+
+        ax = freq_series.plot(kind='bar', color='b', figsize=(30, 20), fontsize=25)
+        ax.set_title('Range of Distances Travelled By Each user on Average in Each Month' , fontsize=40)
+        ax.set_xlabel('Months', fontsize=30)
+        ax.set_ylabel('Range of Distances Travelled By Each user on Average (in Kms)', fontsize=30)
+        ax.set_xticklabels(months, rotation=0)
+        ax.margins(y=0.2, tight=True)
         plt.grid(True)
+        rects = ax.patches
+
+        for rect, label in zip(rects, averageDistanceTravelled):
+            height = rect.get_height()
+            ax.text(rect.get_x() + rect.get_width() / 2, height, round(label,2), ha='center', va='bottom', fontsize=19)
+
         plt.show()
 
-        """
+        print("-------------------- Range of Distances of all the different visited places By the Users on Average in each Month ------------------------")
+        print("STATS OF RANGE OF THE DIFFERENT VISITED PLACES BY EACH USER ON AVERAGE PER MONTH:")
+        statistics = stats(averageDistanceTravelled)
+        print(statistics)
+        minDistance = np.min(averageDistanceTravelled)
+        maxDistance = np.max(averageDistanceTravelled)
+        indexMinDistance = averageDistanceTravelled.index(minDistance)
+        indexMaxDistance = averageDistanceTravelled.index(maxDistance)
+        
+        print("The Month with a smaller range of travel on average by each user (" + str(minDistance) + " Kms) was: " + str(months[indexMinDistance]))
+        print("The Month with a bigger range of travel on average by each user (" + str(maxDistance) + " Kms) was: " + str(months[indexMaxDistance]))
+        print("-------------------------------------------------------------------------------------------------------------------------")
+
         """----------------------------------- Range of Distances of all the different visited places By Each user on Average in each Hour --------------------------------------------------"""
-        """
+
         distanceTravelledByHour = defaultdict(float)
 
-        for user, val in differentPlacesByHourByUser.items():
-            for hour, val2 in differentPlacesByHourByUser[user].items():
-                for index, val3 in enumerate(differentPlacesByHourByUser[user][hour]):
-                    differentPlaces = differentPlacesByHourByUser[user][hour]
-                    if index >= 1:
-                        distanceTravelledByHour[hour] += distanceInKmBetweenEarthCoordinates(coordsByCellIDs[differentPlaces[index-1]][0], coordsByCellIDs[differentPlaces[index-1]][1], coordsByCellIDs[differentPlaces[index]][0], coordsByCellIDs[differentPlaces[index]][1])
-                    else:
-                        distanceTravelledByHour[hour] += 0
+        plausibleDifferentPlacesByHourByUser = defaultdict(dict)
 
-            for i in distanceTravelledByHour.keys():
-                distanceTravelledByHour[i] /= frequenciesHours[i]
+        for i in set(allOriginatingIDs):
+            plausibleDifferentPlacesByHourByUser[i] = defaultdict(list)
+
+        for user, dict1 in differentPlacesByHourByUser.items():
+            for month, differentPlaces in dict1.items():
+                for place in differentPlaces:
+                    if (len(coordsByCellIDs[place]) != 0):
+                        plausibleDifferentPlacesByHourByUser[user][month].append(place)
+
+        for user, dict1 in plausibleDifferentPlacesByHourByUser.items():
+            for month, differentPlaces in dict1.items():
+                for index, place in enumerate(differentPlaces):
+                    if index >= 1:
+                        distanceTravelledByHour[month] += distanceInKmBetweenEarthCoordinates(coordsByCellIDs[differentPlaces[index - 1]][0], coordsByCellIDs[differentPlaces[index - 1]][1], coordsByCellIDs[differentPlaces[index]][0], coordsByCellIDs[differentPlaces[index]][1])
+                    else:
+                        distanceTravelledByHour[month] += 0
+
+
+        for i in distanceTravelledByHour.keys():
+            distanceTravelledByHour[i] /= frequenciesHours[i]
 
         for i in distanceTravelledByHour.keys():
             distanceTravelledByHour[i] /= len(usersByHour[i])
 
         distanceTravelledByHour = sorted(distanceTravelledByHour.items())
-        hours, averageDistanceTravelled = zip(*distanceTravelledByHour)
+        hours, distanceTravelled = zip(*distanceTravelledByHour)
 
-        y_pos = np.arange(len(list(hours)))
-        plt.bar(y_pos, averageDistanceTravelled, align='center', alpha=0.5)
+        freq_series = pd.Series(distanceTravelled)
 
-        plt.xticks(y_pos, hours)
-        plt.title("Range of Distances Travelled By Each user on Average in Each Hour")
-        plt.ylabel("Range of Distances Travelled By Each user on Average (in Kms)")
-        plt.xlabel("Hours")
+        ax = freq_series.plot(kind='bar', color='y', figsize=(30, 20), fontsize=25)
+        ax.set_title('Range of Distances Travelled By Each user on Average in Each Hour', fontsize=40)
+        ax.set_xlabel('Hours', fontsize=30)
+        ax.set_ylabel('Range of Distances Travelled By Each user on Average (in Kms)', fontsize=30)
+        ax.set_xticklabels(hours, rotation=0)
+        ax.margins(y=0.2, tight=True)
         plt.grid(True)
+        rects = ax.patches
+
+        for rect, label in zip(rects, distanceTravelled):
+            height = rect.get_height()
+            ax.text(rect.get_x() + rect.get_width() / 2, height, round(label,2), ha='center', va='bottom', fontsize=19)
+
         plt.show()
 
-        """
+        print("-------------------- Range of Distances of all the different visited places By Each user on Average in each Hour ------------------------")
+        print("STATS OF RANGE OF THE DIFFERENT VISITED PLACES BY EACH USER ON AVERAGE PER HOUR:")
+        statistics = stats(distanceTravelled)
+        print(statistics)
+        minDistance = np.min(distanceTravelled)
+        maxDistance = np.max(distanceTravelled)
+        indexMinHour = distanceTravelled.index(minDistance)
+        indexMaxHour = distanceTravelled.index(maxDistance)
+        print("The Hour with a smaller range of travel on average by each user (" + str(minDistance) + " Kms) was: " + str(hours[indexMinHour]))
+        print("The Hour with a bigger range of travel on average by each user (" + str(maxDistance) + " Kms) was: " + str(hours[indexMaxHour]))
+        print("-------------------------------------------------------------------------------------------------------------------------")
+
+
         """----------------------------------- Range of Distances of all the different visited places By Each user on Average in each Weekday --------------------------------------------------"""
-        """
+
         distanceTravelledByWeekday = defaultdict(float)
 
-        for user, val in differentPlacesByWeekdayByUser.items():
-            for weekday, val2 in differentPlacesByWeekdayByUser[user].items():
-                for index, val3 in enumerate(differentPlacesByWeekdayByUser[user][weekday]):
-                    differentPlaces = differentPlacesByWeekdayByUser[user][weekday]
-                    if index >= 1:
-                        distanceTravelledByWeekday[weekday] += distanceInKmBetweenEarthCoordinates(coordsByCellIDs[differentPlaces[index-1]][0], coordsByCellIDs[differentPlaces[index-1]][1], coordsByCellIDs[differentPlaces[index]][0], coordsByCellIDs[differentPlaces[index]][1])
-                    else:
-                        distanceTravelledByWeekday[weekday] += 0
+        plausibleDifferentPlacesByWeekdayByUser = defaultdict(dict)
 
-            for i in distanceTravelledByWeekday.keys():
+        for i in set(allOriginatingIDs):
+            plausibleDifferentPlacesByWeekdayByUser[i] = defaultdict(list)
+
+        for user, dict1 in differentPlacesByWeekdayByUser.items():
+            for month, differentPlaces in dict1.items():
+                for place in differentPlaces:
+                    if (len(coordsByCellIDs[place]) != 0):
+                        plausibleDifferentPlacesByWeekdayByUser[user][month].append(place)
+
+        for user, dict1 in plausibleDifferentPlacesByWeekdayByUser.items():
+            for month, differentPlaces in dict1.items():
+                for index, place in enumerate(differentPlaces):
+                    if index >= 1:
+                        distanceTravelledByWeekday[month] += distanceInKmBetweenEarthCoordinates(coordsByCellIDs[differentPlaces[index - 1]][0], coordsByCellIDs[differentPlaces[index - 1]][1], coordsByCellIDs[differentPlaces[index]][0], coordsByCellIDs[differentPlaces[index]][1])
+                    else:
+                        distanceTravelledByWeekday[month] += 0
+
+        for i in distanceTravelledByWeekday.keys():
                 distanceTravelledByWeekday[i] /= frequenciesWeekdays[i]
 
         for i in distanceTravelledByWeekday.keys():
@@ -1074,23 +1200,43 @@ def connect():
         distanceTravelledByWeekday = sorted(distanceTravelledByWeekday.items())
         weekdays, averageDistanceTravelled = zip(*distanceTravelledByWeekday)
 
-        y_pos = np.arange(len(list(weekdays)))
-        plt.bar(y_pos, averageDistanceTravelled, align='center', alpha=0.5)
+        freq_series = pd.Series(averageDistanceTravelled)
 
-        plt.xticks(y_pos, weekdays)
-        plt.title("Range of Distances Travelled By Each user on Average in Each Hour")
-        plt.ylabel("Range of Distances Travelled By Each user on Average (in Kms)")
-        plt.xlabel("Weekdays")
+        ax = freq_series.plot(kind='bar', color='r', figsize=(30, 20), fontsize=25)
+        plt.margins(y=0.2, tight=True)
+        ax.set_title('Range of Distances Travelled By Each user on Average in Each Weekday', fontsize=40)
+        ax.set_xlabel('Weekdays', fontsize=30)
+        ax.set_ylabel('Range of Distances Travelled By Each user on Average (in Kms)', fontsize=30)
+        ax.set_xticklabels(weekdays, rotation=0)
         plt.grid(True)
+        rects = ax.patches
+
+        for rect, label in zip(rects, averageDistanceTravelled):
+            height = rect.get_height()
+            ax.text(rect.get_x() + rect.get_width() / 2, height, round(label, 2), ha='center', va='bottom', fontsize=19)
+
         plt.show()
 
-        """
-        """Average Distance between receivers and callers throughout the year"""
-        """
+        print("-------------------- Range of Distances of all the different visited places By Each user on Average in each Weekday ------------------------")
+        print("STATS OF RANGE OF THE DIFFERENT VISITED PLACES BY EACH USER ON AVERAGE PER DAY:")
+        statistics = stats(averageDistanceTravelled)
+        print(statistics)
+        minDifferentPlaces = np.min(averageDistanceTravelled)
+        maxDifferentPlaces = np.max(averageDistanceTravelled)
+        indexMinWeekday = averageDistanceTravelled.index(minDifferentPlaces)
+        indexMaxWeekday = averageDistanceTravelled.index(maxDifferentPlaces)
+        print("The Weekday with a smaller range of travel on average by each user (" + str(minDifferentPlaces) + " Kms) was: " + str(weekdays[indexMinWeekday]))
+        print("The Weekday with a bigger range of travel on average by each user (" + str(maxDifferentPlaces) + " Kms) was: " + str(weekdays[indexMaxWeekday]))
+        print("-------------------------------------------------------------------------------------------------------------------------")
+
+
+        """----------------------------------- Average Distance between receivers and callers throughout the year -----------------------------------------"""
+
         averageDistancesByUser = defaultdict(float)
 
         for user, cellIDPairs in cellIDsPairsByUser.items():
             for index, cellIDPair in enumerate(cellIDPairs):
+
                 originatingCoords = coordsByCellIDs[cellIDPair[0]]
                 terminatingCoords = coordsByCellIDs[cellIDPair[1]]
 
@@ -1098,22 +1244,37 @@ def connect():
 
             averageDistancesByUser[user] /= len(cellIDPairs)
 
-        classes = [0, 0.000001, 5, 10, 20, 50, 100, 500, 700]
-        classNames = ["[0]", "]0 to 5]",  "]5 to 10]", "]10 to 20]", "]20 to 50]", "]100 to 500]", "]500, 700]"]
-        out = pd.cut(averageDistancesByUser.values(), bins=classes, include_lowest=True)
-        ax = out.value_counts().plot.bar(rot=0, color="r",  figsize=(10, 10))
+        averageDistancesByUser = list(averageDistancesByUser.values())
+        classes = [0, 5, 25, 100, 500, 1250, 2500]
+        classNames = ["[0 to 5[", "]5 to 25]", "]25 to 100]", "]100 to 500]", "]500, 1250]", "]1250, 2500]"]
+        out = pd.cut(averageDistancesByUser, bins=classes, include_lowest=True)
+        ax = out.value_counts().plot.bar(rot=0, color="g",  figsize=(30, 20), fontsize=25)
         ax.set_xticklabels(classNames)
 
-        plt.title("Average Distance between the Callers and Receivers")
-        plt.xlabel("Average Distance (in Kms)")
-        plt.ylabel("Number of Users")
+        rects = ax.patches
+        values = []
+
+        allInfo = str(pd.Categorical.value_counts(out))
+        lines = allInfo.split("\n")
+
+        for i in range(len(lines)-1):
+            line = lines[i].split("]")
+            values.append(int(line[1].strip()))
+
+        for rect, label in zip(rects, values):
+            height = rect.get_height()
+            ax.text(rect.get_x() + rect.get_width() / 2, height, round(label, 2), ha='center', va='bottom', fontsize=19)
+
+        rects = ax.patches
+        plt.title("Average Distance between the Callers and Receivers", fontsize=40)
+        plt.xlabel("Average Distance (in Kms)", fontsize=30)
+        plt.ylabel("Number of Users", fontsize=30)
         plt.grid(True)
         plt.show()
-
-        elapsed_time = datetime.time.time() - start_time
-        print(elapsed_time)
-        """
-
+        
+        elapsed_time = time.time() - start_time
+        print(str(elapsed_time/60) + "minutes")
+        
 
         # close the communication with the PostgreSQL
         cur.close()
