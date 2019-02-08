@@ -338,7 +338,7 @@ def connect():
 
 
         """ --------------------------------  calls activity (calls) x duration of the calls throughout the year ------------------------------- """
-
+        """
         durationsMinutes = [x / 60 for x in allDurations]
         frequenciesOfCallsByDuration = dict(collections.Counter(durationsMinutes))
         differentDurations, numberOfCalls = zip(*frequenciesOfCallsByDuration.items())
@@ -378,7 +378,7 @@ def connect():
 
 
 
-        """ --------------------------------  number of different active users  (calls) x calls activity throughout the year ------------------------------- """
+        ### --------------------------------  number of different active users  (calls) x calls activity throughout the year -------------------------------
 
         frequenciesOfCallsByUser = dict(collections.Counter(allOriginatingIDs))
         numberOfCallsByNumberOfUsers = collections.Counter(frequenciesOfCallsByUser.values()).most_common()
@@ -415,9 +415,9 @@ def connect():
         print("There are " + str(NumberOfUsersCalls[indexMaxCalls]) + " different users that made " + str(maxNumberCalls) + " calls troughout the year - the highest number of calls registered.")
 
         print("-------------------------------------------------------------------------------------------------------------------------")
+        """
 
-
-        """ -----------------------------------  number of different active users in each month  ------------------------------------------------------------ """
+        ### -----------------------------------  number of different active users in each month  ------------------------------------------------------------ 
 
         months = []
         frequencies = []
@@ -427,7 +427,7 @@ def connect():
 
         freq_series = pd.Series(frequencies)
 
-        ax = freq_series.plot(kind='bar', figsize=(30, 20), fontsize=25)
+        ax = freq_series.plot(kind='bar', color='b', figsize=(30, 20), fontsize=25)
         ax.set_title('Number of Active Users in Each Month', fontsize=40)
         ax.set_xlabel('Months', fontsize=30)
         ax.set_ylabel('Number of Active Users', fontsize=30)
@@ -453,8 +453,8 @@ def connect():
         print("The month with most active users (" + str(maxUsers) + ") was: " + str(months[indexMaxMonth]))
         print("-------------------------------------------------------------------------------------------------------------------------")
 
-
-        """ -------------------------------------  number of different active users in each weekday (on average) -------------------------------------------- """
+        """
+        ### -------------------------------------  number of different active users in each weekday (on average) -------------------------------------------- 
 
         for key in frequenciesWeekdays.keys():
             numberUsersByWeekday[key] /= frequenciesWeekdays[key]
@@ -490,7 +490,7 @@ def connect():
         print("-------------------------------------------------------------------------------------------------------------------------")
 
 
-        """ --------------------------------------------  number of different active users in each day throughout the year ---------------------------------- """
+        ### --------------------------------------------  number of different active users in each day throughout the year ---------------------------------- 
 
         for key in originatingIDsByDate.keys():
             originatingIDsByDate[key] = len(originatingIDsByDate[key])
@@ -526,7 +526,7 @@ def connect():
         print("The Date with most active users on average (" + str(int(maxUsers)) + ") was: " + str(dates[indexMaxDate]))
         print("-------------------------------------------------------------------------------------------------------------------------")
 
-        """ -----------------------------------------------  number of different active users in each hour  (on average) ------------------------------------ """
+        ### -----------------------------------------------  number of different active users in each hour  (on average) ------------------------------------ 
 
         for key in frequenciesHours.keys():
             numberUsersByHour[key] /= frequenciesHours[key]
@@ -566,8 +566,7 @@ def connect():
         print("-------------------------------------------------------------------------------------------------------------------------")
 
 
-        """ ----------------------------------------------- number of different active users (calls) x duration of the calls throughout the year ------------ """
-
+        ### ----------------------------------------------- number of different active users (calls) x duration of the calls throughout the year ------------
         durationsByNumberOfUsers = collections.Counter(usersDurationsDict.values()).most_common()
         differentDurations, NumberOfUsersDurations = zip(*durationsByNumberOfUsers)
 
@@ -593,7 +592,7 @@ def connect():
         print("There are " + str(NumberOfUsersDurations[indexMaxDuration]) + " users that spent " + str(maxDuration) + " minutes on the phone throughout the year - the highest number of minutes registered per user")
         print("-------------------------------------------------------------------------------------------------------------------------")
 
-        """ ---------------------------------------------- duration of the calls in each month  ------------------------------------------------------------- """
+        ### ---------------------------------------------- duration of the calls in each month  -------------------------------------------------------------
 
         months, durations = zip(*monthDurationsDict.items())
 
@@ -625,7 +624,7 @@ def connect():
         print("The month with more duration of the calls (" + str(maxDurations) + " minutes) was: " + str(months[indexMaxMonth]))
         print("-------------------------------------------------------------------------------------------------------------------------")
 
-        """ --------------------------------------------  duration of the calls  in each weekday (on average) ----------------------------------------------- """
+        ### --------------------------------------------  duration of the calls  in each weekday (on average) -----------------------------------------------
 
         for key in frequenciesWeekdays.keys():
             weekdaysDurationsDict[key] /= frequenciesWeekdays[key]
@@ -659,7 +658,7 @@ def connect():
         print("-------------------------------------------------------------------------------------------------------------------------")
 
 
-        """ --------------------------------------------  duration of the calls in each day throughout the year - --------------------------------- """
+        ### --------------------------------------------  duration of the calls in each day throughout the year - ---------------------------------
 
         dates, durations = zip(*dateDurationsDict.items())
 
@@ -693,7 +692,7 @@ def connect():
         print("-------------------------------------------------------------------------------------------------------------------------")
 
 
-        """ --------------------------------------------  duration of the calls in each hour ------------------------------------------------------ """
+        ### --------------------------------------------  duration of the calls in each hour ------------------------------------------------------
 
         for key in frequenciesHours.keys():
             hoursDurationsDict[key] /= frequenciesHours[key]
@@ -730,7 +729,7 @@ def connect():
         print("-------------------------------------------------------------------------------------------------------------------------")
 
 
-        """ -----------------------------------  Call Activity (number of calls) in each month  ------------------------------------------------------------ """
+        ### -----------------------------------  Call Activity (number of calls) in each month  ------------------------------------------------------------
 
         months, frequencies = zip(*monthCallNumber.items())
 
@@ -763,7 +762,7 @@ def connect():
         print("-------------------------------------------------------------------------------------------------------------------------")
 
 
-        """ -----------------------------------  Call Activity (number of calls) in each weekday (on average)  ------------------------------------------------------------ """
+        ### -----------------------------------  Call Activity (number of calls) in each weekday (on average)  ------------------------------------------------------------
 
         for key in frequenciesWeekdays.keys():
             weekdayCallNumber[key] /= frequenciesWeekdays[key]
@@ -797,7 +796,7 @@ def connect():
         print("-------------------------------------------------------------------------------------------------------------------------")
 
 
-        """ -----------------------------------  Call Activity (number of calls) in each day throughout the year  ------------------------------------------------------------ """
+        ### -----------------------------------  Call Activity (number of calls) in each day throughout the year  ------------------------------------------------------------
 
         dates, frequencies = zip(*dateCallNumber.items())
 
@@ -830,7 +829,7 @@ def connect():
         print("The Date with more duration of the calls (" + str(int(maxCalls)) + ") was: " + str(dates[indexMaxDate]))
         print("-------------------------------------------------------------------------------------------------------------------------")
 
-        """ -----------------------------------  Call Activity (number of calls) in each hour  ------------------------------------------------------------ """
+        ### -----------------------------------  Call Activity (number of calls) in each hour  ------------------------------------------------------------
 
         for key in frequenciesHours.keys():
             hoursCallNumber[key] /= frequenciesHours[key]
@@ -866,7 +865,7 @@ def connect():
         print("The Hour with more number of calls (" + str(int(maxHours)) + ") was: " + str(hours[indexMaxHour]))
         print("-------------------------------------------------------------------------------------------------------------------------")
 
-
+        """
         """------  number of different visited cells (only calls) x number of subjects throughout the year ------ """
 
         numberDifferentPlacesByNumberOfUsers = collections.Counter(numberDifferentPlacesByUser.values()).most_common()
@@ -883,7 +882,7 @@ def connect():
 
         print("-------------------- STATISTICS: number of different visited cells (only calls) x number of subjects throughout the year ------------------------")
         print("STATS OF DIFFERENT VISITED PLACES BY EACH USER THROUGHOUT THE YEAR:")
-        statistics = stats(NumberOfUsersDifferentPlaces)
+        statistics = stats(numberDifferentPlaces)
         print(statistics)
         minNumberUsers = np.min(NumberOfUsersDifferentPlaces)
         maxNumberUsers = np.max(NumberOfUsersDifferentPlaces)
@@ -1271,7 +1270,7 @@ def connect():
         plt.ylabel("Number of Users", fontsize=30)
         plt.grid(True)
         plt.show()
-        
+
         elapsed_time = time.time() - start_time
         print(str(elapsed_time/60) + "minutes")
         
