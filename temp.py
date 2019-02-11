@@ -158,22 +158,106 @@ def connect():
         # create a cursor
         cur = conn.cursor()
 
-        cur.execute('SELECT originating_id, originating_cell_id, terminating_id, terminating_cell_id, date_id, duration_amt FROM public.call_fct WHERE duration_amt > 0 ORDER BY date_id')
+        cur.execute('SELECT originating_id, originating_cell_id, terminating_id, terminating_cell_id, date_id, duration_amt FROM public.call_fct WHERE duration_amt > 0')
 
-        fetched = cur.fetchall()
+        fetchedFCT = cur.fetchall()
 
-        """remove users that travel outside the municipal of Lisbon"""
+        """ obtain records in which calls were made/received from towers in subCall_dim """        # lets assume that subCall_dim is call_dim limit 1000
 
-        """order users by call activity"""
+        cur.execute('SELECT cell_id, latitude, longitude FROM public.call_dim LIMIT 1000')
+        fetchedDIM = cur.fetchall()
+
+        subCellIds = parseDBColumns(fetchedDIM, 0, int)
+        subCall_fct = []
+        forbiddenUsers = set([])
+        allUsersRegion = set([])
+        allowedUsers = []
+        callFrequenciesByUser = defaultdict(int)
+        differentActiveDaysByUser = defaultdict(list)
+
+        for index, value in enumerate(fetchedFCT):
+            alreadyIn = False
+            allUsersRegion.add(value[0])
+            allUsersRegion.add(value[2])
+
+            #CALLER
+            if(value[1] in subCellIds):
+                if(value[0] not in forbiddenUsers):
+                    alreadyIn = True
+                    subCall_fct.append(value)
+                    callFrequenciesByUser[value[0]] += 1
+                    date = getExactTime(value[4], "date")
+                    if (date not in differentActiveDaysByUser[value[0]]):
+                        differentActiveDaysByUser[value[0]].append(date)
+            else:
+                forbiddenUsers.add(value[0])
+
+            # CALLE
+            if (value[3] in subCellIds):
+                if(value[2] not in forbiddenUsers):
+                    callFrequenciesByUser[value[2]] += 1
+                    date = getExactTime(value[4], "date")
+                    if (date not in differentActiveDaysByUser[value[2]]):
+                        differentActiveDaysByUser[value[2]].append(date)
+                    if (alreadyIn == False):
+                        subCall_fct.append(value)
+
+            else:   #lets track the forbidden users
+                forbiddenUsers.add(value[2])
+
+        allowedUsers = [item for item in allUsersRegion if item not in forbiddenUsers] # allUsersRegion - forbiddenUsers
+
+        callFrequenciesByAllowedUsers = defaultdict(int)
+        differentActiveDaysByAllowedUsers = defaultdict(int)
+
+        """find the maximum and the respective user"""
+        maxCalls = 0
+        maxCallsUser = 0
+        maxDaysUser = 0
+        maxDays = 0
+
+        for i in allowedUsers:
+            tempCalls = callFrequenciesByUser[i]
+            tempDays = len(differentActiveDaysByUser[i])
+            callFrequenciesByAllowedUsers[i] = tempCalls
+            differentActiveDaysByAllowedUsers[i] = tempDays
+            if(tempDays > maxDays):
+                maxDays = tempDays
+                maxDaysUser = i
+            if (tempCalls > maxCalls):
+                maxCalls = tempCalls
+                maxCallsUser = i
+
+        print(len(subCall_fct))
+        print(len(allowedUsers))
+        print(maxCallsUser)
+        print(maxCalls)
+        print(differentActiveDaysByAllowedUsers[maxCallsUser])
+        print(maxDaysUser)
+        print(maxDays)
+        print(callFrequenciesByAllowedUsers[maxDaysUser])
+
+        """
+        #Parsing the collumns
         allOriginatingIDs = parseDBColumns(fetched, 0, int)
+
+        allOriginatingCellIDs = parseDBColumns(fetched, 1, int)
         allTerminatingIDs = parseDBColumns(fetched, 2, int)
+        allTerminatingCellIDs = parseDBColumns(fetched, 3, int)
+        allDateIDs = parseDBColumns(fetched, 4, int)
+        allDurations = parseDBColumns(fetched, 5, int)
+        
+        
+
+            
+            
+        #order users by call activity
         allIDS = allOriginatingIDs + allTerminatingIDs
         usersCallActivity = dict(collections.Counter(allIDS))
         usersCallActivity = sorted(usersCallActivity.items(), key=operator.itemgetter(1))
-
-        """order users by the amount of different days in which call activity was registered"""
-
-
+        #order users by the amount of different days in which call activity was registered
+    
+        """
 
         elapsed_time = time.time() - start_time
         print(str(elapsed_time/60) + " minutes")
