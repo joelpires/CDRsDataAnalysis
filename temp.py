@@ -5,22 +5,17 @@ Joel Pires
 """
 import time
 import os
+import urllib.request, json
 
 __author__ = 'Joel Pires'
 __date__ = 'January 2019'
 
 import psycopg2
 import configparser
-from collections import defaultdict
 import datetime
-import operator
-import collections
-import matplotlib.pyplot as plt
-from matplotlib.pyplot import figure
-import pandas as pd
 import numpy as np
 import scipy.stats as st
-git config --global user.name "joelpires"
+
 """ function that will parser the database.ini """
 def config(filename='database.ini', section='postgresql'):
     # create a parser
@@ -168,8 +163,15 @@ def connect():
         subCellIds = parseDBColumns(fetchedDIM, 0, int)
         """
 
+
         key = os.environ.get('MAPSAPIKEY')
-        print(key)
+        endpoint = 'https://maps.googleapis.com/maps/api/directions/json?'
+        nav_request = 'origin={}&destination={}&key={}'.format("Toronto", "Montreal", key)
+        request = endpoint + nav_request
+
+        response = urllib.request.urlopen(request).read()
+        directions = json.loads(response)
+
 
 
 
