@@ -15,6 +15,7 @@ import configparser
 import datetime
 import numpy as np
 import scipy.stats as st
+import polyline
 
 """ function that will parser the database.ini """
 def config(filename='database.ini', section='postgresql'):
@@ -139,6 +140,7 @@ def stats(data):
     return statistics
 
 
+
 """ Connect to the PostgreSQL database server """
 def connect():
     start_time = time.time()
@@ -165,15 +167,22 @@ def connect():
 
 
         key = os.environ.get('MAPSAPIKEY')
-        endpoint = 'https://maps.googleapis.com/maps/api/directions/json?'
-        nav_request = 'origin={}&destination={}&key={}'.format("Toronto", "Montreal", key)
-        request = endpoint + nav_request
+        directionsAPIendpoint = 'https://maps.googleapis.com/maps/api/directions/json?'
+        roadsAPIendpoint = 'https://roads.googleapis.com/v1/snapToRoads?'
 
+
+        nav_request = 'origin={}&destination={}&mode={}&key={}'.format("41.163802,-8.611141", "41.167032,-8.602099", "walking", key)
+        request = directionsAPIendpoint + nav_request
+        print(request)
         response = urllib.request.urlopen(request).read()
         directions = json.loads(response)
-
-
-
+        """
+        for i in directions['routes'][0]['legs'][0]['steps']:
+            for j in polyline.decode(i['polyline']['points']):
+                print(j)
+        """
+        for i in polyline.decode(directions['routes'][0]['overview_polyline']['points']):
+            print(i)
 
 
         elapsed_time = time.time() - start_time
