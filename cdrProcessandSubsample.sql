@@ -1,9 +1,12 @@
 -- ISSUES --
+-- issue: decidir o que fazer com os dados de oscillation case4
 -- issue: create oscillations table from case4 table
 -- issue: verificar se há duplicados nos ranked
+-- issue: manter tracking dos registos cuja torre de origem ou destino nao estao na base de dados de torres
 -- issue: if there's more than one most visited cell, analyze...(is it an oscillation?)
           -- see if this issue happens frequently
 -- issue: ver o que faço com os comentários do delete e do insert into
+-- issue: eliminar "just a fun experiment"
 
 -- ------------------------------- PROCESS ALL THE DATA ----------------------------- --
 -- DELETE NEGATIVE OR NULL VALUES (only 16 values removed)
@@ -31,9 +34,9 @@ SELECT COUNT (DISTINCT cell_id) FROM call_dim; -- 6511 towers
 
 -- CHECK IF THERE ARE DUPLICATES ON CDR'S
 SELECT COUNT(*) FROM call_fct; -- 435701811 records
-SELECT DISTINCT * FROM call_fct; -- 435699639 (which means that there are 2172 duplicated records)
+SELECT DISTINCT COUNT(*) FROM call_fct; -- 435699639 (which means that there are 2172 duplicated records)
 
--- CHECK IF THERE ARE CALLS THAT HAVE terminating_cell_ids or originating_cell_ids THAT DO NOT BELONG TO THE TOWERS WE HAVE
+-- CHECK IF THERE ARE CALLS THAT HAVE terminating_cell_ids and originating_cell_ids THAT DO NOT BELONG TO THE TOWERS WE HAVE
 SELECT * -- the result was 422891766 records (which means that there are, in fact, 12810045 records to be eliminated)
 FROM call_fct
 WHERE originating_cell_id IN (SELECT cell_id FROM call_dim)
@@ -55,12 +58,166 @@ CREATE TABLE unique_call_fct AS(
 
 SELECT COUNT(*) FROM unique_call_fct; -- 422891734 remaining records (12810077 records eliminated)
 
--- CHECK IF DATES AND DURATIONS ARE WITHIN A VALID INTERVAL
-SELECT min(duration_amt) FROM unique_call_fct; -- is 1 seconds (is valid)
-SELECT max(duration_amt) FROM unique_call_fct; -- is 14865 seconds (is valid. Corresponds to 4,12 hours and is valid. Worry would be if, for example, a call took more than 12 hours)
-SELECT min(date_id) FROM unique_call_fct; -- is 9200000 - corresponds to Sunday, 2 de April of 2006 01:00:00 (is valid)
-SELECT max(date_id) FROM unique_call_fct; -- is 54686399 - corresponds to Saturday, 30 June of 2007 21:44:09 (is valid)
--- PERIOD OF THE STUDY: 2 de April of 2006 01:00:00 to 30 June of 2007 21:44:09 (424 different days of communication)
+-- ------------------------------- REMOVING OSCILLATION SEQUENCES ----------------------------- -- 16 +  records deleted from call_fct_porto
+/*These series of calculations were done in the subset of the CDR's of the specific region due to the high demand for computational power.
+  Check the continuity of the same call through different records:
+    -- (1) if the difference between the date_id's of two registers between the exact same users is equal to 0 and there is a difference of towers --> delete all of them!
+    -- if the difference between the date_id's of two registers between the exact same users is equal to the duration of the first record, then we have a call continuity. It can be:
+        -- (2) merge the cdr's: once the originating_cell_ids or the terminating_cell_ids are the same
+        -- (3) user is moving and changed legitimately his/her cell tower: once at least one of the originating_cell_ids or the terminating_cell_ids changed and is not an oscillation
+        -- (4) oscillation: once it is noticed the changed previously described was done at a ridiculous speed (400 km/h). In this case we assume that the first record is the true one and fuse.
+                        -- there are cases where users switch cells more than once??? If so, another action needs to be done*/
+
+-- CREATE SEQUENCE serial START 1
+DROP TABLE differences;
+CREATE TEMPORARY TABLE differences AS( -- creating a temporary table that calculates difference between date_ids of the calls between the same users and potentially identify call continuity
+  SELECT *,
+            CASE
+                  WHEN (g.originating_id = lagOriginating_id AND g.terminating_id = lagterminating_id AND diffDates = lagduration_amt) THEN currval('serial')
+                  ELSE nextval('serial')
+              END AS mySequence
+  FROM (
+    SELECT
+      originating_id,
+      originating_cell_id,
+      terminating_id,
+      terminating_cell_id,
+      date_id,
+      duration_amt,
+      date_id - lag(date_id) OVER (PARTITION BY originating_id, terminating_id ORDER BY date_id) AS diffDates,
+      lag(originating_id) OVER (PARTITION BY originating_id, terminating_id ORDER BY date_id) AS lagOriginating_id,
+      lag(originating_cell_id) OVER (PARTITION BY originating_id, terminating_id ORDER BY date_id) AS lagoriginating_cell_id,
+      lag(terminating_id) OVER (PARTITION BY originating_id, terminating_id ORDER BY date_id) AS lagterminating_id,
+      lag(terminating_cell_id) OVER (PARTITION BY originating_id, terminating_id ORDER BY date_id) AS lagterminating_cell_id,
+      lag(date_id) OVER (PARTITION BY originating_id, terminating_id ORDER BY date_id) AS lagdate_id,
+      lag(duration_amt) OVER (PARTITION BY originating_id, terminating_id ORDER BY date_id) AS lagduration_amt
+    FROM (
+      SELECT *
+      FROM unique_call_fct
+    ) f
+    ORDER BY originating_id, terminating_id, date_id
+  )g
+
+);
+
+-- case (1)
+CREATE TEMPORARY TABLE case1 AS (
+  SELECT *
+  FROM differences
+  WHERE diffDates = 0
+);
+SELECT * FROM case1; -- x records deleted
+
+START TRANSACTION;
+DELETE
+FROM unique_call_fct u
+USING case1 d
+WHERE (u.originating_id = d.originating_id
+  AND u.originating_cell_id = d.originating_cell_id
+  AND u.terminating_id = d.terminating_id
+  AND u.terminating_cell_id = d.terminating_cell_id
+  AND u.date_id = d.date_id
+  AND u.duration_amt = d.duration_amt)
+OR (u.originating_id = d.lagoriginating_id
+  AND u.originating_cell_id = d.lagoriginating_cell_id
+  AND u.terminating_id = d.lagterminating_id
+  AND u.terminating_cell_id = d.lagterminating_cell_id
+  AND u.date_id = d.lagdate_id
+  AND u.duration_amt = d.lagduration_amt);
+COMMIT;
+
+-- case (2)
+CREATE TEMPORARY TABLE case2 AS (
+  SELECT *
+  FROM differences
+  WHERE diffDates = lagduration_amt
+        AND originating_cell_id = lagoriginating_cell_id
+        AND terminating_cell_id = lagterminating_cell_id
+);
+SELECT count(*) FROM case2; -- 284*2 = 568 records that will be merged
+
+CREATE TEMPORARY TABLE mergecase2 AS (
+  SELECT lagoriginating_id AS originating_id,
+         lagoriginating_cell_id AS originating_cell_id,
+         lagterminating_id AS terminating_id,
+         lagterminating_cell_id AS terminating_cell_id,
+         lagdate_id AS date_id,
+         soma + lagduration_amt AS soma
+  FROM (
+    SELECT DISTINCT ON (mySequence) *
+    FROM (SELECT * FROM differences ORDER BY date_id) a
+    WHERE diffDates = lagduration_amt
+          AND originating_cell_id = lagoriginating_cell_id
+          AND terminating_cell_id = lagterminating_cell_id
+  ) a
+  INNER JOIN (SELECT mySequence AS seq,  sum(duration_amt) AS soma
+              FROM differences
+              GROUP BY mySequence) r
+  ON a.mySequence = seq
+);
+
+SELECT count(*) FROM mergecase2;  -- (284-247) records were merged = 37.
+
+START TRANSACTION; -- 568-37 = 531 records will be deleted
+DELETE
+FROM unique_call_fct u
+USING case2 d
+WHERE (u.originating_id = d.originating_id
+  AND u.originating_cell_id = d.originating_cell_id
+  AND u.terminating_id = d.terminating_id
+  AND u.terminating_cell_id = d.terminating_cell_id
+  AND u.date_id = d.date_id
+  AND u.duration_amt = d.duration_amt)
+OR (u.originating_id = d.lagoriginating_id
+  AND u.originating_cell_id = d.lagoriginating_cell_id
+  AND u.terminating_id = d.lagterminating_id
+  AND u.terminating_cell_id = d.lagterminating_cell_id
+  AND u.date_id = d.lagdate_id
+  AND u.duration_amt = d.lagduration_amt);
+COMMIT;
+
+START TRANSACTION; -- insert 247 records. -- The total dataset will have -531 + 247 records = 284 records
+INSERT INTO unique_call_fct (originating_id, originating_cell_id, terminating_id, terminating_cell_id, date_id, duration_amt)
+(SELECT originating_id, originating_cell_id, terminating_id, terminating_cell_id, date_id, soma
+  FROM mergecase2);
+COMMIT;
+
+-- case (3) and (4)
+CREATE TEMPORARY TABLE case3and4 AS (
+  SELECT *, geom1 AS ori_geom_point, geom2 AS term_geom_point, geom3 AS lagori_geom_point, geom4 AS lagterm_geom_point
+  FROM(
+    SELECT *
+    FROM differences
+    WHERE diffDates = lagduration_amt
+          AND (originating_cell_id != lagoriginating_cell_id OR terminating_cell_id != lagterminating_cell_id)
+  ) b
+
+  INNER JOIN (SELECT cell_id AS cid, geom_point AS geom1 FROM call_dim) u
+  ON originating_cell_id = cid
+
+  INNER JOIN (SELECT cell_id AS cide, geom_point AS geom2 FROM call_dim) v
+  ON terminating_cell_id = cide
+
+  INNER JOIN (SELECT cell_id AS cida, geom_point AS geom3 FROM call_dim) s
+  ON lagoriginating_cell_id = cida
+
+  INNER JOIN (SELECT cell_id AS cidu, geom_point AS geom4 FROM call_dim) d
+  ON lagterminating_cell_id = cidu
+);
+
+-- case (4)
+DROP table switchspeedscase4;
+CREATE TEMPORARY TABLE switchspeedscase4 AS (
+  SELECT *,
+             (CAST(distanciaOrig AS FLOAT)/1000)/(CAST(lagduration_amt AS FLOAT)/3600) AS "Switch Speed Origin - Km per hour",
+             (CAST(distanciaTerm AS FLOAT)/1000)/(CAST(lagduration_amt AS FLOAT)/3600) AS "Switch Speed Terminating - Km per hour"
+  FROM (SELECT *,
+           st_distance(ST_Transform(ori_geom_point, 3857), ST_Transform(lagori_geom_point, 3857)) AS distanciaOrig,
+           st_distance(ST_Transform(term_geom_point, 3857), ST_Transform(lagterm_geom_point, 3857)) AS distanciaTerm
+        FROM case3and4) r
+);
+
+SELECT COUNT(*) FROM unique_call_fct; -- 422891734 remaining records (12810077 records eliminated)
 
 -- LET'S CHECK IF THERE ARE RECORDS THAT HAVE EVERYTHING EQUAL MINUS THE DURATION
 SELECT *
@@ -88,6 +245,13 @@ WHERE ca.originating_id = ss.originating_id
   AND ca.terminating_cell_id = ss.terminating_cell_id
   AND ca.date_id = ss.date_id;
 
+-- CHECK IF DATES AND DURATIONS ARE WITHIN A VALID INTERVAL
+SELECT min(duration_amt) FROM unique_call_fct; -- is 1 seconds (is valid)
+SELECT max(duration_amt) FROM unique_call_fct; -- is 14865 seconds (is valid. Corresponds to 4,12 hours and is valid. Worry would be if, for example, a call took more than 12 hours)
+SELECT min(date_id) FROM unique_call_fct; -- is 9200000 - corresponds to Sunday, 2 de April of 2006 01:00:00 (is valid)
+SELECT max(date_id) FROM unique_call_fct; -- is 54686399 - corresponds to Saturday, 30 June of 2007 21:44:09 (is valid)
+-- PERIOD OF THE STUDY: 2 de April of 2006 01:00:00 to 30 June of 2007 21:44:09 (424 different days of communication)
+
 -- OBTAIN THE TOTAL CALLS MADE BY EACH USER --
 CREATE TEMPORARY TABLE totalCallsByUser AS(
   SELECT id, count(id) AS totalCalls
@@ -102,6 +266,17 @@ CREATE TEMPORARY TABLE totalCallsByUser AS(
   ) a
   GROUP BY id
 );
+
+SELECT count(DISTINCT uid)  -- calculate the total number of users that we ended up with after the processing: 1899216 users
+FROM(
+    SELECT originating_id AS uid
+    FROM unique_call_fct
+
+    UNION ALL
+      SELECT terminating_id AS uid
+      FROM unique_call_fct
+) t;
+ SELECT count(*) FROM unique_call_fct; -- calculate the total number of records that we ended up with after the processing: 422891630 records. Which means that a total of 12808009 records were eliminated after the processing.
 
 -- ------------------------------- CHARACTERIZATION OF THE MUNICIPALS IN ORDER TO CHOOSE THE RIGHT ONES TO STUDY -----------------------------
 
@@ -235,23 +410,6 @@ CREATE TABLE call_fct_porto AS (
   INNER JOIN call_dim_porto
   ON unique_call_fct.terminating_cell_id = call_dim_porto.cell_id
 );
-
-ALTER TABLE call_fct_porto
-DROP COLUMN cell_id;
-ALTER TABLE call_fct_porto
-DROP COLUMN utmx;
-ALTER TABLE call_fct_porto
-DROP COLUMN utmy;
-ALTER TABLE call_fct_porto
-DROP COLUMN longitude;
-ALTER TABLE call_fct_porto
-DROP COLUMN latitude;
-ALTER TABLE call_fct_porto
-DROP COLUMN region;
-ALTER TABLE call_fct_porto
-DROP COLUMN id;
-ALTER TABLE call_fct_porto
-DROP COLUMN geom_point;
 
 -- ------------------------------- PROCESS THE DATA FROM THE SPECIFIC REGION ----------------------------- --
 
@@ -396,6 +554,20 @@ WHERE id IN (
   AND ca.id = userid
 );
 
+CREATE TEMPORARY TABLE visitedCellsByIds_G AS( -- DIFFERENT VISITED CELLS IN GENERAL, GROUPED BY USER ID --
+  SELECT id, cell_id, sum(qtd) AS qtd
+  FROM(
+    SELECT originating_id AS id, originating_cell_id AS cell_id, count(*) AS qtd
+    FROM call_fct_porto
+    GROUP BY originating_id, originating_cell_id
+
+    UNION ALL
+      SELECT terminating_id AS id, terminating_cell_id AS cell_id, count(*) AS qtd
+      FROM call_fct_porto
+      GROUP BY terminating_id, terminating_cell_id
+  ) t
+  GROUP BY id, cell_id
+);
 
 -- ------------------------------- CHARACTERIZE USERS BY MULTIPLE PARAMETERS ----------------------------- --
 CREATE TABLE porto_users_characterization AS (
@@ -460,7 +632,8 @@ CREATE TABLE porto_users_characterization AS (
   GROUP BY ss2.id, "Calls in Porto (%)", "Has Most Visited Cell at Work", "Has Most Visited Cell at Home", differentvisitedplaces, amountOfTalk, activeDays, numberCalls, sumDifferencesDays
 );
 
-SELECT count(id) FROM porto_users_characterization; -- total of x users of Porto
+SELECT count(id) FROM porto_users_characterization; -- total of 763156 users of Porto that made/received calls in Porto, almost half of our total number of users
+SELECT count(*) FROM call_fct_porto; -- in a total amount of 40122144 records
 
 -- ------------------------------- SUBSAMPLING THE DATA BASED ON A SET OF PREFERENCES ----------------------------- --
 /*
@@ -472,6 +645,7 @@ ESTABLISHING THE PARAMETERS AND PRIORITIZE THE INDICATORS FOR THE USERS' PROFILE
             . During the period of study, some of the people could change the home and/or the workplace locations
             . People can take vacations and travel abroad
 */
+
 CREATE TEMPORARY TABLE call_fct_porto_users AS (
   SELECT *
   FROM porto_users_characterization
@@ -480,15 +654,15 @@ CREATE TEMPORARY TABLE call_fct_porto_users AS (
         AND "Has Most Visited Cell at Work" = 1
         AND "Average Talk Per Day" < 18000 -- less than 5 hours of talk per day
 
-  ORDER BY id, "Average Calls Per Day" DESC,  -- order the set of preferences
+  ORDER BY "Average Calls Per Day" DESC,  -- order the set of preferences
            "Active Days / Period of the Study (%)" DESC,
            "Average of Days Until Call" DESC,
            "Calls in Porto (%)" DESC,
-           numberCalls DESC,
-           activeDays DESC,
+           "Nº Calls (Made/Received)" DESC,
+           "Nº Active Days" DESC,
            "Avg Different Places Visited Per Day" ASC,
            "Different Places Visited" DESC  -- "Total Amount of Talk", "Average Talk Per Day" and "Average Amount of Talk Per Call" doesn't matter
-  LIMIT 300 -- depends on the dimension of our study
+  LIMIT 500 -- number of users depends on the dimension of our study
 );
 
 -- Establishing the parameters that we want
@@ -499,176 +673,10 @@ CREATE TABLE sub_call_fct_porto AS(
         OR terminating_id IN (SELECT id FROM call_fct_porto_users)
 );
 
-
--- ------------------------------- REMOVING OSCILLATION SEQUENCES ----------------------------- -- x records deleted
-/*These series of calculations are better to be done in the subset due to the high demand for compuational power.
-  Check the continuity of the same call through different records:
-    -- (1) if the difference between the date_id's of two registers between the exact same users is equal to 0 and there is a difference of towers --> delete all of them!
-    -- if the difference between the date_id's of two registers between the exact same users is equal to the duration of the first record, then we have a call continuity. It can be:
-        -- (2) merge the cdr's: once the originating_cell_ids or the terminating_cell_ids are the same
-        -- (3) user is moving and changed legitimately his/her cell tower: once at least one of the originating_cell_ids or the terminating_cell_ids changed and is not an oscillation
-        -- (4) oscillation: once it is noticed the changed previously described was done at a ridiculous speed (400 km/h). In this case we assume that the first record is the true one and fuse.
-                        -- there are cases where users switch cells more than once??? If so, another action needs to be done*/
-
-CREATE TEMPORARY TABLE differences AS ( -- creating a temporary table that calculates difference between date_ids of the calls between the same users
-  SELECT
-        ss.*,
-        c.longitude AS lagOrigLong,
-        c.latitude AS lagOrigLat,
-        d.longitude AS lagTermLong,
-        d.latitude AS lagTermLat
-  FROM (
-      SELECT
-        originating_id,
-        originating_cell_id,
-        terminating_id,
-        terminating_cell_id,
-        date_id,
-        duration_amt,
-        date_id - lag(date_id) OVER (PARTITION BY originating_id ORDER BY originating_id, terminating_id, date_id) AS diffDates,
-        lag(originating_id) OVER (PARTITION BY originating_id, terminating_id ORDER BY originating_id, terminating_id, date_id) lagOriginating_id,
-        lag(originating_cell_id) OVER (PARTITION BY originating_id, terminating_id ORDER BY originating_id, terminating_id, date_id) AS lagoriginating_cell_id,
-        lag(terminating_id) OVER (PARTITION BY originating_id, terminating_id ORDER BY originating_id, terminating_id, date_id) AS lagterminating_id,
-        lag(terminating_cell_id) OVER (PARTITION BY originating_id, terminating_id ORDER BY originating_id, terminating_id, date_id) AS lagterminating_cell_id,
-        lag(date_id) OVER (PARTITION BY originating_id, terminating_id ORDER BY originating_id, terminating_id, date_id) AS lagdate_id,
-        lag(duration_amt) OVER (PARTITION BY originating_id, terminating_id ORDER BY originating_id, terminating_id, date_id) AS lagDuration,
-        a.longitude AS origLong,
-        a.latitude AS origLat,
-        b.longitude AS termLong,
-        b.latitude AS termLat
-      FROM sub_call_fct f
-
-      INNER JOIN (SELECT * FROM call_dim) a
-      ON f.originating_cell_id = a.cell_id
-
-      INNER JOIN (SELECT * FROM call_dim) b
-      ON f.terminating_cell_id = b.cell_id
-
-  ) ss
-
-  INNER JOIN (SELECT * FROM call_dim) c
-  ON lagoriginating_cell_id = c.cell_id
-
-  INNER JOIN (SELECT * FROM call_dim) d
-  ON lagterminating_cell_id = d.cell_id
-
-  WHERE diffDates = 0 OR diffDates = lagDuration
-);
-
--- case (1)
-CREATE TEMPORARY TABLE case1 AS (
-  SELECT *
-  FROM differences
-  WHERE diffDates = 0
-);
-SELECT count(*) FROM case1; -- x records deleted
-
-/*
-DELETE
-FROM sub_call_fct u
-USING case1 d
-WHERE (u.originating_id = d.originating_id
-  AND u.originating_cell_id = d.originating_cell_id
-  AND u.terminating_id = d.terminating_id
-  AND u.terminating_cell_id = d.terminating_cell_id
-  AND u.date_id = d.date_id
-  AND u.duration_amt = d.duration_amt)
-OR (u.originating_id = d.lagoriginating_id
-  AND u.originating_cell_id = d.lagoriginating_cell_id
-  AND u.terminating_id = d.lagterminating_id
-  AND u.terminating_cell_id = d.lagterminating_cell_id
-  AND u.date_id = d.lagdate_id
-  AND u.duration_amt = d.lagduration);
-*/
--- case (2)
-CREATE TEMPORARY TABLE case2 AS (
-  SELECT *
-  FROM differences
-  WHERE diffDates = lagDuration
-    AND originating_cell_id = lagoriginating_cell_id
-    AND terminating_cell_id = lagterminating_cell_id
-);
-SELECT count(*) FROM case2; -- x records deleted
-/*
-INSERT INTO unique_call_fct (originating_id, originating_cell_id, terminating_id, terminating_cell_id, date_id, duration_amt)
-(SELECT originating_id, originating_cell_id, terminating_id, terminating_cell_id, date_id, duration_amt + lagDuration  -- merge the records
-  FROM case2);
-
-DELETE  -- delete each of the records previously merged
-FROM unique_call_fct u
-USING case2 d
-WHERE (u.originating_id = d.originating_id
-  AND u.originating_cell_id = d.originating_cell_id
-  AND u.terminating_id = d.terminating_id
-  AND u.terminating_cell_id = d.terminating_cell_id
-  AND u.date_id = d.date_id
-  AND u.duration_amt = d.duration_amt)
-OR (u.originating_id = d.lagoriginating_id
-  AND u.originating_cell_id = d.lagoriginating_cell_id
-  AND u.terminating_id = d.lagterminating_id
-  AND u.terminating_cell_id = d.lagterminating_cell_id
-  AND u.date_id = d.lagdate_id
-  AND u.duration_amt = d.lagduration);
-*/
--- case (3) and (4)
-CREATE TEMPORARY TABLE case3and4 AS (
-  SELECT *
-  FROM differences
-  WHERE diffDates = lagDuration
-        AND (originating_cell_id != lagoriginating_cell_id OR terminating_cell_id != lagterminating_cell_id)
-);
--- case (4)
-/* FORMULA TO CALCULATE THE DISTANCE GIVEN TWO GEOGRAPHIC POINTS:
-earthRadiusKm = 6371.0
-dLat = (origlat-lagoriglat) * pi / 180;
-dLon = (origlong-lagoriglong) * pi / 180;
-lat1 = (lagoriglat) * pi / 180;
-lat2 = (origlat) * pi / 180;
-a = sin(dLat/2) * sin(dLat/2) + sin(dLon/2) * sin(dLon/2) * cos(lat1) * cos(lat2) AS a_value
-c = 2 * arctan2(sqrt(a), sqrt(1-a))
-*/
-CREATE TEMPORARY TABLE case4 AS ( -- x users were caught changing cell towers while calling
-  SELECT *,  CAST(6371.0* 2 * atan2(sqrt(origA_value), sqrt(1-origA_value)) AS FLOAT)/(CAST(lagduration AS FLOAT)/60/60) AS origSwitchRateKmperHour,
-             CAST(6371.0* 2 * atan2(sqrt(termA_value), sqrt(1-termA_value)) AS FLOAT)/(CAST(lagduration AS FLOAT)/60/60) AS termSwitchRateKmperHour
-  FROM(
-    SELECT *,
-          sin(origdLat/2) * sin(origdLat/2) + sin(origdLon/2) * sin(origdLon/2) * cos(origLat1) * cos(origLat2) AS origA_value,
-          sin(termdLat/2) * sin(termdLat/2) + sin(termdLon/2) * sin(termdLon/2) * cos(termLat1) * cos(termLat2) AS termA_value
-    FROM (
-        SELECT *,
-            (origlat-lagoriglat) * pi() / CAST(180 AS FLOAT) + 0.0000000000000001 AS origdLat,                          -- I need to divide by zero so I add this very little quantity
-            (origlong-lagoriglong) * pi() / CAST(180 AS FLOAT) + 0.0000000000000001 AS origdLon,
-            (lagoriglat) * pi() / CAST(180 AS FLOAT) + 0.0000000000000001 AS origLat1,
-            (origlat) * pi() / CAST(180 AS FLOAT) + 0.0000000000000001 AS origLat2,
-            (termlat-lagtermlat) * pi() / CAST(180 AS FLOAT) + 0.0000000000000001 AS termdLat,
-            (termlong-lagtermlong) * pi() / CAST(180 AS FLOAT) + 0.0000000000000001 AS termdLon,
-            (lagtermlat) * pi() / CAST(180 AS FLOAT) + 0.0000000000000001 AS termLat1,
-            (termlat) * pi() / CAST(180 AS FLOAT)  + 0.0000000000000001 AS termLat2
-        FROM differences
-        WHERE diffDates = lagDuration
-        AND (originating_cell_id != lagoriginating_cell_id OR terminating_cell_id != lagterminating_cell_id)
-    ) gg
-  ) ggg
-);
+SELECT count(*) FROM sub_call_fct_porto; -- we ended up with 300 users and x records
 
 
 -- ------------------------------- EXTRA MEASURES ----------------------------- --
--- DIFFERENT VISITED CELLS IN GENERAL, GROUPED BY USER ID --
-CREATE TEMPORARY TABLE visitedCellsByIds_G AS(
-  SELECT id, cell_id, sum(qtd) AS qtd
-  FROM(
-    SELECT originating_id AS id, originating_cell_id AS cell_id, count(*) AS qtd
-    FROM call_fct_porto
-    GROUP BY originating_id, originating_cell_id
-
-    UNION ALL
-      SELECT terminating_id AS id, terminating_cell_id AS cell_id, count(*) AS qtd
-      FROM call_fct_porto
-      GROUP BY terminating_id, terminating_cell_id
-  ) t
-  GROUP BY id, cell_id
-);
-
 -- MOST VISITED CELLS IN GENERAL, GROUPED BY USER ID --
 CREATE TEMPORARY TABLE mostVisitedCells_G AS (
   SELECT id, cell_id AS mostVisitedCell, qtd
@@ -721,62 +729,3 @@ CREATE TEMPORARY TABLE lessVisitedCells_W AS (
   ORDER BY id
 );
 
-
-
--- just a fun experiment
-SELECT * FROM case1; -- x records deleted
-SELECT * FROM case2; -- x records deleted
-SELECT * FROM case3and4; -- x records deleted
-SELECT * FROM case4 ORDER BY origSwitchRateKmperHour; -- x records deleted
-SELECT * FROM case4 ORDER BY termSwitchRateKmperHour; -- x records deleted
-SELECT count(*) FROM case1; -- x records deleted
-SELECT count(*) FROM case2; -- x records deleted
-SELECT count(*) FROM case3and4; -- x records deleted
-SELECT count(*) FROM case4; -- x records deleted
-DROP TABLE differences;
-CREATE TEMPORARY TABLE differences AS ( -- creating a temporary table that calculates difference between date_ids of the calls between the same users
-  SELECT
-        ss.*,
-        c.longitude AS lagOrigLong,
-        c.latitude AS lagOrigLat,
-        d.longitude AS lagTermLong,
-        d.latitude AS lagTermLat
-  FROM (
-      SELECT
-        originating_id,
-        originating_cell_id,
-        terminating_id,
-        terminating_cell_id,
-        date_id,
-        duration_amt,
-        date_id - lag(date_id) OVER (PARTITION BY originating_id ORDER BY originating_id, terminating_id, date_id) AS diffDates,
-        lag(originating_id) OVER (PARTITION BY originating_id, terminating_id ORDER BY originating_id, terminating_id, date_id) lagOriginating_id,
-        lag(originating_cell_id) OVER (PARTITION BY originating_id, terminating_id ORDER BY originating_id, terminating_id, date_id) AS lagoriginating_cell_id,
-        lag(terminating_id) OVER (PARTITION BY originating_id, terminating_id ORDER BY originating_id, terminating_id, date_id) AS lagterminating_id,
-        lag(terminating_cell_id) OVER (PARTITION BY originating_id, terminating_id ORDER BY originating_id, terminating_id, date_id) AS lagterminating_cell_id,
-        lag(date_id) OVER (PARTITION BY originating_id, terminating_id ORDER BY originating_id, terminating_id, date_id) AS lagdate_id,
-        lag(duration_amt) OVER (PARTITION BY originating_id, terminating_id ORDER BY originating_id, terminating_id, date_id) AS lagDuration,
-        a.longitude AS origLong,
-        a.latitude AS origLat,
-        b.longitude AS termLong,
-        b.latitude AS termLat
-      FROM aux f
-
-      INNER JOIN (SELECT * FROM call_dim) a
-      ON f.originating_cell_id = a.cell_id
-
-      INNER JOIN (SELECT * FROM call_dim) b
-      ON f.terminating_cell_id = b.cell_id
-
-  ) ss
-
-  INNER JOIN (SELECT * FROM call_dim) c
-  ON lagoriginating_cell_id = c.cell_id
-
-  INNER JOIN (SELECT * FROM call_dim) d
-  ON lagterminating_cell_id = d.cell_id
-
-  WHERE diffDates = 0 OR diffDates = lagDuration
-);
-SELECT * FROM differencesa;
-SELECT count(*) FROM differences;
