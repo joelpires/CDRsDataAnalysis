@@ -166,16 +166,22 @@ def connect():
         """
 
 
-        key = os.environ.get('MAPSAPIKEY')
+        key1 = os.environ.get('MAPSAPIKEYJO')
+        key2 = os.environ.get('MAPSAPIKEYMA')
+        print(key1)
         directionsAPIendpoint = 'https://maps.googleapis.com/maps/api/directions/json?'
         roadsAPIendpoint = 'https://roads.googleapis.com/v1/snapToRoads?'
 
 
-        nav_request = 'origin={}&destination={}&mode={}&key={}'.format("41.163802,-8.611141", "41.167032,-8.602099", "walking", key)
+        nav_request = 'origin={}&destination={}&mode={}&key={}'.format("41.163802,-8.611141", "41.167032,-8.602099", "walking", key1)
         request = directionsAPIendpoint + nav_request
-        print(request)
+
+
+
         response = urllib.request.urlopen(request).read()
         directions = json.loads(response)
+
+
         """
         for i in directions['routes'][0]['legs'][0]['steps']:
             for j in polyline.decode(i['polyline']['points']):
