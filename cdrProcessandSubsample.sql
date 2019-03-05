@@ -1,12 +1,11 @@
 -- ISSUES --
+-- issue: retirar os transactions e os commits
 -- issue: decidir o que fazer com os dados de oscillation case4
 -- issue: create oscillations table from case4 table
 -- issue: verificar se há duplicados nos ranked
 -- issue: manter tracking dos registos cuja torre de origem ou destino nao estao na base de dados de torres
 -- issue: if there's more than one most visited cell, analyze...(is it an oscillation?)
           -- see if this issue happens frequently
--- issue: ver o que faço com os comentários do delete e do insert into
--- issue: eliminar "just a fun experiment"
 
 -- ------------------------------- PROCESS ALL THE DATA ----------------------------- --
 -- DELETE NEGATIVE OR NULL VALUES (only 16 values removed)
@@ -69,7 +68,6 @@ SELECT COUNT(*) FROM unique_call_fct; -- 422891734 remaining records (12810077 r
                         -- there are cases where users switch cells more than once??? If so, another action needs to be done*/
 
 -- CREATE SEQUENCE serial START 1
-DROP TABLE differences;
 CREATE TEMPORARY TABLE differences AS( -- creating a temporary table that calculates difference between date_ids of the calls between the same users and potentially identify call continuity
   SELECT *,
             CASE
@@ -99,6 +97,7 @@ CREATE TEMPORARY TABLE differences AS( -- creating a temporary table that calcul
   )g
 
 );
+COMMIT;
 
 -- case (1)
 CREATE TEMPORARY TABLE case1 AS (
@@ -106,7 +105,7 @@ CREATE TEMPORARY TABLE case1 AS (
   FROM differences
   WHERE diffDates = 0
 );
-SELECT * FROM case1; -- x records deleted
+SELECT * FROM case1; -- 127*2 = 254 records deleted
 
 START TRANSACTION;
 DELETE
@@ -134,7 +133,6 @@ CREATE TEMPORARY TABLE case2 AS (
         AND originating_cell_id = lagoriginating_cell_id
         AND terminating_cell_id = lagterminating_cell_id
 );
-SELECT count(*) FROM case2; -- 284*2 = 568 records that will be merged
 
 CREATE TEMPORARY TABLE mergecase2 AS (
   SELECT lagoriginating_id AS originating_id,
@@ -206,7 +204,6 @@ CREATE TEMPORARY TABLE case3and4 AS (
 );
 
 -- case (4)
-DROP table switchspeedscase4;
 CREATE TEMPORARY TABLE switchspeedscase4 AS (
   SELECT *,
              (CAST(distanciaOrig AS FLOAT)/1000)/(CAST(lagduration_amt AS FLOAT)/3600) AS "Switch Speed Origin - Km per hour",
@@ -233,6 +230,7 @@ ON ca.originating_id = ss.originating_id
   AND ca.date_id = ss.date_id;
 
 -- LET'S DELETE THE RECORDS THAT HAVE EVERYTHING EQUAL MINUS THE DURATION - 104 records deleted
+START TRANSACTION;
 DELETE
 FROM unique_call_fct ca
 USING (SELECT originating_id, originating_cell_id, terminating_id, terminating_cell_id, date_id, COUNT(0) qtd
@@ -244,6 +242,7 @@ WHERE ca.originating_id = ss.originating_id
   AND ca.terminating_id = ss.terminating_id
   AND ca.terminating_cell_id = ss.terminating_cell_id
   AND ca.date_id = ss.date_id;
+COMMIT;
 
 -- CHECK IF DATES AND DURATIONS ARE WITHIN A VALID INTERVAL
 SELECT min(duration_amt) FROM unique_call_fct; -- is 1 seconds (is valid)
@@ -276,7 +275,8 @@ FROM(
       SELECT terminating_id AS uid
       FROM unique_call_fct
 ) t;
- SELECT count(*) FROM unique_call_fct; -- calculate the total number of records that we ended up with after the processing: 422891630 records. Which means that a total of 12808009 records were eliminated after the processing.
+
+SELECT count(*) FROM unique_call_fct; -- calculate the total number of records that we ended up with after the processing: 422891630 records. Which means that a total of 12808009 records were eliminated after the processing.
 
 -- ------------------------------- CHARACTERIZATION OF THE MUNICIPALS IN ORDER TO CHOOSE THE RIGHT ONES TO STUDY -----------------------------
 
@@ -326,7 +326,6 @@ CREATE TEMPORARY TABLE infoMunicipals AS ( -- diverse indicators of the municipa
 
 -- COMPLETE CHARACTERIZATION OF THE VARIOUS INDICATORS OF EACH MUNICIPAL --
 /*"municipalpops" contains official data of the population of each municipal as they were considered in 2008 (the closest data we can get to 2007) (more info: https://www.pordata.pt/DB/Municipios/Ambiente+de+Consulta/Tabela)*/
-
 CREATE TABLE statsMunicipals AS (
   SELECT temp.name_2,
          temp1.population AS "Population",
@@ -365,14 +364,15 @@ CREATE TABLE statsMunicipals AS (
   ORDER BY averageKm2PerCell ASC,                     -- order preferences
            "Average Calls Made/Received Per Day" DESC,
            "Different Active Days / Period of the Study (%)" DESC,
-           "Average Active Users Per Day" DESC, "Active Users / Population (%)" DESC,
-           "Different Active Days" DESC, numbTowers DESC,
+           "Average Active Users Per Day" DESC,
+           "Active Users / Population (%)" DESC,
+           "Different Active Days" DESC,
+           numbTowers DESC,
            "Active Users" DESC,
            "Total Calls (Received and Made)" DESC,
            "Population" ASC,
            areaInKm2 ASC
 );
-
 -- ------------------------------- SUBSAMPLING THE WHOLE DATASET TO THE SUBSET OF THE REGION OF PORTO -----------------------------
 
 --  OBTAIN THE CELL TOWERS OF THE SPECIFIC REGION OF PORTO --
@@ -410,7 +410,6 @@ CREATE TABLE call_fct_porto AS (
   INNER JOIN call_dim_porto
   ON unique_call_fct.terminating_cell_id = call_dim_porto.cell_id
 );
-
 -- ------------------------------- PROCESS THE DATA FROM THE SPECIFIC REGION ----------------------------- --
 
 -- AMOUNT OF TALK BY USER --
@@ -728,4 +727,3 @@ CREATE TEMPORARY TABLE lessVisitedCells_W AS (
   GROUP BY id, cell_id, qtd
   ORDER BY id
 );
-
