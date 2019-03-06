@@ -410,37 +410,48 @@ CREATE TABLE call_fct_porto AS (
   INNER JOIN call_dim_porto
   ON unique_call_fct.terminating_cell_id = call_dim_porto.cell_id
 );
+
+--  OBTAIN THE CALLS MADE/RECEIVED DURING THE WEEKDAYS  --
+CREATE TABLE call_fct_porto_weekdays AS (
+  SELECT *
+  FROM call_fct_porto
+  WHERE extract(isodow from date) -1 < 5
+);
+
+SELECT count(*) FROM call_fct_porto_weekdays;  -- x records
+
 -- ------------------------------- PROCESS THE DATA FROM THE SPECIFIC REGION ----------------------------- --
 
 -- AMOUNT OF TALK BY USER --
+DROP TABLE durationsByUser;
 CREATE TEMPORARY TABLE durationsByUser AS(
   SELECT uid, sum(duration) as amountOfTalk
   FROM(
       SELECT originating_id AS uid, duration_amt AS duration
-      FROM call_fct_porto
+      FROM call_fct_porto_weekdays
       GROUP BY originating_id, duration_amt
 
       UNION ALL
         SELECT terminating_id AS uid, duration_amt AS duration
-        FROM call_fct_porto
+        FROM call_fct_porto_weekdays
         GROUP BY terminating_id, duration_amt
   ) t
   GROUP BY uid
 );
 
 -- MOST VISITED CELLS --
--- WORK --
-CREATE TEMPORARY TABLE visitedCellsByIds_W AS(  -- table with the visited cells by each user during the working hours
+-- HOME --
+CREATE TEMPORARY TABLE visitedCellsByIds_H AS(  -- table with the visited cells by each user during the working hours
   SELECT id, cell_id, sum(qtd) AS qtd
   FROM(
       SELECT originating_id AS id, originating_cell_id AS cell_id, count(*) AS qtd
-      FROM call_fct_porto
+      FROM call_fct_porto_weekdays
       WHERE time > '22:00:00'::time OR time < '07:00:00'::time
       GROUP BY originating_id, originating_cell_id
 
       UNION ALL
         SELECT terminating_id AS id, terminating_cell_id AS cell_id, count(*) AS qtd
-        FROM call_fct_porto
+        FROM call_fct_porto_weekdays
         WHERE time > '22:00:00'::time OR time < '07:00:00'::time
         GROUP BY terminating_id, terminating_cell_id
   ) t
@@ -597,11 +608,15 @@ CREATE TABLE porto_users_characterization AS (
           FROM (
               SELECT originating_id AS id, date, count(*) AS qtd
               FROM call_fct_porto
+              WHERE originating_cell_id IN (SELECT cell_id FROM call_dim_porto)   -- to me, is only interesting to know the number of Calls and the different active days IN PORTO (not in anywhere else)!
+                    AND extract(isodow from date) -1 < 5      -- we want only calls on weekdays
               GROUP BY originating_id, date
 
               UNION ALL
                 SELECT terminating_id AS id, date, count(*) AS qtd
                 FROM call_fct_porto
+                WHERE terminating_cell_id IN (SELECT cell_id FROM call_dim_porto) -- to me, is only interesting to know the number of Calls and the different active days IN PORTO (not in anywhere else)!
+                      AND extract(isodow from date) -1 < 5    -- we want only calls on weekdays
                 GROUP BY terminating_id, date
                )ss
           GROUP BY id, date
@@ -644,24 +659,54 @@ ESTABLISHING THE PARAMETERS AND PRIORITIZE THE INDICATORS FOR THE USERS' PROFILE
             . During the period of study, some of the people could change the home and/or the workplace locations
             . People can take vacations and travel abroad
 */
-
+DROP TABLE call_fct_porto_users;
 CREATE TEMPORARY TABLE call_fct_porto_users AS (
-  SELECT *
-  FROM porto_users_characterization
-  WHERE "Calls in Porto (%)" >= 80
-        AND "Has Most Visited Cell at Home" = 1
-        AND "Has Most Visited Cell at Work" = 1
-        AND "Average Talk Per Day" < 18000 -- less than 5 hours of talk per day
+  SELECT u.*, latitude_work, longitude_work, latitude_home, longitude_home
+  FROM (
+    SELECT g.*, workplace_id AS id_workplace, home_id AS id_home
+    FROM (
+         SELECT *
+         FROM porto_users_characterization
+         WHERE "Calls in Porto (%)" >= 80
+           AND "Has Most Visited Cell at Home" = 1
+           AND "Has Most Visited Cell at Work" = 1
+           AND "Average Talk Per Day" < 18000 -- less than 5 hours of talk per day
+           AND "Average Calls Per Day" < 3 * 24 -- someone that is working is not able to constantly being on the phone, so we limited to 3 calls per hour on average
+           AND "Average Calls Per Day" > 1.5 -- at least (almost) two calls per day on average in order to us being able compute commuting trips
+           AND "Nº Active Days" > 1 * 7 -- at least one week of call activity
+           AND "Avg Different Places Visited Per Day" > 1.5 -- at least (almost) two different visited places on average per day
+    ) g
+
+    INNER JOIN (SELECT id AS Hid, mostVisitedCell AS home_id FROM mostVisitedCells_H) h
+    ON id = Hid
+
+    INNER JOIN (SELECT id AS Wid, mostVisitedCell AS workplace_id FROM mostVisitedCells_W) w
+    ON id = Wid
+
+    WHERE workplace_id != home_id   -- there are people that work and live in the same cellular coverage area. We have to eliminate these users because they won't allow us to compute commuting calculations
+  ) u
+
+  INNER JOIN (SELECT cell_id AS cell_id_i,  -- we have to remember that there are people who do not call very much at home or at workplace, so, even with great percentages of calls in Porto, their home or their workplace is still outside Porto. Then, we have to filter out these users
+                     latitude AS latitude_work,
+                     longitude AS longitude_work
+              FROM call_dim_porto) i
+  ON id_workplace = cell_id_i
+
+  INNER JOIN (SELECT cell_id AS cell_id_j,
+                     latitude AS latitude_home,
+                     longitude AS longitude_home
+              FROM call_dim_porto) j
+  ON id_home = cell_id_j
 
   ORDER BY "Average Calls Per Day" DESC,  -- order the set of preferences
-           "Active Days / Period of the Study (%)" DESC,
-           "Average of Days Until Call" DESC,
-           "Calls in Porto (%)" DESC,
-           "Nº Calls (Made/Received)" DESC,
-           "Nº Active Days" DESC,
-           "Avg Different Places Visited Per Day" ASC,
-           "Different Places Visited" DESC  -- "Total Amount of Talk", "Average Talk Per Day" and "Average Amount of Talk Per Call" doesn't matter
-  LIMIT 500 -- number of users depends on the dimension of our study
+          "Active Days / Period of the Study (%)" DESC,
+          "Calls in Porto (%)" DESC,
+          "Nº Calls (Made/Received)" DESC,
+          "Nº Active Days" DESC,
+          "Average of Days Until Call" DESC
+          -- "Different Places Visited" ,"Avg Different Places Visited Per Day", "Total Amount of Talk", "Average Talk Per Day" and "Average Amount of Talk Per Call" are variables that do not matter
+
+  LIMIT 500
 );
 
 -- Establishing the parameters that we want
@@ -675,7 +720,9 @@ CREATE TABLE sub_call_fct_porto AS(
 SELECT count(*) FROM sub_call_fct_porto; -- we ended up with 300 users and x records
 
 
--- ------------------------------- EXTRA MEASURES ----------------------------- --
+
+-- ------------------------------- CALCULATIONS ON THE SUBSET ----------------------------- --
+
 -- MOST VISITED CELLS IN GENERAL, GROUPED BY USER ID --
 CREATE TEMPORARY TABLE mostVisitedCells_G AS (
   SELECT id, cell_id AS mostVisitedCell, qtd
