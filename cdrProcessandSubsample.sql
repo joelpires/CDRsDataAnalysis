@@ -3,6 +3,7 @@
 -- issue: decidir o que fazer com os dados de oscillation case4
 -- issue: create oscillations table from case4 table
 -- issue: verificar se há duplicados nos ranked
+-- issue: cuidado que no unique_call_fct há la alguns registos que têm date_id mas nao têm date
 -- issue: manter tracking dos registos cuja torre de origem ou destino nao estao na base de dados de torres
 -- issue: if there's more than one most visited cell, analyze...(is it an oscillation?)
           -- see if this issue happens frequently
@@ -57,7 +58,7 @@ CREATE TABLE unique_call_fct AS(
 
 SELECT COUNT(*) FROM unique_call_fct; -- 422891734 remaining records (12810077 records eliminated)
 
--- ------------------------------- REMOVING OSCILLATION SEQUENCES ----------------------------- -- 16 +  records deleted from call_fct_porto
+-- ------------------------------- REMOVING OSCILLATION SEQUENCES ----------------------------- -- 254(case1) + 1524(case2) = 1778 records deleted from unique_call_fct
 /*These series of calculations were done in the subset of the CDR's of the specific region due to the high demand for computational power.
   Check the continuity of the same call through different records:
     -- (1) if the difference between the date_id's of two registers between the exact same users is equal to 0 and there is a difference of towers --> delete all of them!
@@ -67,7 +68,7 @@ SELECT COUNT(*) FROM unique_call_fct; -- 422891734 remaining records (12810077 r
         -- (4) oscillation: once it is noticed the changed previously described was done at a ridiculous speed (400 km/h). In this case we assume that the first record is the true one and fuse.
                         -- there are cases where users switch cells more than once??? If so, another action needs to be done*/
 
--- CREATE SEQUENCE serial START 1
+CREATE SEQUENCE serial START 1;
 CREATE TEMPORARY TABLE differences AS( -- creating a temporary table that calculates difference between date_ids of the calls between the same users and potentially identify call continuity
   SELECT *,
             CASE
@@ -134,6 +135,8 @@ CREATE TEMPORARY TABLE case2 AS (
         AND terminating_cell_id = lagterminating_cell_id
 );
 
+SELECT count(*) FROM case2; -- 1524 records
+
 CREATE TEMPORARY TABLE mergecase2 AS (
   SELECT lagoriginating_id AS originating_id,
          lagoriginating_cell_id AS originating_cell_id,
@@ -154,9 +157,9 @@ CREATE TEMPORARY TABLE mergecase2 AS (
   ON a.mySequence = seq
 );
 
-SELECT count(*) FROM mergecase2;  -- (284-247) records were merged = 37.
+SELECT count(*) FROM mergecase2;  -- (1524-1472) records were merged = 52.
 
-START TRANSACTION; -- 568-37 = 531 records will be deleted
+START TRANSACTION; -- (1472+52/2) => 1498*2 => 2996 records will be deleted temporarily
 DELETE
 FROM unique_call_fct u
 USING case2 d
@@ -174,7 +177,7 @@ OR (u.originating_id = d.lagoriginating_id
   AND u.duration_amt = d.lagduration_amt);
 COMMIT;
 
-START TRANSACTION; -- insert 247 records. -- The total dataset will have -531 + 247 records = 284 records
+START TRANSACTION; -- insert 1472 records. -- The total dataset will have -2996 + 1472 records = 1524 records deleted permanently
 INSERT INTO unique_call_fct (originating_id, originating_cell_id, terminating_id, terminating_cell_id, date_id, duration_amt)
 (SELECT originating_id, originating_cell_id, terminating_id, terminating_cell_id, date_id, soma
   FROM mergecase2);
@@ -214,7 +217,6 @@ CREATE TEMPORARY TABLE switchspeedscase4 AS (
         FROM case3and4) r
 );
 
-SELECT COUNT(*) FROM unique_call_fct; -- 422891734 remaining records (12810077 records eliminated)
 
 -- LET'S CHECK IF THERE ARE RECORDS THAT HAVE EVERYTHING EQUAL MINUS THE DURATION
 SELECT *
@@ -244,9 +246,11 @@ WHERE ca.originating_id = ss.originating_id
   AND ca.date_id = ss.date_id;
 COMMIT;
 
+SELECT COUNT(*) FROM unique_call_fct; -- 422889956 remaining records (a total of 12811855 records eliminated from the original)
+
 -- CHECK IF DATES AND DURATIONS ARE WITHIN A VALID INTERVAL
 SELECT min(duration_amt) FROM unique_call_fct; -- is 1 seconds (is valid)
-SELECT max(duration_amt) FROM unique_call_fct; -- is 14865 seconds (is valid. Corresponds to 4,12 hours and is valid. Worry would be if, for example, a call took more than 12 hours)
+SELECT max(duration_amt) FROM unique_call_fct; -- is 24966 seconds (is valid. Corresponds to 6,935 hours and is valid. Worry would be if, for example, a call took more than 8 hours)
 SELECT min(date_id) FROM unique_call_fct; -- is 9200000 - corresponds to Sunday, 2 de April of 2006 01:00:00 (is valid)
 SELECT max(date_id) FROM unique_call_fct; -- is 54686399 - corresponds to Saturday, 30 June of 2007 21:44:09 (is valid)
 -- PERIOD OF THE STUDY: 2 de April of 2006 01:00:00 to 30 June of 2007 21:44:09 (424 different days of communication)
@@ -459,82 +463,19 @@ CREATE TEMPORARY TABLE visitedCellsByIds_H AS(  -- table with the visited cells 
 );
 
 /*
-Let's create a table that tells us which users have a well defined cellular tower for their workplace
-  . 0, OR the user does not have registered calls during the hours that is supposed to be at work OR it was not possible to identify only one cellular tower with the most activity
-  . 1, otherwise
-*/
-
-CREATE TABLE mostVisitedCells_W AS (
-  SELECT id, cell_id AS mostVisitedCell, qtd
-  FROM visitedCellsByIds_W
-  WHERE (id, qtd) IN (
-      SELECT id, max(qtd) AS max
-      FROM visitedCellsByIds_W
-      GROUP BY id
-  )
-  GROUP BY id, cell_id, qtd
-);
-
-CREATE TEMPORARY TABLE hasMostVisitedCell_W AS(
-  SELECT uid AS id
-  FROM durationsByUser
-);
-
-ALTER TABLE hasMostVisitedCell_W
-ADD "has?" INTEGER DEFAULT 0; -- by default none of the users are eligible
-
-UPDATE hasMostVisitedCell_W -- enabling the users that had registered call activity during the hours that is supposed to be working
-SET "has?" = 1
-WHERE id IN ( SELECT DISTINCT id FROM mostVisitedCells_W);
-
-UPDATE hasMostVisitedCell_W -- disabling the users that registered more than one cell with max activity
-SET "has?" = 0
-WHERE id IN (
-  SELECT id
-  FROM mostVisitedCells_W ca
-  INNER JOIN (SELECT id AS userid
-              FROM mostVisitedCells_W
-              GROUP BY id
-              HAVING COUNT(0) > 1) ss
-  ON ca.qtd = qtd
-  AND ca.id = userid
-);
-
-
--- HOME --
-CREATE TEMPORARY TABLE visitedCellsByIds_H AS(  -- table with the visited cells by each user during the non-working hours
-  SELECT id, cell_id, sum(qtd) AS qtd
-  FROM(
-      SELECT originating_id AS id, originating_cell_id AS cell_id, count(*) AS qtd
-      FROM call_fct_porto
-      WHERE time > '9:00:00'::time AND time < '17:00:00'::time
-      GROUP BY originating_id, originating_cell_id
-
-      UNION ALL
-        SELECT terminating_id AS id, terminating_cell_id AS cell_id, count(*) AS qtd
-        FROM call_fct_porto
-        WHERE time > '9:00:00'::time AND time < '17:00:00'::time
-        GROUP BY terminating_id, terminating_cell_id
-  ) t
-  GROUP BY id, cell_id
-);
-
-
-/*
-Lets create a table that tells us which users have a well defined cellular tower for their home
+Let's create a table that tells us which users have a well defined cellular tower for their home
   . 0, OR the user does not have registered calls during the hours that is supposed to be at home OR it was not possible to identify only one cellular tower with the most activity
   . 1, otherwise
 */
 CREATE TABLE mostVisitedCells_H AS (
-        SELECT id, cell_id as mostVisitedCell, qtd
-        FROM visitedCellsByIds_H
-        WHERE (id, qtd) IN (
-            SELECT id, max(qtd) as max
-            FROM visitedCellsByIds_H
-            GROUP BY id
-        )
-        GROUP BY id, cell_id, qtd
-        ORDER BY id, cell_id, qtd
+  SELECT id, cell_id AS mostVisitedCell, qtd
+  FROM visitedCellsByIds_H
+  WHERE (id, qtd) IN (
+      SELECT id, max(qtd) AS max
+      FROM visitedCellsByIds_H
+      GROUP BY id
+  )
+  GROUP BY id, cell_id, qtd
 );
 
 CREATE TEMPORARY TABLE hasMostVisitedCell_H AS(
@@ -545,11 +486,9 @@ CREATE TEMPORARY TABLE hasMostVisitedCell_H AS(
 ALTER TABLE hasMostVisitedCell_H
 ADD "has?" INTEGER DEFAULT 0; -- by default none of the users are eligible
 
-UPDATE hasMostVisitedCell_H -- enabling the users that had registered call activity during the hours that is supposed to be at home
+UPDATE hasMostVisitedCell_H -- enabling the users that had registered call activity during the hours that is supposed to be working
 SET "has?" = 1
-WHERE id IN (
-    SELECT DISTINCT id FROM mostVisitedCells_H
-);
+WHERE id IN ( SELECT DISTINCT id FROM mostVisitedCells_H);
 
 UPDATE hasMostVisitedCell_H -- disabling the users that registered more than one cell with max activity
 SET "has?" = 0
@@ -564,16 +503,80 @@ WHERE id IN (
   AND ca.id = userid
 );
 
+
+-- WORK --
+CREATE TEMPORARY TABLE visitedCellsByIds_W AS(  -- table with the visited cells by each user during the working hours
+  SELECT id, cell_id, sum(qtd) AS qtd
+  FROM(
+      SELECT originating_id AS id, originating_cell_id AS cell_id, count(*) AS qtd
+      FROM call_fct_porto_weekdays
+      WHERE (time > '9:00:00'::time AND time < '12:00:00'::time) OR (time > '14:30:00'::time AND time < '17:00:00'::time) -- respecting launch hours
+      GROUP BY originating_id, originating_cell_id
+
+      UNION ALL
+        SELECT terminating_id AS id, terminating_cell_id AS cell_id, count(*) AS qtd
+        FROM call_fct_porto_weekdays
+        WHERE (time > '9:00:00'::time AND time < '12:00:00'::time) OR (time > '14:30:00'::time AND time < '17:00:00'::time) -- respecting launch hours
+        GROUP BY terminating_id, terminating_cell_id
+  ) t
+  GROUP BY id, cell_id
+);
+
+
+/*
+Lets create a table that tells us which users have a well defined cellular tower for their workplace
+  . 0, OR the user does not have registered calls during the hours that is supposed to be at work OR it was not possible to identify only one cellular tower with the most activity
+  . 1, otherwise
+*/
+CREATE TABLE mostVisitedCells_W AS (
+        SELECT id, cell_id as mostVisitedCell, qtd
+        FROM visitedCellsByIds_W
+        WHERE (id, qtd) IN (
+            SELECT id, max(qtd) as max
+            FROM visitedCellsByIds_W
+            GROUP BY id
+        )
+        GROUP BY id, cell_id, qtd
+        ORDER BY id, cell_id, qtd
+);
+
+CREATE TEMPORARY TABLE hasMostVisitedCell_W AS(
+  SELECT uid AS id
+  FROM durationsByUser
+);
+
+ALTER TABLE hasMostVisitedCell_W
+ADD "has?" INTEGER DEFAULT 0; -- by default none of the users are eligible
+
+UPDATE hasMostVisitedCell_W -- enabling the users that had registered call activity during the hours that is supposed to be at home
+SET "has?" = 1
+WHERE id IN (
+    SELECT DISTINCT id FROM mostVisitedCells_W
+);
+
+UPDATE hasMostVisitedCell_W -- disabling the users that registered more than one cell with max activity
+SET "has?" = 0
+WHERE id IN (
+  SELECT id
+  FROM mostVisitedCells_W ca
+  INNER JOIN (SELECT id AS userid
+              FROM mostVisitedCells_W
+              GROUP BY id
+              HAVING COUNT(0) > 1) ss
+  ON ca.qtd = qtd
+  AND ca.id = userid
+);
+
 CREATE TEMPORARY TABLE visitedCellsByIds_G AS( -- DIFFERENT VISITED CELLS IN GENERAL, GROUPED BY USER ID --
   SELECT id, cell_id, sum(qtd) AS qtd
   FROM(
     SELECT originating_id AS id, originating_cell_id AS cell_id, count(*) AS qtd
-    FROM call_fct_porto
+    FROM call_fct_porto_weekdays
     GROUP BY originating_id, originating_cell_id
 
     UNION ALL
       SELECT terminating_id AS id, terminating_cell_id AS cell_id, count(*) AS qtd
-      FROM call_fct_porto
+      FROM call_fct_porto_weekdays
       GROUP BY terminating_id, terminating_cell_id
   ) t
   GROUP BY id, cell_id
@@ -589,7 +592,6 @@ CREATE TABLE porto_users_characterization AS (
          CAST(activeDays* 100/ 424 AS FLOAT) AS "Active Days / Period of the Study (%)",
          numberCalls AS "Nº Calls (Made/Received)",
          activeDays AS "Nº Active Days",
-         CAST(differentvisitedplaces AS FLOAT)/ activeDays AS "Avg Different Places Visited Per Day",
          differentvisitedplaces as "Different Places Visited",
          CAST(amountOfTalk AS FLOAT)/ activeDays AS "Average Talk Per Day",
          CAST(amountOfTalk AS FLOAT)/ numberCalls AS "Average Amount of Talk Per Call",
@@ -607,14 +609,14 @@ CREATE TABLE porto_users_characterization AS (
                  COALESCE(ROUND(ABS((date_part('day',age(date, lag(date) OVER (PARTITION BY id order by id)))/365 + date_part('month',age(date, lag(date) OVER (PARTITION BY id order by id)))/12 + date_part('year',age(date, lag(date) OVER (PARTITION BY id order by id))))*365 )), 0) as diffDays
           FROM (
               SELECT originating_id AS id, date, count(*) AS qtd
-              FROM call_fct_porto
+              FROM call_fct_porto_weekdays
               WHERE originating_cell_id IN (SELECT cell_id FROM call_dim_porto)   -- to me, is only interesting to know the number of Calls and the different active days IN PORTO (not in anywhere else)!
                     AND extract(isodow from date) -1 < 5      -- we want only calls on weekdays
               GROUP BY originating_id, date
 
               UNION ALL
                 SELECT terminating_id AS id, date, count(*) AS qtd
-                FROM call_fct_porto
+                FROM call_fct_porto_weekdays
                 WHERE terminating_cell_id IN (SELECT cell_id FROM call_dim_porto) -- to me, is only interesting to know the number of Calls and the different active days IN PORTO (not in anywhere else)!
                       AND extract(isodow from date) -1 < 5    -- we want only calls on weekdays
                 GROUP BY terminating_id, date
@@ -646,9 +648,6 @@ CREATE TABLE porto_users_characterization AS (
   GROUP BY ss2.id, "Calls in Porto (%)", "Has Most Visited Cell at Work", "Has Most Visited Cell at Home", differentvisitedplaces, amountOfTalk, activeDays, numberCalls, sumDifferencesDays
 );
 
-SELECT count(id) FROM porto_users_characterization; -- total of 763156 users of Porto that made/received calls in Porto, almost half of our total number of users
-SELECT count(*) FROM call_fct_porto; -- in a total amount of 40122144 records
-
 -- ------------------------------- SUBSAMPLING THE DATA BASED ON A SET OF PREFERENCES ----------------------------- --
 /*
 ESTABLISHING THE PARAMETERS AND PRIORITIZE THE INDICATORS FOR THE USERS' PROFILES THAT WE WANT. IGNORE USERS THAT:
@@ -667,14 +666,13 @@ CREATE TEMPORARY TABLE call_fct_porto_users AS (
     FROM (
          SELECT *
          FROM porto_users_characterization
-         WHERE "Calls in Porto (%)" >= 80
+         WHERE "Calls in Porto (%)" >= 70
            AND "Has Most Visited Cell at Home" = 1
            AND "Has Most Visited Cell at Work" = 1
            AND "Average Talk Per Day" < 18000 -- less than 5 hours of talk per day
            AND "Average Calls Per Day" < 3 * 24 -- someone that is working is not able to constantly being on the phone, so we limited to 3 calls per hour on average
            AND "Average Calls Per Day" > 1.5 -- at least (almost) two calls per day on average in order to us being able compute commuting trips
            AND "Nº Active Days" > 1 * 7 -- at least one week of call activity
-           AND "Avg Different Places Visited Per Day" > 1.5 -- at least (almost) two different visited places on average per day
     ) g
 
     INNER JOIN (SELECT id AS Hid, mostVisitedCell AS home_id FROM mostVisitedCells_H) h
@@ -704,26 +702,36 @@ CREATE TEMPORARY TABLE call_fct_porto_users AS (
           "Nº Calls (Made/Received)" DESC,
           "Nº Active Days" DESC,
           "Average of Days Until Call" DESC
-          -- "Different Places Visited" ,"Avg Different Places Visited Per Day", "Total Amount of Talk", "Average Talk Per Day" and "Average Amount of Talk Per Call" are variables that do not matter
+          -- "Different Places Visited" , "Total Amount of Talk", "Average Talk Per Day" and "Average Amount of Talk Per Call" are variables that do not matter
 
-  LIMIT 500
 );
 
--- Establishing the parameters that we want
-CREATE TABLE sub_call_fct_porto AS(
+-- CREATING OUR SUB-SET OF CALLS
+
+CREATE TEMPORARY TABLE sub_temp AS (
   SELECT *
-  FROM call_fct_porto
+  FROM call_fct_porto_weekdays
   WHERE originating_id IN (SELECT id FROM call_fct_porto_users)
         OR terminating_id IN (SELECT id FROM call_fct_porto_users)
 );
 
-SELECT count(*) FROM sub_call_fct_porto; -- we ended up with 300 users and x records
+CREATE TABLE sub_call_fct_porto AS(
+  SELECT originating_id AS id, originating_cell_id AS cell_id, date_id, date, time, duration_amt
+  FROM sub_temp
 
+  UNION ALL
 
+  SELECT terminating_id AS id, terminating_cell_id AS cell_id, date_id, date, time, duration_amt
+  FROM sub_temp
+
+);
+
+SELECT count(*) FROM sub_call_fct_porto; -- we ended up with x records
 
 -- ------------------------------- CALCULATIONS ON THE SUBSET ----------------------------- --
 
 -- MOST VISITED CELLS IN GENERAL, GROUPED BY USER ID --
+
 CREATE TEMPORARY TABLE mostVisitedCells_G AS (
   SELECT id, cell_id AS mostVisitedCell, qtd
   FROM visitedCellsByIds_G
@@ -773,4 +781,221 @@ CREATE TEMPORARY TABLE lessVisitedCells_W AS (
   )
   GROUP BY id, cell_id, qtd
   ORDER BY id
+);
+
+
+
+
+
+
+
+
+
+
+-- Calculating afternoon calls --
+CREATE TEMPORARY TABLE calls_afternoon AS(
+  SELECT *
+  FROM sub_call_fct_porto
+  WHERE (time > '15:00:00'::time AND time < '24:00:00'::time)
+  ORDER BY id, date_id
+);
+
+
+
+
+-- TRAVEL TIMES HOME -> WORK (we are assuming people go to work in the morning) --
+-- calculating all the calls that took place at home or in the workplace during the morning
+CREATE TEMPORARY TABLE commuting_calls_morning AS(
+  SELECT *
+  FROM (
+    SELECT id,
+           date,
+           time,
+           date_id,
+           cell_id,
+           id_home,
+           id_workplace
+    FROM (
+      SELECT *  -- calculating all the calls made during the morning
+      FROM sub_call_fct_porto
+      WHERE (time > '5:00:00'::time AND time < '12:00:00'::time)
+      ORDER BY id, date_id
+    ) l
+    INNER JOIN (SELECT id AS userid, id_home, id_workplace FROM call_fct_porto_users) u
+    ON id = userid
+  ) h
+  WHERE cell_id = id_home OR cell_id = id_workplace
+);
+
+ -- joining the last call made at home and the first call made in the workplace, during the morning, by each day by each user
+CREATE TEMPORARY TABLE all_transitions_commuting_calls_morning AS(
+  SELECT *
+  FROM (
+    SELECT DISTINCT ON(id, date, cell_id) *
+    FROM (
+       SELECT *
+       FROM commuting_calls_morning
+       ORDER BY id, date, time DESC, cell_id
+    ) n
+    WHERE cell_id = id_home
+
+    UNION ALL
+
+    SELECT DISTINCT ON(id, date, cell_id) *
+    FROM (
+       SELECT *
+       FROM commuting_calls_morning
+       ORDER BY id, date, time ASC, cell_id
+    ) n
+    WHERE cell_id = id_workplace
+
+    ORDER BY id, date_id
+
+  ) xD
+);
+
+--cleaning the records of days in which the user did not made/received a call at work and at home
+-- calculating already commuting traveltimes
+DROP TABLE transitions_commuting_calls_morning;
+CREATE TEMPORARY TABLE transitions_commuting_calls_morning AS (
+  SELECT id,
+         date,
+         time,
+         date_id,
+         cell_id,
+         id_home,
+         id_workplace,
+         date_id - lag(date_id) OVER(PARTITION BY id, date ORDER BY id, date_id) AS travelTime,
+         lag(time) OVER(PARTITION BY id,date ORDER BY id, date_id) AS startdate_H_W,
+         time AS finishdate_H_W
+  FROM all_transitions_commuting_calls_morning ca
+  INNER JOIN (SELECT id AS id_user, date AS datess, COUNT (0) qtd
+              FROM all_transitions_commuting_calls_morning
+              GROUP BY id, date
+              HAVING COUNT (0) > 1
+  ) ss
+  ON id = id_user
+  AND date = datess
+
+);
+
+-- computing the average travel time and minimal travel times
+-- WE ARE BELIEVING THAT THE MIN VALUE REPRESENTS THE MORE PROBABLE DURATION OF THE COMMUTING ROUTE
+CREATE TEMPORARY TABLE travelTimes_H_W AS(
+  SELECT id,
+         averageTravelTime_H_W,
+         minTravelTime_H_W,
+         date,
+         startdate_H_W,
+         finishdate_H_W
+
+  FROM (
+    SELECT id as idUser, min(travelTime) AS minTravelTime_H_W, CAST(sum(travelTime) AS FLOAT)/count(DISTINCT date) AS averageTravelTime_H_W
+    FROM transitions_commuting_calls_morning
+    GROUP BY id
+  ) o
+  INNER JOIN (SELECT *
+              FROM transitions_commuting_calls_morning
+  ) l
+  ON id = idUser
+  AND travelTime = minTravelTime_H_W
+);
+
+
+-- TRAVEL TIMES WORK -> HOME (we are assuming people go to home in the evening/night) --
+-- calculating all the calls that took place at home or in the workplace during the morning
+CREATE TEMPORARY TABLE commuting_calls_morning AS(
+  SELECT *
+  FROM (
+    SELECT id,
+           date,
+           time,
+           date_id,
+           cell_id,
+           id_home,
+           id_workplace
+    FROM (
+      SELECT *  -- calculating all the calls made during the morning
+      FROM sub_call_fct_porto
+      WHERE (time > '5:00:00'::time AND time < '12:00:00'::time)
+      ORDER BY id, date_id
+    ) l
+    INNER JOIN (SELECT id AS userid, id_home, id_workplace FROM call_fct_porto_users) u
+    ON id = userid
+  ) h
+  WHERE cell_id = id_home OR cell_id = id_workplace
+);
+
+ -- joining the last call made at home and the first call made in the workplace, during the morning, by each day by each user
+CREATE TEMPORARY TABLE all_transitions_commuting_calls_morning AS(
+  SELECT *
+  FROM (
+    SELECT DISTINCT ON(id, date, cell_id) *
+    FROM (
+       SELECT *
+       FROM commuting_calls_morning
+       ORDER BY id, date, time DESC, cell_id
+    ) n
+    WHERE cell_id = id_home
+
+    UNION ALL
+
+    SELECT DISTINCT ON(id, date, cell_id) *
+    FROM (
+       SELECT *
+       FROM commuting_calls_morning
+       ORDER BY id, date, time ASC, cell_id
+    ) n
+    WHERE cell_id = id_workplace
+
+    ORDER BY id, date_id
+
+  ) xD
+);
+
+--cleaning the records of days in which the user did not made/received a call at work and at home
+-- calculating already commuting traveltimes
+DROP TABLE transitions_commuting_calls_morning;
+CREATE TEMPORARY TABLE transitions_commuting_calls_morning AS (
+  SELECT id,
+         date,
+         time,
+         date_id,
+         cell_id,
+         id_home,
+         id_workplace,
+         date_id - lag(date_id) OVER(PARTITION BY id, date ORDER BY id, date_id) AS travelTime,
+         lag(time) OVER(PARTITION BY id,date ORDER BY id, date_id) AS startdate_H_W,
+         time AS finishdate_H_W
+  FROM all_transitions_commuting_calls_morning ca
+  INNER JOIN (SELECT id AS id_user, date AS datess, COUNT (0) qtd
+              FROM all_transitions_commuting_calls_morning
+              GROUP BY id, date
+              HAVING COUNT (0) > 1
+  ) ss
+  ON id = id_user
+  AND date = datess
+
+);
+
+-- computing the average travel time and minimal travel times
+-- WE ARE BELIEVING THAT THE MIN VALUE REPRESENTS THE MORE PROBABLE DURATION OF THE COMMUTING ROUTE
+CREATE TEMPORARY TABLE travelTimes_H_W AS(
+  SELECT id,
+         averageTravelTime_H_W,
+         minTravelTime_H_W,
+         date,
+         startdate_H_W,
+         finishdate_H_W
+
+  FROM (
+    SELECT id as idUser, min(travelTime) AS minTravelTime_H_W, CAST(sum(travelTime) AS FLOAT)/count(DISTINCT date) AS averageTravelTime_H_W
+    FROM transitions_commuting_calls_morning
+    GROUP BY id
+  ) o
+  INNER JOIN (SELECT *
+              FROM transitions_commuting_calls_morning
+  ) l
+  ON id = idUser
+  AND travelTime = minTravelTime_H_W
 );
