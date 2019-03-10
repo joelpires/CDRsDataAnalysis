@@ -12,9 +12,13 @@ CREATE TEMPORARY TABLE stats_number_users (
   porto_users INTEGER,
   selected_users_by_minimum_requirements INTEGER,
   selected_users_by_dependent_variables INTEGER,
+  users_morning_calls INTEGER,
+  users_calls_morning_home_or_work INTEGER,
+  users_calls_morning_home_and_work INTEGER,
   selected_users_by_home_work INTEGER,
   selected_users_by_home_work_inside INTEGER,
   selected_users_by_home_work_inside_not_same INTEGER,
+  users_commuting_calls_morning INTEGER,
   selected_users_by_travel_times_H_W_or_W_H INTEGER,
   cleaned_users_by_travel_times_H_W_or_W_H INTEGER,
   selected_users_by_travel_times_H_W_H INTEGER
@@ -630,9 +634,19 @@ CREATE TABLE call_fct_porto_weekdays_restructured  AS(
   FROM call_fct_porto_weekdays
 );
 
+CREATE TEMPORARY TABLE morning_calls AS (
+  SELECT *  -- calculating all the calls made during the morning
+  FROM call_fct_porto_weekdays_restructured
+  WHERE (time > '5:00:00'::time AND time < '12:00:00'::time)
+  ORDER BY id, date_id
+);
+
+UPDATE stats_number_users
+SET users_morning_calls = (SELECT count(DISTINCT id) FROM morning_calls);
+
+
 -- TRAVEL TIMES HOME -> WORK (we are assuming people go to work in the morning) --
 -- calculating all the calls that took place at home or in the workplace during the morning
-DROP TABLE commuting_calls_morning;
 CREATE TEMPORARY TABLE commuting_calls_morning AS(
   SELECT *
   FROM (
@@ -643,17 +657,16 @@ CREATE TEMPORARY TABLE commuting_calls_morning AS(
            cell_id,
            home_id,
            workplace_id
-    FROM (
-      SELECT *  -- calculating all the calls made during the morning
-      FROM call_fct_porto_weekdays_restructured
-      WHERE (time > '5:00:00'::time AND time < '12:00:00'::time)
-      ORDER BY id, date_id
-    ) l
+    FROM morning_calls
     INNER JOIN (SELECT id AS userid, home_id, workplace_id FROM home_workplace_by_user) u
     ON id = userid
   ) h
   WHERE cell_id = home_id OR cell_id = workplace_id
 );
+
+UPDATE stats_number_users
+SET users_calls_morning_home_or_work = (SELECT count(DISTINCT id) FROM commuting_calls_morning);
+
 
  -- joining the last call made at home and the first call made in the workplace, during the morning, by each day by each user
 CREATE TEMPORARY TABLE all_transitions_commuting_calls_morning AS(
@@ -665,7 +678,7 @@ CREATE TEMPORARY TABLE all_transitions_commuting_calls_morning AS(
        FROM commuting_calls_morning
        ORDER BY id, date, time DESC, cell_id
     ) n
-    WHERE cell_id = id_home
+    WHERE cell_id = home_id
 
     UNION ALL
 
@@ -675,24 +688,23 @@ CREATE TEMPORARY TABLE all_transitions_commuting_calls_morning AS(
        FROM commuting_calls_morning
        ORDER BY id, date, time ASC, cell_id
     ) n
-    WHERE cell_id = id_workplace
+    WHERE cell_id = workplace_id
 
     ORDER BY id, date_id
 
   ) xD
 );
 
---cleaning the records of days in which the user did not made/received a call at work and at home
+-- cleaning the records of days in which the user did not made/received a call at work and at home
 -- calculating already commuting traveltimes
-DROP TABLE transitions_commuting_calls_morning;
 CREATE TEMPORARY TABLE transitions_commuting_calls_morning AS (
   SELECT id,
          date,
          time,
          date_id,
          cell_id,
-         id_home,
-         id_workplace,
+         home_id,
+         workplace_id,
          date_id - lag(date_id) OVER(PARTITION BY id, date ORDER BY id, date_id) AS travelTime,
          lag(time) OVER(PARTITION BY id,date ORDER BY id, date_id) AS startdate_H_W,
          time AS finishdate_H_W
@@ -706,6 +718,10 @@ CREATE TEMPORARY TABLE transitions_commuting_calls_morning AS (
   AND date = datess
 
 );
+
+UPDATE stats_number_users
+SET users_calls_morning_home_and_work = (SELECT count(DISTINCT id) FROM transitions_commuting_calls_morning);
+
 
 -- computing the average travel time and minimal travel times
 -- WE ARE BELIEVING THAT THE MIN VALUE REPRESENTS THE MORE PROBABLE DURATION OF THE COMMUTING ROUTE
@@ -740,18 +756,18 @@ CREATE TEMPORARY TABLE commuting_calls_evening AS(
            time,
            date_id,
            cell_id,
-           id_home,
-           id_workplace
+           home_id,
+           workplace_id
     FROM (
       SELECT *  -- calculating all the calls made during the morning
       FROM sub_call_fct_porto
       WHERE (time > '15:00:00'::time AND time < '24:00:00'::time)
       ORDER BY id, date_id
     ) l
-    INNER JOIN (SELECT id AS userid, id_home, id_workplace FROM sub_call_fct_porto_users) u
+    INNER JOIN (SELECT id AS userid, home_id, workplace_id FROM home_workplace_by_user) u
     ON id = userid
   ) h
-  WHERE cell_id = id_home OR cell_id = id_workplace
+  WHERE cell_id = home_id OR cell_id = workplace_id
 );
 
  -- joining the last call made at work and the first call made at home, during the morning, by each day by each user
@@ -764,7 +780,7 @@ CREATE TEMPORARY TABLE all_transitions_commuting_calls_evening AS(
        FROM commuting_calls_evening
        ORDER BY id, date, time ASC, cell_id
     ) n
-    WHERE cell_id = id_home
+    WHERE cell_id = home_id
 
     UNION ALL
 
@@ -774,7 +790,7 @@ CREATE TEMPORARY TABLE all_transitions_commuting_calls_evening AS(
        FROM commuting_calls_evening
        ORDER BY id, date, time DESC, cell_id
     ) n
-    WHERE cell_id = id_workplace
+    WHERE cell_id = workplace_id
 
     ORDER BY id, date_id
 
@@ -789,8 +805,8 @@ CREATE TEMPORARY TABLE transitions_commuting_calls_evening AS (
          time,
          date_id,
          cell_id,
-         id_home,
-         id_workplace,
+         home_id,
+         workplace_id,
          date_id - lag(date_id) OVER(PARTITION BY id, date ORDER BY id, date_id) AS travelTime,
          lag(time) OVER(PARTITION BY id,date ORDER BY id, date_id) AS startdate_W_H,
          time AS finishdate_W_H
@@ -827,11 +843,9 @@ CREATE TEMPORARY TABLE travelTimes_W_H AS(
   AND travelTime = minTravelTime_W_H
 );
 
-CREATE TEMPORARY TABLE porto_users_characterization_complete AS(
+CREATE TEMPORARY TABLE traveltimes_H_W_H AS(
   SELECT *
   FROM porto_users_characterization
-  LEFT JOIN (SELECT id AS uid_h_w, * FROM travelTimes_H_W) uu
-  ON tt.id = uid_h_w
 
   LEFT JOIN (SELECT id AS uid_w_h, * FROM travelTimes_W_H) yy
   ON tt.id = uid_w_h
