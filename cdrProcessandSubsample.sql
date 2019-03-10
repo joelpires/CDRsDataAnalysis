@@ -1,5 +1,4 @@
 -- ISSUES --
--- issue: retirar os transactions e os commits
 -- issue: decidir o que fazer com os dados de oscillation case4
 -- issue: create oscillations table from case4 table
 -- issue: verificar se há duplicados nos ranked
@@ -8,21 +7,86 @@
 -- issue: if there's more than one most visited cell, analyze...(is it an oscillation?)
           -- see if this issue happens frequently
 
-CREATE TEMPORARY TABLE stats_number_users (
-  porto_users INTEGER,
-  selected_users_by_minimum_requirements INTEGER,
-  selected_users_by_dependent_variables INTEGER,
-  users_morning_calls INTEGER,
-  users_calls_morning_home_or_work INTEGER,
-  users_calls_morning_home_and_work INTEGER,
-  selected_users_by_home_work INTEGER,
-  selected_users_by_home_work_inside INTEGER,
-  selected_users_by_home_work_inside_not_same INTEGER,
-  users_commuting_calls_morning INTEGER,
-  selected_users_by_travel_times_H_W_or_W_H INTEGER,
-  cleaned_users_by_travel_times_H_W_or_W_H INTEGER,
-  selected_users_by_travel_times_H_W_H INTEGER
+
+-- CREATING THE NECESSARY TABLES AND COLUMNS FOR POSTERIOR STATISTICAL ANALYSIS --
+
+CREATE TEMPORARY TABLE stats_cell_towers (
+
 );
+
+CREATE TEMPORARY TABLE stats_number_users_preprocess (
+  users_raw_data INTEGER,
+
+);
+
+
+CREATE TEMPORARY TABLE stats_number_users_region (
+  users_activity_inside_region INTEGER,
+  users_activity_weekdays INTEGER,
+  users_by_minimum_requirements INTEGER,
+  users_by_preferences_variables INTEGER,
+  users_with_home_or_work INTEGER,
+  users_with_home_and_work INTEGER,
+  users_with_home_and_work_inside INTEGER,
+  users_with_home_work_inside_not_same INTEGER,
+  users_morning_calls INTEGER,
+  users_evening_calls INTEGER,
+  users_evening_or_morning_calls INTEGER,
+  users_evening_and_morning_calls INTEGER,
+  users_calls_morning_home INTEGER,
+  users_calls_morning_work INTEGER,
+  users_home_or_work_morning INTEGER,
+  users_home_and_work_morning INTEGER,
+  users_calls_evening_home INTEGER,
+  users_calls_evening_work INTEGER,
+  users_home_or_work_evening INTEGER,
+  users_home_and_work_evening INTEGER,
+  users_home_and_work_morning_or_evening INTEGER,
+  users_home_and_work_morning_and_evening INTEGER,
+  cleaned_users_home_and_work_morning INTEGER,
+  cleaned_users_home_and_work_evening INTEGER,
+  cleaned_users_home_and_work_morning_and_evening INTEGER,
+
+  users_subsample INTEGER
+);
+
+CREATE TEMPORARY TABLE stats_number_records_preprocess (
+  records_raw_data INTEGER,
+  records_without_negative_or_null_values INTEGER,
+
+);
+
+CREATE TEMPORARY TABLE stats_number_records_region (
+  records_activity_inside_region INTEGER,
+  records_activity_weekdays INTEGER,
+  records_by_minimum_requirements INTEGER,
+  records_by_preferences_variables INTEGER,
+  records_with_home_or_work INTEGER,
+  records_with_home_and_work INTEGER,
+  records_with_home_and_work_inside INTEGER,
+  records_with_home_work_inside_not_same INTEGER,
+  records_morning_calls INTEGER,
+  records_evening_calls INTEGER,
+  records_evening_or_morning_calls INTEGER,
+  records_evening_and_morning_calls INTEGER,
+  records_calls_morning_home INTEGER,
+  records_calls_morning_work INTEGER,
+  records_home_or_work_morning INTEGER,
+  records_home_and_work_morning INTEGER,
+  records_calls_evening_home INTEGER,
+  records_calls_evening_work INTEGER,
+  records_home_or_work_evening INTEGER,
+  records_home_and_work_evening INTEGER,
+  records_home_and_work_morning_or_evening INTEGER,
+  records_home_and_work_morning_and_evening INTEGER,
+  cleaned_records_home_and_work_morning INTEGER,
+  cleaned_records_home_and_work_evening INTEGER,
+  cleaned_records_home_and_work_morning_and_evening INTEGER,
+
+  records_subsample INTEGER
+
+);
+
 
 -- ------------------------------- PROCESS ALL THE DATA ----------------------------- --
 -- DELETE NEGATIVE OR NULL VALUES (only 16 values removed)
@@ -745,9 +809,20 @@ CREATE TEMPORARY TABLE travelTimes_H_W AS(
   AND travelTime = minTravelTime_H_W
 );
 
-
 -- TRAVEL TIMES WORK -> HOME (we are assuming people go to home in the evening/night) --
 -- calculating all the calls that took place at home or in the workplace during the evening
+
+CREATE TEMPORARY TABLE evening_calls AS (
+  SELECT *  -- calculating all the calls made during the morning
+  FROM call_fct_porto_weekdays_restructured
+  WHERE (time > '15:00:00'::time AND time < '24:00:00'::time)
+  ORDER BY id, date_id
+);
+
+UPDATE stats_number_users
+SET users_evening_calls = (SELECT count(DISTINCT id) FROM users_evening_calls);
+
+
 CREATE TEMPORARY TABLE commuting_calls_evening AS(
   SELECT *
   FROM (
@@ -758,12 +833,7 @@ CREATE TEMPORARY TABLE commuting_calls_evening AS(
            cell_id,
            home_id,
            workplace_id
-    FROM (
-      SELECT *  -- calculating all the calls made during the morning
-      FROM sub_call_fct_porto
-      WHERE (time > '15:00:00'::time AND time < '24:00:00'::time)
-      ORDER BY id, date_id
-    ) l
+    FROM evening_calls
     INNER JOIN (SELECT id AS userid, home_id, workplace_id FROM home_workplace_by_user) u
     ON id = userid
   ) h
@@ -1139,3 +1209,14 @@ ON id = uid;
 
 -- IF WE WANT TO CALCULATE COMMUTING TRIP BASED ON TRAVEL TIMES, WE MUST SUBSAMPLE EVEN MORE OUR POPULATION
 
+
+
+-- RESULTS OF ALL OPERATIONS IN ORDER TO MAKE THE STATISTICAL ANALYSIS--
+SELECT * FROM stats_cell_towers;
+SELECT * FROM stats_number_users_preprocess;
+SELECT * FROM stats_number_users_region;
+SELECT * FROM stats_number_records_preprocess;
+SELECT * FROM stats_number_records_region;
+SELECT * FROM statsmunicipals;
+SELECT * FROM region_users_characterization;
+SELECT * FROM subsample;
