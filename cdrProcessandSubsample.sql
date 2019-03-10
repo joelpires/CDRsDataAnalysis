@@ -1,22 +1,23 @@
 -- ISSUES --
 -- issue: decidir o que fazer com os dados de oscillation case4
--- issue: create oscillations table from case4 table
+-- issue: create oscillations table from case4 table. O QUE FAZER COM AS OSCILLATIONS?
 -- issue: verificar se há duplicados nos ranked
 -- issue: cuidado que no unique_call_fct há la alguns registos que têm date_id mas nao têm date
 -- issue: manter tracking dos registos cuja torre de origem ou destino nao estao na base de dados de torres
 -- issue: if there's more than one most visited cell, analyze...(is it an oscillation?)
           -- see if this issue happens frequently
 
-
--- CREATING THE NECESSARY TABLES AND COLUMNS FOR POSTERIOR STATISTICAL ANALYSIS --
-
-CREATE TEMPORARY TABLE stats_cell_towers (
-
-);
+------------------------------------------- CREATING THE NECESSARY TABLES AND COLUMNS FOR POSTERIOR STATISTICAL ANALYSIS ----------------------------------------------------------
 
 CREATE TEMPORARY TABLE stats_number_users_preprocess (
-  users_raw_data INTEGER,
-
+  users_raw_data INTEGER, -- issue
+  users_without_negative_or_null_values INTEGER, -- issue
+  users_without_duplicates INTEGER,
+  users_without_unknownCells INTEGER,
+  users_without_duplicates_and_unknownCells INTEGER,
+  users_without_case1 INTEGER,
+  users_without_case1_and_case2 INTEGER,
+  users_without_different_duration INTEGER
 );
 
 
@@ -51,9 +52,15 @@ CREATE TEMPORARY TABLE stats_number_users_region (
 );
 
 CREATE TEMPORARY TABLE stats_number_records_preprocess (
-  records_raw_data INTEGER,
-  records_without_negative_or_null_values INTEGER,
-
+  records_raw_data INTEGER, -- issue
+  records_without_negative_or_null_values INTEGER, -- issue
+  records_without_duplicates INTEGER,
+  records_without_unknownCells INTEGER,
+  records_without_duplicates_and_unknownCells INTEGER,
+  records_without_case1 INTEGER,
+  records_without_case1_and_case2 INTEGER,
+  records_oscillations INTEGER,
+  users_without_different_duration INTEGER
 );
 
 CREATE TEMPORARY TABLE stats_number_records_region (
@@ -88,7 +95,14 @@ CREATE TEMPORARY TABLE stats_number_records_region (
 );
 
 
--- ------------------------------- PROCESS ALL THE DATA ----------------------------- --
+-- ------------------------------------------------------------------------------------------------ PROCESS ALL THE DATA ------------------------------------------------------------------------------------------- --
+UPDATE stats_number_records_preprocess
+SET records_raw_data = 400000;
+
+UPDATE stats_number_users_preprocess
+SET users_raw_data = 400000;
+
+----------------------------------------------------------
 -- DELETE NEGATIVE OR NULL VALUES (only 16 values removed)
 DELETE
 FROM call_fct
@@ -105,24 +119,73 @@ WHERE duration_amt < 1
       OR terminating_cell_id IS NULL
       OR date_id IS NULL;
 
+UPDATE stats_number_users_preprocess
+SET users_without_negative_or_null_values = 400000-16;
+
+UPDATE stats_number_records_preprocess
+SET records_without_negative_or_null_values = 400000-16;
+----------------------------------------------------------
+
 -- CHECK IF THERE ARE DUPLICATES ON CALL_DIM
 SELECT COUNT(*) FROM call_dim; -- 6511 towers
 SELECT COUNT (DISTINCT cell_id) FROM call_dim; -- 6511 towers
+----------------------------------------------------------
 
 -- CHECK IF CELL TOWERS LOCATIONS MAKE SENSE
 -- already seen on ArcGIS and yes, all the cellular towers are within the Portugal territory
+-----------------------------------------------------------
 
 -- CHECK IF THERE ARE DUPLICATES ON CDR'S
-SELECT COUNT(*) FROM call_fct; -- 435701811 records
-SELECT DISTINCT COUNT(*) FROM call_fct; -- 435699639 (which means that there are 2172 duplicated records)
+UPDATE stats_number_records_preprocess
+SET records_without_duplicates = (SELECT DISTINCT COUNT(*) FROM call_fct);
 
--- CHECK IF THERE ARE CALLS THAT HAVE terminating_cell_ids and originating_cell_ids THAT DO NOT BELONG TO THE TOWERS WE HAVE
-SELECT * -- the result was 422891766 records (which means that there are, in fact, 12810045 records to be eliminated)
-FROM call_fct
-WHERE originating_cell_id IN (SELECT cell_id FROM call_dim)
-      AND terminating_cell_id IN (SELECT cell_id FROM call_dim);
+UPDATE stats_number_users_preprocess
+SET users_without_duplicates = (SELECT count(DISTINCT id)
+                                FROM (
+                                  SELECT DISTINCT originating_id AS id
+                                  FROM call_fct
 
--- GET RID OFF CALLS WITH UNKNOWN CELL TOWERS AND DUPLICATED RECORDS
+                                  UNION
+
+                                  SELECT DISTINCT terminating_id AS id
+                                  FROM call_fct
+                                ) c2
+);
+
+----------------------------------------------------------
+-- CHECK IF THERE ARE CALLS THAT HAVE terminating_cell_ids AND originating_cell_ids THAT DO NOT BELONG TO THE TOWERS WE HAVE
+
+UPDATE stats_number_records_preprocess
+SET records_without_unknownCells = (SELECT count(*)
+                                    FROM call_fct
+                                    WHERE originating_cell_id IN (SELECT cell_id FROM call_dim)
+                                          AND terminating_cell_id IN (SELECT cell_id FROM call_dim)
+);
+
+UPDATE stats_number_users_preprocess
+SET users_without_unknownCells = (SELECT count(DISTINCT id)
+                                  FROM (
+                                  SELECT DISTINCT originating_id AS id
+                                  FROM (SELECT *
+                                        FROM call_fct
+                                        WHERE originating_cell_id IN (SELECT cell_id FROM call_dim)
+                                          AND terminating_cell_id IN (SELECT cell_id FROM call_dim)
+                                  ) o
+
+                                  UNION
+
+                                  SELECT DISTINCT terminating_id AS id
+                                  FROM (SELECT *
+                                        FROM call_fct
+                                        WHERE originating_cell_id IN (SELECT cell_id FROM call_dim)
+                                          AND terminating_cell_id IN (SELECT cell_id FROM call_dim)
+                                  ) l
+                                ) c2
+);
+
+----------------------------------------------------------
+-- GET RID OFF CALLS WITH HAVE BOTH UNKNOWN CELL TOWERS AND DUPLICATED RECORDS
+-- (look that we can't rid off records with a caller OR a callee from an unknown cell)
 CREATE TABLE unique_call_fct AS(
   SELECT originating_id,
          originating_cell_id,
@@ -136,9 +199,24 @@ CREATE TABLE unique_call_fct AS(
         AND c.terminating_cell_id IN (SELECT cell_id FROM call_dim)
 );
 
-SELECT COUNT(*) FROM unique_call_fct; -- 422891734 remaining records (12810077 records eliminated)
+UPDATE stats_number_records_preprocess
+SET records_without_duplicates_and_unknownCells = (SELECT count(*) FROM unique_call_fct);
 
--- ------------------------------- REMOVING OSCILLATION SEQUENCES ----------------------------- -- 254(case1) + 1524(case2) = 1778 records deleted from unique_call_fct
+UPDATE stats_number_users_preprocess
+SET users_without_duplicates_and_unknownCells = (SELECT count(DISTINCT id)
+                                                 FROM (
+                                                  SELECT DISTINCT originating_id AS id
+                                                  FROM unique_call_fct
+
+                                                  UNION
+
+                                                  SELECT DISTINCT terminating_id AS id
+                                                  FROM unique_call_fct
+                                                ) c2
+);
+----------------------------------------------------------
+
+-- ----------------------------------------- REMOVING OSCILLATION SEQUENCES --------------------------- -- 254(case1) + 1524(case2) = 1778 records deleted from unique_call_fct
 /*These series of calculations were done in the subset of the CDR's of the specific region due to the high demand for computational power.
   Check the continuity of the same call through different records:
     -- (1) if the difference between the date_id's of two registers between the exact same users is equal to 0 and there is a difference of towers --> delete all of them!
@@ -147,8 +225,8 @@ SELECT COUNT(*) FROM unique_call_fct; -- 422891734 remaining records (12810077 r
         -- (3) user is moving and changed legitimately his/her cell tower: once at least one of the originating_cell_ids or the terminating_cell_ids changed and is not an oscillation
         -- (4) oscillation: once it is noticed the changed previously described was done at a ridiculous speed (400 km/h). In this case we assume that the first record is the true one and fuse.
                         -- there are cases where users switch cells more than once??? If so, another action needs to be done*/
-
-CREATE SEQUENCE serial START 1;
+----------------------------------------------------------
+-- CREATE SEQUENCE serial START 1;
 CREATE TEMPORARY TABLE differences AS( -- creating a temporary table that calculates difference between date_ids of the calls between the same users and potentially identify call continuity
   SELECT *,
             CASE
@@ -178,7 +256,7 @@ CREATE TEMPORARY TABLE differences AS( -- creating a temporary table that calcul
   )g
 
 );
-COMMIT;
+----------------------------------------------------------
 
 -- case (1)
 CREATE TEMPORARY TABLE case1 AS (
@@ -186,7 +264,6 @@ CREATE TEMPORARY TABLE case1 AS (
   FROM differences
   WHERE diffDates = 0
 );
-SELECT * FROM case1; -- 127*2 = 254 records deleted
 
 START TRANSACTION;
 DELETE
@@ -206,8 +283,25 @@ OR (u.originating_id = d.lagoriginating_id
   AND u.duration_amt = d.lagduration_amt);
 COMMIT;
 
+UPDATE stats_number_records_preprocess
+SET records_without_case1 = (SELECT count(*) FROM unique_call_fct);
+
+UPDATE stats_number_users_preprocess
+SET users_without_case1 = (SELECT count(DISTINCT id)
+                           FROM (
+                            SELECT DISTINCT originating_id AS id
+                            FROM unique_call_fct
+
+                            UNION
+
+                            SELECT DISTINCT terminating_id AS id
+                            FROM unique_call_fct
+                          ) c2
+);
+
+----------------------------------------------------------
 -- case (2)
-CREATE TEMPORARY TABLE case2 AS (
+CREATE TEMPORARY TABLE case2 AS ( -- 1524 records
   SELECT *
   FROM differences
   WHERE diffDates = lagduration_amt
@@ -215,9 +309,7 @@ CREATE TEMPORARY TABLE case2 AS (
         AND terminating_cell_id = lagterminating_cell_id
 );
 
-SELECT count(*) FROM case2; -- 1524 records
-
-CREATE TEMPORARY TABLE mergecase2 AS (
+CREATE TEMPORARY TABLE mergecase2 AS ( -- (1524-1472) records were merged = 52.
   SELECT lagoriginating_id AS originating_id,
          lagoriginating_cell_id AS originating_cell_id,
          lagterminating_id AS terminating_id,
@@ -236,8 +328,6 @@ CREATE TEMPORARY TABLE mergecase2 AS (
               GROUP BY mySequence) r
   ON a.mySequence = seq
 );
-
-SELECT count(*) FROM mergecase2;  -- (1524-1472) records were merged = 52.
 
 START TRANSACTION; -- (1472+52/2) => 1498*2 => 2996 records will be deleted temporarily
 DELETE
@@ -263,6 +353,23 @@ INSERT INTO unique_call_fct (originating_id, originating_cell_id, terminating_id
   FROM mergecase2);
 COMMIT;
 
+UPDATE stats_number_records_preprocess
+SET records_without_case1_and_case2 = (SELECT count(*) FROM unique_call_fct);
+
+UPDATE stats_number_users_preprocess
+SET users_without_case1_and_case2 = (SELECT count(DISTINCT id)
+                           FROM (
+                            SELECT DISTINCT originating_id AS id
+                            FROM unique_call_fct
+
+                            UNION
+
+                            SELECT DISTINCT terminating_id AS id
+                            FROM unique_call_fct
+                          ) c2
+);
+
+----------------------------------------------------------
 -- case (3) and (4)
 CREATE TEMPORARY TABLE case3and4 AS (
   SELECT *, geom1 AS ori_geom_point, geom2 AS term_geom_point, geom3 AS lagori_geom_point, geom4 AS lagterm_geom_point
@@ -286,6 +393,7 @@ CREATE TEMPORARY TABLE case3and4 AS (
   ON lagterminating_cell_id = cidu
 );
 
+----------------------------------------------------------
 -- case (4)
 CREATE TEMPORARY TABLE switchspeedscase4 AS (
   SELECT *,
@@ -297,7 +405,13 @@ CREATE TEMPORARY TABLE switchspeedscase4 AS (
         FROM case3and4) r
 );
 
+UPDATE stats_number_records_preprocess
+SET records_oscillations = (SELECT count(*)
+                            FROM switchspeedscase4
+                            WHERE "Switch Speed Origin - Km per hour" > 250
+                               OR "Switch Speed Terminating - Km per hour" > 250);
 
+----------------------------------------------------------
 -- LET'S CHECK IF THERE ARE RECORDS THAT HAVE EVERYTHING EQUAL MINUS THE DURATION
 SELECT *
 FROM unique_call_fct ca
@@ -326,8 +440,23 @@ WHERE ca.originating_id = ss.originating_id
   AND ca.date_id = ss.date_id;
 COMMIT;
 
-SELECT COUNT(*) FROM unique_call_fct; -- 422889956 remaining records (a total of 12811855 records eliminated from the original)
+UPDATE stats_number_records_preprocess
+SET records_without_different_duration = (SELECT count(*) FROM unique_call_fct);
 
+UPDATE stats_number_users_preprocess
+SET users_without_different_duration = (SELECT count(DISTINCT id)
+                           FROM (
+                            SELECT DISTINCT originating_id AS id
+                            FROM unique_call_fct
+
+                            UNION
+
+                            SELECT DISTINCT terminating_id AS id
+                            FROM unique_call_fct
+                          ) c2
+);
+
+----------------------------------------------------------
 -- CHECK IF DATES AND DURATIONS ARE WITHIN A VALID INTERVAL
 SELECT min(duration_amt) FROM unique_call_fct; -- is 1 seconds (is valid)
 SELECT max(duration_amt) FROM unique_call_fct; -- is 24966 seconds (is valid. Corresponds to 6,935 hours and is valid. Worry would be if, for example, a call took more than 8 hours)
@@ -335,6 +464,7 @@ SELECT min(date_id) FROM unique_call_fct; -- is 9200000 - corresponds to Sunday,
 SELECT max(date_id) FROM unique_call_fct; -- is 54686399 - corresponds to Saturday, 30 June of 2007 21:44:09 (is valid)
 -- PERIOD OF THE STUDY: 2 de April of 2006 01:00:00 to 30 June of 2007 21:44:09 (424 different days of communication)
 
+----------------------------------------------------------
 -- OBTAIN THE TOTAL CALLS MADE BY EACH USER --
 CREATE TEMPORARY TABLE totalCallsByUser AS(
   SELECT id, count(id) AS totalCalls
@@ -350,19 +480,7 @@ CREATE TEMPORARY TABLE totalCallsByUser AS(
   GROUP BY id
 );
 
-SELECT count(DISTINCT uid)  -- calculate the total number of users that we ended up with after the processing: 1899216 users
-FROM(
-    SELECT originating_id AS uid
-    FROM unique_call_fct
-
-    UNION ALL
-      SELECT terminating_id AS uid
-      FROM unique_call_fct
-) t;
-
-SELECT count(*) FROM unique_call_fct; -- calculate the total number of records that we ended up with after the processing: 422891630 records. Which means that a total of 12808009 records were eliminated after the processing.
-
--- ------------------------------- CHARACTERIZATION OF THE MUNICIPALS IN ORDER TO CHOOSE THE RIGHT ONES TO STUDY -----------------------------
+-- --------------------------------------- CHARACTERIZATION OF THE MUNICIPALS (in portugal continental) IN ORDER TO CHOOSE THE RIGHT ONES TO STUDY ------------------------------------------------------------
 
 -- GET THE NUMBER OF TOWERS AND AVERAGE TOWER DENSITY PER REGION --
 /*-- "municipalareas" contains official data of the areas of each municipal as they were considered in 2009 (the closest data we can get to 2007) (more info: https://www.pordata.pt/Municipios/Superf%C3%ADcie-57)*/
@@ -379,7 +497,7 @@ CREATE TEMPORARY TABLE numbTowersByRegions AS( -- calculate the number of towers
     GROUP BY name_2
 );
 
-INSERT INTO numbTowersByRegions (name_2, numbTowers) -- municipals without any tower within need to have an very little value in order to compute the next divisions
+INSERT INTO numbTowersByRegions (name_2, numbTowers) -- municipals without any tower within need to have a very little value in order to compute the next divisions
 VALUES ('Pedrógão Grande', 0.000001);
 INSERT INTO numbTowersByRegions (name_2, numbTowers)
 VALUES ('Vila do Porto', 0.000001);
@@ -408,6 +526,7 @@ CREATE TEMPORARY TABLE infoMunicipals AS ( -- diverse indicators of the municipa
   ON name_2 = c.municipal
 );
 
+----------------------------------------------------------
 -- COMPLETE CHARACTERIZATION OF THE VARIOUS INDICATORS OF EACH MUNICIPAL --
 /*"municipalpops" contains official data of the population of each municipal as they were considered in 2008 (the closest data we can get to 2007) (more info: https://www.pordata.pt/DB/Municipios/Ambiente+de+Consulta/Tabela)*/
 CREATE TABLE statsMunicipals AS (
@@ -466,6 +585,7 @@ CREATE TABLE call_dim_porto AS (
   WHERE name_2 = 'Porto'
 );
 
+----------------------------------------------------------
 --  OBTAIN THE CALLS MADE/RECEIVED FROM TOWERS OF PORTO  --
 CREATE TABLE call_fct_porto AS (
   SELECT originating_id,
@@ -495,6 +615,7 @@ CREATE TABLE call_fct_porto AS (
   ON unique_call_fct.terminating_cell_id = call_dim_porto.cell_id
 );
 
+----------------------------------------------------------
 --  OBTAIN THE CALLS MADE/RECEIVED DURING THE WEEKDAYS  --
 CREATE TABLE call_fct_porto_weekdays AS (
   SELECT *
@@ -1192,27 +1313,7 @@ CREATE TEMPORARY TABLE lessVisitedCells_W AS (
   ORDER BY id
 );
 
-
-
-
-
-
-
--- LET'S HOW MANY OF THE SUB_CALL_FCT_PORTO_USERS HAVE IN FACT A COMMUTING TRIP IN THE MORNING AND/OR IN THE AFTERNOON
-SELECT COUNT(*) FROM sub_call_fct_porto_users; -- 3461 users
-SELECT COUNT(*) FROM travelTimes_W_H; -- 2496 users
-SELECT COUNT(*) FROM travelTimes_H_W; -- 2459 users
-SELECT COUNT(id)      -- 2045 users
-FROM travelTimes_W_H
-INNER JOIN (SELECT id as uid FROM travelTimes_H_W) o
-ON id = uid;
-
--- IF WE WANT TO CALCULATE COMMUTING TRIP BASED ON TRAVEL TIMES, WE MUST SUBSAMPLE EVEN MORE OUR POPULATION
-
-
-
--- RESULTS OF ALL OPERATIONS IN ORDER TO MAKE THE STATISTICAL ANALYSIS--
-SELECT * FROM stats_cell_towers;
+-------------------------------------------------- RESULTS OF ALL OPERATIONS IN ORDER TO MAKE THE STATISTICAL ANALYSIS ----------------------------------------------------------------------------------------------
 SELECT * FROM stats_number_users_preprocess;
 SELECT * FROM stats_number_users_region;
 SELECT * FROM stats_number_records_preprocess;
@@ -1220,3 +1321,5 @@ SELECT * FROM stats_number_records_region;
 SELECT * FROM statsmunicipals;
 SELECT * FROM region_users_characterization;
 SELECT * FROM subsample;
+
+DISCARD TEMP;
