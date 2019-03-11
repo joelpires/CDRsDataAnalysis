@@ -54,6 +54,38 @@ CREATE TEMPORARY TABLE stats_number_users_region (
   users_subsample INTEGER
 );
 
+CREATE TEMPORARY TABLE stats_number_users_subsample (
+  users_porto INTEGER,
+  --users_by_minimum_requirements INTEGER,
+  users_activity_weekdays INTEGER,
+  users_activity_working_hours INTEGER,
+  users_activity_home_hours INTEGER,
+  users_with_home_or_work INTEGER,
+  users_with_home_and_work INTEGER,
+  users_with_home_work_not_same INTEGER,
+  users_morning_calls INTEGER,
+  users_evening_calls INTEGER,
+  users_evening_or_morning_calls INTEGER,
+  users_evening_and_morning_calls INTEGER,
+  users_calls_morning_home INTEGER,
+  users_calls_morning_work INTEGER,
+  users_calls_evening_home INTEGER,
+  users_calls_evening_work INTEGER,
+  users_home_or_work_morning INTEGER,
+  users_home_or_work_evening INTEGER,
+  users_home_and_work_morning INTEGER,
+  users_home_and_work_evening INTEGER,
+  users_home_and_work_morning_or_evening INTEGER,
+  users_home_and_work_morning_and_evening INTEGER,
+  cleaned_users_home_and_work_morning INTEGER,
+  cleaned_users_home_and_work_evening INTEGER,
+  cleaned_users_home_and_work_morning_and_evening INTEGER,
+
+  users_with_home_and_work_inside_region INTEGER,
+
+  users_subsample INTEGER
+);
+
 CREATE TEMPORARY TABLE stats_number_records_preprocess (
   records_raw_data INTEGER, -- issue
   records_without_negative_or_null_values INTEGER, -- issue
@@ -94,10 +126,45 @@ CREATE TEMPORARY TABLE stats_number_records_region (
 
   records_with_home_and_work_inside_region INTEGER,
   records_with_home_work_inside_not_same INTEGER,
-  records_subsample INTEGER
 
 );
 
+CREATE TEMPORARY TABLE stats_number_records_subsample (
+  records_porto_users INTEGER,
+  --records_by_minimum_requirements INTEGER,
+  records_activity_weekdays INTEGER,
+  records_activity_working_hours INTEGER,
+  records_activity_home_hours INTEGER,
+  records_with_home_or_work INTEGER,
+  records_with_home_and_work INTEGER,
+  records_morning_calls INTEGER,
+  records_evening_calls INTEGER,
+  records_evening_or_morning_calls INTEGER,
+  records_evening_and_morning_calls INTEGER,
+  records_calls_morning_home INTEGER,
+  records_calls_morning_work INTEGER,
+  records_home_or_work_morning INTEGER,
+  records_home_and_work_morning INTEGER,
+  records_calls_evening_home INTEGER,
+  records_calls_evening_work INTEGER,
+  records_home_or_work_evening INTEGER,
+  records_home_and_work_evening INTEGER,
+  records_home_and_work_morning_or_evening INTEGER,
+  records_home_and_work_morning_and_evening INTEGER,
+  cleaned_records_home_and_work_morning INTEGER,
+  cleaned_records_home_and_work_evening INTEGER,
+  cleaned_records_home_and_work_morning_and_evening INTEGER,
+
+  records_with_home_and_work_inside_region INTEGER,
+  records_with_home_work_inside_not_same INTEGER,
+  records_subsample INTEGER
+
+);
+CREATE TEMPORARY TABLE ODPorto_stats (
+  number_users INTEGER,
+  number_records INTEGER,
+  number_activities INTEGER
+);
 
 -- ------------------------------------------------------------------------------------------------ PROCESS ALL THE DATA ------------------------------------------------------------------------------------------- --
 UPDATE stats_number_records_preprocess
@@ -1250,17 +1317,28 @@ CREATE TABLE region_users_characterization AS (
          differentvisitedplaces AS "Different Places Visited",
          CAST(amountOfTalk AS FLOAT)/ activeDays AS "Average Talk Per Day",
          CAST(amountOfTalk AS FLOAT)/ numberCalls AS "Average Amount of Talk Per Call",
+         home_id,
+         workplace_id,
+         CAST(st_distance(ST_Transform(geom_point_home, 3857), ST_Transform(geom_point_work, 3857)) AS FLOAT)/1000 AS "Distance_H_W (kms)",
+         averageTravelTime_H_W,
+         minTravelTime_H_W,
+         date_H_W,
+         startdate_H_W,
+         finishdate_H_W,
+         (CAST(st_distance(ST_Transform(geom_point_home, 3857), ST_Transform(geom_point_work, 3857)) AS FLOAT)/1000)/(CAST(minTravelTime_H_W AS FLOAT)/60/60) AS "Travel Speed H_W (Km/h)",
+         averageTravelTime_W_H,
+         minTravelTime_W_H,
+         date_W_H,
+         startdate_W_H,
+         finishdate_W_H,
+         (CAST(st_distance(ST_Transform(geom_point_home, 3857), ST_Transform(geom_point_work, 3857)) AS FLOAT)/1000)/ (CAST(minTravelTime_W_H AS FLOAT)/60/60) AS "Travel Speed W_H (Km/h)",
          numberCallsWeekdays,
          numberCalls_home_hours,
          numberCalls_working_hours,
-         home_id,
-         workplace_id,
-         st_distance(ST_Transform(geom_point_home, 3857), ST_Transform(geom_point_work, 3857)) AS "Distance_H_W (meters)",
          number_calls_home_morning,
          number_calls_work_morning,
          number_calls_home_evening,
-         number_calls_work_evening,
-
+         number_calls_work_evening
   FROM (
     SELECT id,
            count(date) AS activeDays,
@@ -1372,28 +1450,17 @@ ESTABLISHING THE PARAMETERS AND PRIORITIZE THE INDICATORS FOR THE USERS' PROFILE
             . People can take vacations and travel abroad
 */
 
-UPDATE stats_number_users
-SET porto_users = (SELECT count(*) FROM porto_users_characterization);
 
-CREATE TEMPORARY TABLE select_users_by_minimum_requirements AS(
-   SELECT *
-   FROM porto_users_characterization
-   WHERE "Calls inside region (%)" >= 70
-   AND "Average Talk Per Day" < 18000 -- less than 5 hours of talk per day
-   AND "Average Calls Per Day" < 3 * 24 -- someone that is working is not able to constantly being on the phone, so we limited to 3 calls per hour on average
-   AND "Average Calls Per Day" > 1 -- at least (almost) two calls per day on average in order to us being able compute commuting trips
-   AND "Nº Active Days" > 1 * 7 -- at least one week of call activity
-   AND "Different Places Visited" >= 2 -- visited at least two different places
-);
-
-UPDATE stats_number_users
-SET selected_users_by_minimum_requirements = (SELECT count(*) FROM select_users_by_minimum_requirements);
-
-CREATE TEMPORARY TABLE select_users_by_dependent_variables AS(
+CREATE TEMPORARY TABLE subsample_users_characterization AS(
   SELECT *
-  FROM select_users_by_minimum_requirements
+  FROM region_users_characterization
+  WHERE "Average Talk Per Day" < 18000 -- less than 5 hours of talk per day
+  AND "Average Calls Per Day" < 3 * 24 -- someone that is working is not able to constantly being on the phone, so we limited to 3 calls per hour on average
+  AND "Average Calls Per Day" > 1 -- at least (almost) two calls per day on average in order to us being able compute commuting trips
+  AND "Nº Active Days" > 1 * 7 -- at least one week of call activity
+  AND "Different Places Visited" >= 2 -- visited at least two different places
   /*
-  WHERE "Average Calls Per Day" > 20
+      AND "Average Calls Per Day" > 20
       AND "Active Days / Period of the Study (%)" > 30
           ...
   */
@@ -1406,8 +1473,52 @@ CREATE TEMPORARY TABLE select_users_by_dependent_variables AS(
           -- "Different Places Visited" , "Total Amount of Talk", "Average Talk Per Day" and "Average Amount of Talk Per Call" are variables that do not matter
 );
 
-UPDATE stats_number_users
-SET selected_users_by_dependent_variables = (SELECT count(*) FROM select_users_by_dependent_variables);
+
+CREATE TEMPORARY TABLE ODPorto_users_characterization AS(
+  SELECT *
+  FROM subsample_users_characterization
+  WHERE numberCalls_home_hours IS NOT NULL
+        AND numberCalls_working_hours IS NOT NULL
+        AND home_id IS NOT NULL
+        AND workplace_id IS NOT NULL
+        AND home_id != workplace_id
+        AND home_id IN (SELECT cell_id FROM call_dim_porto)
+        AND workplace_id IN (SELECT cell_id FROM call_dim_porto)
+        AND ((minTravelTime_H_W IS NOT NULL AND "Travel Speed H_W (Km/h)" <= 250 AND "Travel Speed H_W (Km/h)" >= 3)
+              OR (minTravelTime_W_H IS NOT NULL AND "Travel Speed W_H (Km/h)" <= 250 AND "Travel Speed W_H (Km/h)" >= 3))
+
+);
+
+CREATE TEMPORARY TABLE subsample_ODPORTO AS (
+  SELECT *
+  FROM call_fct_porto
+  WHERE originating_id IN (SELECT id FROM ODPorto_users_characterization)
+        OR terminating_id IN (SELECT id FROM ODPorto_users_characterization)
+);
+
+CREATE TABLE ODPORTO  AS(
+  SELECT originating_id AS id, originating_cell_id AS cell_id, date_id, date, time, duration_amt
+  FROM subsample_ODPORTO
+
+  UNION ALL
+
+  SELECT terminating_id AS id, terminating_cell_id AS cell_id, date_id, date, time, duration_amt
+  FROM subsample_ODPORTO
+);
+
+-- ------------------------------- ELABORATING STATS ----------------------------- --
+UPDATE ODPorto_stats
+SET number_users = (SELECT count(*) FROM ODPorto_users_characterization);
+
+UPDATE ODPorto_stats
+SET number_records = (SELECT count(*) FROM subsample_ODPORTO);
+
+UPDATE ODPorto_stats
+SET number_activities = (SELECT count(*) FROM ODPORTO);
+
+
+
+
 
 CREATE TEMPORARY TABLE select_users_by_home_work AS(
   SELECT *
@@ -1471,15 +1582,25 @@ UPDATE stats_number_users
 SET selected_users_by_travel_times_H_W_H = (SELECT count(*) FROM select_users_by_travel_times_H_W_H);
 
 
+-------------------------------------------------- RESULTS OF ALL OPERATIONS IN ORDER TO MAKE THE STATISTICAL ANALYSIS ----------------------------------------------------------------------------------------------
+SELECT * FROM stats_number_users_preprocess;
+SELECT * FROM stats_number_users_region;
+SELECT * FROM stats_number_users_subsample;
+SELECT * FROM stats_number_records_preprocess;
+SELECT * FROM stats_number_records_region;
+SELECT * FROM stats_number_records_subsample;
+SELECT * FROM statsmunicipals;
+SELECT * FROM region_users_characterization;
+SELECT * FROM subsample_users_characterization;
 
+SELECT * FROM ODPorto_stats;
+SELECT * FROM ODPorto;
 
+DISCARD TEMP;
 
+-- SELECT * FROM select_users_by_dependent_variables;
 
-
-
-
-
--- ------------------------------- CALCULATIONS ON THE SUBSET ----------------------------- --
+-- ------------------------------- EXTRA CALCULATIONS ----------------------------- --
 -- MOST VISITED CELLS IN GENERAL, GROUPED BY USER ID --
 
 CREATE TEMPORARY TABLE mostVisitedCells_G AS (
@@ -1532,15 +1653,3 @@ CREATE TEMPORARY TABLE lessVisitedCells_W AS (
   GROUP BY id, cell_id, qtd
   ORDER BY id
 );
-
--------------------------------------------------- RESULTS OF ALL OPERATIONS IN ORDER TO MAKE THE STATISTICAL ANALYSIS ----------------------------------------------------------------------------------------------
-SELECT * FROM stats_number_users_preprocess;
-SELECT * FROM stats_number_users_region;
-SELECT * FROM stats_number_records_preprocess;
-SELECT * FROM stats_number_records_region;
-SELECT * FROM statsmunicipals;
-SELECT * FROM region_users_characterization;
-SELECT * FROM subsample;
-
-DISCARD TEMP;
-
