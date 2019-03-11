@@ -30,11 +30,11 @@ CREATE TEMPORARY TABLE stats_number_users_region (
   users_activity_home_hours INTEGER,
   users_with_home_or_work INTEGER,
   users_with_home_and_work INTEGER,
+  users_with_home_work_not_same INTEGER,
   users_morning_calls INTEGER,
   users_evening_calls INTEGER,
   users_evening_or_morning_calls INTEGER,
   users_evening_and_morning_calls INTEGER,
-  users_with_home_work_not_same INTEGER,
   users_calls_morning_home INTEGER,
   users_calls_morning_work INTEGER,
   users_calls_evening_home INTEGER,
@@ -835,27 +835,36 @@ WHERE id IN (
 );
 ----------------------------------------------------------
 CREATE TEMPORARY TABLE home_id_by_user AS (
-  SELECT id AS hid, home_id
-  FROM hasMostVisitedCell_H
+  SELECT h.hid AS hid, home_id, geom_point AS geom_point_home
+
+  FROM hasMostVisitedCell_H l
 
   LEFT JOIN (SELECT id AS Hid, mostVisitedCell AS home_id FROM mostVisitedCells_H) h
   ON "has?" = 1 AND id = Hid
+
+  INNER JOIN call_dim p
+  ON home_id = cell_id
+
 );
 
 CREATE TEMPORARY TABLE workplace_id_by_user AS (
-  SELECT id AS wid, workplace_id
+  SELECT h.wid AS wid, workplace_id, geom_point AS geom_point_work
   FROM hasMostVisitedCell_W
 
   LEFT JOIN (SELECT id AS Wid, mostVisitedCell AS workplace_id FROM mostVisitedCells_W) h
   ON "has?" = 1 AND id = Wid
+
+  INNER JOIN call_dim p
+  ON workplace_id = cell_id
 );
 
 CREATE TEMPORARY TABLE home_workplace_by_user AS (
-  SELECT hid AS id, home_id, workplace_id
+  SELECT hid AS id, home_id, geom_point_home, workplace_id, geom_point_work
   FROM home_id_by_user j
   INNER JOIN (SELECT Wid AS userid,* FROM workplace_id_by_user) l
   ON hid = userid
 );
+
 ----------------------------------------------------------
 
 CREATE TEMPORARY TABLE visitedCellsByIds_G AS( -- DIFFERENT VISITED CELLS IN GENERAL, GROUPED BY USER ID --
@@ -893,10 +902,13 @@ CREATE TEMPORARY TABLE numberCalls_morning_hours AS (
       SELECT originating_id AS uid, count(*) AS qtd
       FROM call_fct_porto_weekdays
        WHERE (time > '5:00:00'::time AND time < '12:00:00'::time)
+      GROUP BY uid
+
       UNION ALL
         SELECT terminating_id AS uid, count(*) AS qtd
         FROM call_fct_porto_weekdays
         WHERE (time > '5:00:00'::time AND time < '12:00:00'::time)
+        GROUP BY uid
   ) t
   GROUP BY uid
 );
@@ -911,9 +923,10 @@ CREATE TEMPORARY TABLE morning_calls AS (
 );
 
 ------------------------------------------------------------ TRAVEL TIMES HOME -> WORK (we are assuming people go to work in the morning) --
--- calculating all the calls that took place at home during the morning group by user
-CREATE TEMPORARY TABLE number_calls_morning_home AS(
-  SELECT id, count(*)
+------------------------------------------------------------
+-- calculate the number of calls made at home during the morning group by user
+CREATE TEMPORARY TABLE number_calls_home_morning AS(
+  SELECT id, count(DISTINCT id) AS number_calls_home_morning
   FROM (
     SELECT *
     FROM (
@@ -929,15 +942,14 @@ CREATE TEMPORARY TABLE number_calls_morning_home AS(
       ON id = userid
     ) h
     WHERE cell_id = home_id
-  ) t
-  WHERE home_id IS NOT NULL
+  ) a
   GROUP BY id
 );
 
 ------------------------------------------------------------
--- calculating all the calls that took place at the workplace during the morning group by user
-CREATE TEMPORARY TABLE number_calls_morning_workplace AS(
-  SELECT id, count(*)
+-- calculate the number of calls made at workplace during the morning group by user
+CREATE TEMPORARY TABLE number_calls_work_morning AS(
+  SELECT id, count(DISTINCT id) AS number_calls_work_morning
   FROM (
     SELECT *
     FROM (
@@ -953,13 +965,12 @@ CREATE TEMPORARY TABLE number_calls_morning_workplace AS(
       ON id = userid
     ) h
     WHERE cell_id = workplace_id
-  ) tt
-
-  WHERE workplace_id IS NOT NULL
+  ) a
   GROUP BY id
 );
 
 ------------------------------------------------------------
+-- calculate the calls made at home or at workplace during the morning
 CREATE TEMPORARY TABLE commuting_calls_morning AS(
   SELECT *
   FROM (
@@ -974,7 +985,7 @@ CREATE TEMPORARY TABLE commuting_calls_morning AS(
     INNER JOIN (SELECT id AS userid, home_id, workplace_id FROM home_workplace_by_user WHERE home_id IS NOT NULL AND workplace_id IS NOT NULL AND home_id != workplace_id) u
     ON id = userid
   ) h
-  WHERE cell_id = workplace_id OR cell_id = workplace_id
+  WHERE cell_id = home_id OR cell_id = workplace_id
 );
 
 ----------------------------------------------------------
@@ -1005,6 +1016,7 @@ CREATE TEMPORARY TABLE all_transitions_commuting_calls_morning AS(
   ) xD
 );
 
+------------------------------------------------------------
 -- cleaning the records of days in which the user did not made/received a call at work and at home
 -- calculating already commuting traveltimes
 CREATE TEMPORARY TABLE transitions_commuting_calls_morning AS (
@@ -1029,6 +1041,7 @@ CREATE TEMPORARY TABLE transitions_commuting_calls_morning AS (
 
 );
 
+------------------------------------------------------------
 -- computing the average travel time and minimal travel times
 -- WE ARE BELIEVING THAT THE MIN VALUE REPRESENTS THE MORE PROBABLE DURATION OF THE COMMUTING ROUTE
 CREATE TEMPORARY TABLE travelTimes_H_W AS(
@@ -1058,15 +1071,17 @@ CREATE TEMPORARY TABLE numberCalls_evening_hours AS (
   FROM(
       SELECT originating_id AS uid, count(*) AS qtd
       FROM call_fct_porto_weekdays
-       WHERE (time > '15:00:00'::time AND time < '24:00:00'::time)
+      WHERE (time > '15:00:00'::time AND time < '24:00:00'::time)
+      GROUP BY uid
       UNION ALL
         SELECT terminating_id AS uid, count(*) AS qtd
         FROM call_fct_porto_weekdays
         WHERE (time > '15:00:00'::time AND time < '24:00:00'::time)
+        GROUP BY uid
   ) t
   GROUP BY uid
 );
-
+------------------------------------------------------------
 -- TRAVEL TIMES WORK -> HOME (we are assuming people go to home in the evening/night) --
 -- calculating all the calls that took place at home or in the workplace during the evening
 
@@ -1077,6 +1092,55 @@ CREATE TEMPORARY TABLE evening_calls AS (
   ORDER BY id, date_id
 );
 
+
+------------------------------------------------------------
+-- calculate the number of calls made at home during the evening group by user
+CREATE TEMPORARY TABLE number_calls_home_evening AS(
+  SELECT id, count(DISTINCT id) AS number_calls_home_evening
+  FROM (
+    SELECT *
+    FROM (
+      SELECT id,
+             date,
+             time,
+             date_id,
+             cell_id,
+             home_id,
+             workplace_id
+      FROM evening_calls
+      INNER JOIN (SELECT id AS userid, home_id, workplace_id FROM home_workplace_by_user WHERE home_id IS NOT NULL AND workplace_id IS NOT NULL AND home_id != workplace_id) u
+      ON id = userid
+    ) h
+    WHERE cell_id = home_id
+  ) a
+  GROUP BY id
+);
+
+------------------------------------------------------------
+-- calculate the number of calls made at workplace during the evening group by user
+CREATE TEMPORARY TABLE number_calls_work_evening AS(
+  SELECT id, count(DISTINCT id) AS number_calls_work_evening
+  FROM (
+    SELECT *
+    FROM (
+      SELECT id,
+             date,
+             time,
+             date_id,
+             cell_id,
+             home_id,
+             workplace_id
+      FROM evening_calls
+      INNER JOIN (SELECT id AS userid, home_id, workplace_id FROM home_workplace_by_user WHERE home_id IS NOT NULL AND workplace_id IS NOT NULL AND home_id != workplace_id) u
+      ON id = userid
+    ) h
+    WHERE cell_id = workplace_id
+  ) a
+  GROUP BY id
+);
+
+------------------------------------------------------------
+-- calculate the calls made at home or at workplace during the evening
 CREATE TEMPORARY TABLE commuting_calls_evening AS(
   SELECT *
   FROM (
@@ -1094,6 +1158,7 @@ CREATE TEMPORARY TABLE commuting_calls_evening AS(
   WHERE cell_id = home_id OR cell_id = workplace_id
 );
 
+------------------------------------------------------------
  -- joining the last call made at work and the first call made at home, during the evening, by each day by each user
 CREATE TEMPORARY TABLE all_transitions_commuting_calls_evening AS(
   SELECT *
@@ -1121,6 +1186,7 @@ CREATE TEMPORARY TABLE all_transitions_commuting_calls_evening AS(
   ) xD
 );
 
+------------------------------------------------------------
 -- cleaning the records of days in which the user did not made/received a call at work and at home
 -- calculating already commuting traveltimes
 CREATE TEMPORARY TABLE transitions_commuting_calls_evening AS (
@@ -1144,6 +1210,8 @@ CREATE TEMPORARY TABLE transitions_commuting_calls_evening AS (
   AND date = datess
 
 );
+
+------------------------------------------------------------
 -- computing the average travel time and minimal travel times
 -- WE ARE BELIEVING THAT THE MIN VALUE REPRESENTS THE MORE PROBABLE DURATION OF THE COMMUTING ROUTE
 
@@ -1168,113 +1236,128 @@ CREATE TEMPORARY TABLE travelTimes_W_H AS(
 );
 
 
+-- --------------------------------------------------------------------------- CHARACTERIZE USERS BY MULTIPLE PARAMETERS ------------------------------------------------------------ --
+CREATE TABLE region_users_characterization AS (
 
-
-
--- ------------------------------- CHARACTERIZE USERS BY MULTIPLE PARAMETERS ----------------------------- --
-CREATE TABLE porto_users_characterization AS (
-
-  SELECT id,
-         "Total Amount of Talk",
-         "Average Calls Per Day",
-         "Average of Days Until Call",
-         "Calls in Porto (%)",
-         "Active Days / Period of the Study (%)",
-         "Nº Calls (Made/Received)",
-         "Nº Active Days",
-         "Different Places Visited",
-         "Average Talk Per Day",
-         "Average Amount of Talk Per Call",
+  SELECT aa.id,
+         amountOfTalk AS "Total Amount of Talk",
+         (numberCalls/ activeDays) AS "Average Calls Per Day",
+         sumDifferencesDays/activeDays AS "Average of Days Until Call",
+         CAST(numberCalls AS FLOAT) * 100/totalCalls AS "Calls inside Region (%)",
+         CAST(activeDays AS FLOAT)* 100 / 424  AS "Active Days / Period of the Study (%)",
+         numberCalls AS "Nº Calls (Made/Received)",
+         activeDays AS "Nº Active Days",
+         differentvisitedplaces AS "Different Places Visited",
+         CAST(amountOfTalk AS FLOAT)/ activeDays AS "Average Talk Per Day",
+         CAST(amountOfTalk AS FLOAT)/ numberCalls AS "Average Amount of Talk Per Call",
+         numberCallsWeekdays,
+         numberCalls_home_hours,
+         numberCalls_working_hours,
          home_id,
-         geom_point_home,
          workplace_id,
-         geom_point_work,
-         st_distance(ST_Transform(geom_point_home, 3857), ST_Transform(geom_point_work, 3857)) AS "Distance_H_W (meters)"
+         st_distance(ST_Transform(geom_point_home, 3857), ST_Transform(geom_point_work, 3857)) AS "Distance_H_W (meters)",
+         number_calls_home_morning,
+         number_calls_work_morning,
+         number_calls_home_evening,
+         number_calls_work_evening,
+
   FROM (
-    SELECT *
+    SELECT id,
+           count(date) AS activeDays,
+           sum(qtd) AS numberCalls,
+           sum(diffDays) AS sumDifferencesDays
     FROM (
-      SELECT ss2.id,
-             amountOfTalk AS "Total Amount of Talk",
-             (numberCalls/ activeDays) AS "Average Calls Per Day",
-             sumDifferencesDays/activeDays AS "Average of Days Until Call",
-             CAST(numberCalls AS FLOAT) * 100/totalCalls AS "Calls in Porto (%)",
-             CAST(activeDays AS FLOAT)* 100 / 424  AS "Active Days / Period of the Study (%)",
-             numberCalls AS "Nº Calls (Made/Received)",
-             activeDays AS "Nº Active Days",
-             differentvisitedplaces as "Different Places Visited",
-             CAST(amountOfTalk AS FLOAT)/ activeDays AS "Average Talk Per Day",
-             CAST(amountOfTalk AS FLOAT)/ numberCalls AS "Average Amount of Talk Per Call",
-             e."has?" AS "Has Most Visited Cell at Work",
-             d."has?" AS "Has Most Visited Cell at Home"
-      FROM (
-          SELECT id,
-                 count(date) AS activeDays,
-                 sum(qtd) AS numberCalls,
-                 sum(diffDays) AS sumDifferencesDays
-          FROM (
-              SELECT id,
-                     date,
-                     sum(qtd) qtd,
-                     COALESCE(ROUND(ABS((date_part('day',age(date, lag(date) OVER (PARTITION BY id order by id)))/365 + date_part('month',age(date, lag(date) OVER (PARTITION BY id order by id)))/12 + date_part('year',age(date, lag(date) OVER (PARTITION BY id order by id))))*365 )), 0) as diffDays
-              FROM (
-                  SELECT originating_id AS id, date, count(*) AS qtd
-                  FROM call_fct_porto_weekdays
-                  WHERE originating_cell_id IN (SELECT cell_id FROM call_dim_porto)   -- to me, is only interesting to know the number of Calls and the different active days IN PORTO (not in anywhere else)!
-                  GROUP BY originating_id, date
+        SELECT id,
+               date,
+               sum(qtd) qtd,
+               COALESCE(ROUND(ABS((date_part('day',age(date, lag(date) OVER (PARTITION BY id order by id)))/365 + date_part('month',age(date, lag(date) OVER (PARTITION BY id order by id)))/12 + date_part('year',age(date, lag(date) OVER (PARTITION BY id order by id))))*365 )), 0) as diffDays
+        FROM (
+            SELECT originating_id AS id, date, count(*) AS qtd
+            FROM call_fct_porto
+            GROUP BY originating_id, date
 
-                  UNION ALL
-                    SELECT terminating_id AS id, date, count(*) AS qtd
-                    FROM call_fct_porto_weekdays
-                    WHERE terminating_cell_id IN (SELECT cell_id FROM call_dim_porto) -- to me, is only interesting to know the number of Calls and the different active days IN PORTO (not in anywhere else)!
-                    GROUP BY terminating_id, date
-                   )ss
-              GROUP BY id, date
-          ) ss1
-          GROUP BY id
-      ) ss2
-
-      INNER JOIN (
-        SELECT id as userid, count(cell_id) as differentVisitedPlaces
-        FROM visitedCellsByIds_G
-        GROUP BY id
-      ) b
-      ON ss2.id = b.userid
-
-      INNER JOIN (SELECT * FROM durationsByUser) c
-      ON ss2.id = c.uid
-
-      INNER JOIN (SELECT * FROM hasMostVisitedCell_H) d
-      ON ss2.id = d.id
-
-      INNER JOIN (SELECT * FROM hasMostVisitedCell_W) e
-      ON ss2.id = e.id
-
-      INNER JOIN (SELECT * FROM totalCallsByUser) f
-      ON ss2.id = f.id
-    ) jj
-
+            UNION ALL
+              SELECT terminating_id AS id, date, count(*) AS qtd
+              FROM call_fct_porto
+              GROUP BY terminating_id, date
+             )ss
+        GROUP BY id, date
+    ) ss1
+    GROUP BY id
   ) aa
 
-  LEFT JOIN (SELECT cell_id AS cell_id_i,
-                     geom_point AS geom_point_work
-              FROM call_dim) i
-  ON workplace_id = cell_id_i
+  INNER JOIN (
+    SELECT id AS userid, count(cell_id) AS differentVisitedPlaces
+    FROM visitedCellsByIds_G
+    GROUP BY id
+  ) b
+  ON aa.id = b.userid
 
-  LEFT JOIN (SELECT cell_id AS cell_id_j,
-                     geom_point AS geom_point_home
-              FROM call_dim) j
-  ON home_id = cell_id_j
+  INNER JOIN (SELECT * FROM durationsByUser) c
+  ON aa.id = c.uid
 
-);
+  INNER JOIN (SELECT * FROM totalCallsByUser) f
+  ON aa.id = f.id
+
+  LEFT JOIN (SELECT id AS eid, home_id, geom_point_home, workplace_id, geom_point_work
+             FROM home_workplace_by_user) i
+  ON aa.id = eid
+
+  LEFT JOIN (SELECT uid, numberCallsWeekdays
+             FROM numberCallsWeekdays) rr
+  ON aa.id = rr.uid
+
+  LEFT JOIN (SELECT uid, numberCalls_home_hours
+             FROM numberCalls_home_hours) oo
+  ON aa.id = oo.uid
+
+  LEFT JOIN (SELECT uid, numberCalls_working_hours
+             FROM numberCalls_working_hours) ss
+  ON aa.id = ss.uid
+
+  LEFT JOIN (SELECT uid, numberCalls_morning_hours
+             FROM numberCalls_morning_hours) ww
+  ON aa.id = ww.uid
+
+  LEFT JOIN (SELECT uid, numberCalls_evening_hours
+             FROM numberCalls_evening_hours) ll
+  ON aa.id = ll.uid
+
+  LEFT JOIN (SELECT id, number_calls_home_morning
+             FROM number_calls_home_morning) ooo
+  ON aa.id = ooo.id
+
+  LEFT JOIN (SELECT id, number_calls_work_morning
+             FROM number_calls_work_morning) ppp
+  ON aa.id = ppp.id
+
+  LEFT JOIN (SELECT id, number_calls_home_evening
+             FROM number_calls_home_evening) lll
+  ON aa.id = lll.id
+
+  LEFT JOIN (SELECT id, number_calls_work_evening
+             FROM number_calls_work_evening) kkk
+  ON aa.id = kkk.id
+
+  LEFT JOIN (SELECT id,
+                    averageTravelTime_H_W,
+                    minTravelTime_H_W,
+                    date_H_W,
+                    startdate_H_W,
+                    finishdate_H_W
+             FROM travelTimes_H_W) kkk1
+  ON aa.id = kkk1.id
+
+  LEFT JOIN (SELECT id,
+                    averageTravelTime_W_H,
+                    minTravelTime_W_H,
+                    date_W_H,
+                    startdate_W_H,
+                    finishdate_W_H
+             FROM travelTimes_W_H) kkk2
+  ON aa.id = kkk2.id
 
 
-
-CREATE TEMPORARY TABLE traveltimes_H_W_H AS(
-  SELECT *
-  FROM porto_users_characterization
-
-  LEFT JOIN (SELECT id AS uid_w_h, * FROM travelTimes_W_H) yy
-  ON tt.id = uid_w_h
 );
 
 
@@ -1295,7 +1378,7 @@ SET porto_users = (SELECT count(*) FROM porto_users_characterization);
 CREATE TEMPORARY TABLE select_users_by_minimum_requirements AS(
    SELECT *
    FROM porto_users_characterization
-   WHERE "Calls in Porto (%)" >= 70
+   WHERE "Calls inside region (%)" >= 70
    AND "Average Talk Per Day" < 18000 -- less than 5 hours of talk per day
    AND "Average Calls Per Day" < 3 * 24 -- someone that is working is not able to constantly being on the phone, so we limited to 3 calls per hour on average
    AND "Average Calls Per Day" > 1 -- at least (almost) two calls per day on average in order to us being able compute commuting trips
@@ -1316,7 +1399,7 @@ CREATE TEMPORARY TABLE select_users_by_dependent_variables AS(
   */
   ORDER BY "Average Calls Per Day" DESC,  -- order the set of preferences
           "Active Days / Period of the Study (%)" DESC,
-          "Calls in Porto (%)" DESC,
+          "Calls inside Region (%)" DESC,
           "Nº Calls (Made/Received)" DESC,
           "Nº Active Days" DESC,
           "Average of Days Until Call" DESC
@@ -1460,3 +1543,4 @@ SELECT * FROM region_users_characterization;
 SELECT * FROM subsample;
 
 DISCARD TEMP;
+
