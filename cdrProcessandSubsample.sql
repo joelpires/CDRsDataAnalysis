@@ -723,7 +723,7 @@ CREATE TEMPORARY TABLE durationsByUser AS(
 
 ----------------------------------------------------------
 --  OBTAIN THE CALLS MADE/RECEIVED DURING THE WEEKDAYS  --
-CREATE TABLE call_fct_porto_weekdays AS (
+CREATE TEMPORARY TABLE call_fct_porto_weekdays AS (
   SELECT *
   FROM call_fct_porto
   WHERE extract(isodow from date) -1 < 5
@@ -900,6 +900,7 @@ WHERE id IN (
   ON ca.qtd = qtd
   AND ca.id = userid
 );
+
 ----------------------------------------------------------
 CREATE TEMPORARY TABLE home_id_by_user AS (
   SELECT h.hid AS hid, home_id, geom_point AS geom_point_home
@@ -933,7 +934,6 @@ CREATE TEMPORARY TABLE home_workplace_by_user AS (
 );
 
 ----------------------------------------------------------
-
 CREATE TEMPORARY TABLE visitedCellsByIds_G AS( -- DIFFERENT VISITED CELLS IN GENERAL, GROUPED BY USER ID --
   SELECT id, cell_id, sum(qtd) AS qtd
   FROM(
@@ -1151,7 +1151,6 @@ CREATE TEMPORARY TABLE numberCalls_evening_hours AS (
 ------------------------------------------------------------
 -- TRAVEL TIMES WORK -> HOME (we are assuming people go to home in the evening/night) --
 -- calculating all the calls that took place at home or in the workplace during the evening
-
 CREATE TEMPORARY TABLE evening_calls AS (
   SELECT *  -- calculating all the calls made during the morning
   FROM call_fct_porto_weekdays_restructured
@@ -1281,7 +1280,6 @@ CREATE TEMPORARY TABLE transitions_commuting_calls_evening AS (
 ------------------------------------------------------------
 -- computing the average travel time and minimal travel times
 -- WE ARE BELIEVING THAT THE MIN VALUE REPRESENTS THE MORE PROBABLE DURATION OF THE COMMUTING ROUTE
-
 CREATE TEMPORARY TABLE travelTimes_W_H AS(
   SELECT id,
          averageTravelTime_W_H,
@@ -1332,13 +1330,13 @@ CREATE TABLE region_users_characterization AS (
          startdate_W_H,
          finishdate_W_H,
          (CAST(st_distance(ST_Transform(geom_point_home, 3857), ST_Transform(geom_point_work, 3857)) AS FLOAT)/1000)/ (CAST(minTravelTime_W_H AS FLOAT)/60/60) AS "Travel Speed W_H (Km/h)",
-         numberCallsWeekdays,
-         numberCalls_home_hours,
-         numberCalls_working_hours,
-         number_calls_home_morning,
-         number_calls_work_morning,
-         number_calls_home_evening,
-         number_calls_work_evening
+         numberCallsWeekdays AS "Number of Calls Made/Received During the Weekdays",
+         numberCalls_home_hours AS "Number of Calls Made/Received During the Non-Working Hours",
+         numberCalls_working_hours AS "Number of Calls Made/Received During the Working Hours",
+         number_calls_home_morning AS "Number of Calls Made/Received at Home During the Morning",
+         number_calls_work_morning AS "Number of Calls Made/Received in The Workplace During the Morning",
+         number_calls_home_evening AS "Number of Calls Made/Received at Home During the Evening",
+         number_calls_work_evening AS "Number of Calls Made/Received in The Workplace During the Evening"
   FROM (
     SELECT id,
            count(date) AS activeDays,
@@ -1434,8 +1432,6 @@ CREATE TABLE region_users_characterization AS (
                     finishdate_W_H
              FROM travelTimes_W_H) kkk2
   ON aa.id = kkk2.id
-
-
 );
 
 
@@ -1477,11 +1473,7 @@ CREATE TEMPORARY TABLE subsample_users_characterization AS(
 CREATE TEMPORARY TABLE ODPorto_users_characterization AS(
   SELECT *
   FROM subsample_users_characterization
-  WHERE numberCalls_home_hours IS NOT NULL
-        AND numberCalls_working_hours IS NOT NULL
-        AND home_id IS NOT NULL
-        AND workplace_id IS NOT NULL
-        AND home_id != workplace_id
+  WHERE home_id != workplace_id
         AND home_id IN (SELECT cell_id FROM call_dim_porto)
         AND workplace_id IN (SELECT cell_id FROM call_dim_porto)
         AND ((minTravelTime_H_W IS NOT NULL AND "Travel Speed H_W (Km/h)" <= 250 AND "Travel Speed H_W (Km/h)" >= 3)
@@ -1584,19 +1576,22 @@ SET selected_users_by_travel_times_H_W_H = (SELECT count(*) FROM select_users_by
 
 -------------------------------------------------- RESULTS OF ALL OPERATIONS IN ORDER TO MAKE THE STATISTICAL ANALYSIS ----------------------------------------------------------------------------------------------
 SELECT * FROM stats_number_users_preprocess;
-SELECT * FROM stats_number_users_region;
-SELECT * FROM stats_number_users_subsample;
 SELECT * FROM stats_number_records_preprocess;
-SELECT * FROM stats_number_records_region;
-SELECT * FROM stats_number_records_subsample;
 SELECT * FROM statsmunicipals;
+
+SELECT * FROM stats_number_users_region;
+SELECT * FROM stats_number_records_region;
 SELECT * FROM region_users_characterization;
+
+SELECT * FROM stats_number_users_subsample;
+SELECT * FROM stats_number_records_subsample;
 SELECT * FROM subsample_users_characterization;
 
 SELECT * FROM ODPorto_stats;
+SELECT * FROM ODPorto_users_characterization
 SELECT * FROM ODPorto;
 
-DISCARD TEMP;
+
 
 -- SELECT * FROM select_users_by_dependent_variables;
 
@@ -1653,3 +1648,5 @@ CREATE TEMPORARY TABLE lessVisitedCells_W AS (
   GROUP BY id, cell_id, qtd
   ORDER BY id
 );
+
+DISCARD TEMP;
