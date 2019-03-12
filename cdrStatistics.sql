@@ -1,6 +1,6 @@
 ------------------------------------------- CREATING THE NECESSARY TABLES AND COLUMNS FOR POSTERIOR STATISTICAL ANALYSIS ----------------------------------------------------------
 
-CREATE TEMPORARY TABLE stats_number_users_preprocess (
+CREATE TABLE stats_number_users_preprocess (
   users_raw_data INTEGER, -- issue
   users_without_negative_or_null_values INTEGER, -- issue
   users_without_duplicates INTEGER,
@@ -11,77 +11,85 @@ CREATE TEMPORARY TABLE stats_number_users_preprocess (
   users_without_different_duration INTEGER
 );
 
+CREATE TABLE ODPorto_stats (
+  number_users INTEGER,
+  number_records INTEGER,
+  number_activities INTEGER
+);
 
-CREATE TEMPORARY TABLE stats_number_users_region (
-  users_porto INTEGER,
-  --users_by_minimum_requirements INTEGER,
+CREATE TABLE stats_number_users_subsample (
+  total_users INTEGER,
   users_activity_weekdays INTEGER,
-  users_activity_working_hours INTEGER,
   users_activity_home_hours INTEGER,
+  users_activity_working_hours INTEGER,
   users_with_home INTEGER,
   users_with_work INTEGER,
   users_with_home_or_work INTEGER,
   users_with_home_and_work INTEGER,
-  users_with_home_work_not_same INTEGER,
+  users_with_home_and_work_not_same INTEGER,
   users_morning_calls INTEGER,
   users_evening_calls INTEGER,
-  users_evening_or_morning_calls INTEGER,
-  users_evening_and_morning_calls INTEGER,
   users_calls_morning_home INTEGER,
   users_calls_morning_work INTEGER,
+  users_home_or_work_morning INTEGER,
+  users_home_and_work_morning INTEGER,
+  users_home_or_work_morning_not_same INTEGER,
+  users_home_and_work_morning_not_same INTEGER,
   users_calls_evening_home INTEGER,
   users_calls_evening_work INTEGER,
-  users_home_or_work_morning INTEGER,
   users_home_or_work_evening INTEGER,
-  users_home_and_work_morning INTEGER,
   users_home_and_work_evening INTEGER,
-  users_home_and_work_morning_or_evening INTEGER,
-  users_home_and_work_morning_and_evening INTEGER,
-  cleaned_users_home_and_work_morning INTEGER,
-  cleaned_users_home_and_work_evening INTEGER,
-  cleaned_users_home_and_work_morning_and_evening INTEGER,
-
-  users_with_home_and_work_inside_region INTEGER,
-
-  users_subsample INTEGER
+  users_home_or_work_evening_not_same INTEGER,
+  users_home_and_work_evening_not_same INTEGER,
+  users_home_and_work_morning_or_evening_not_same INTEGER,
+  users_home_and_work_morning_and_evening_not_same INTEGER,
+  users_feasible_travelTimes_morning INTEGER,
+  users_feasible_travelTimes_evening INTEGER,
+  users_feasible_travelTimes_morning_or_evening INTEGER,
+  users_feasible_travelTimes_morning_and_evening INTEGER,
+  users_feasible_travelTimes_morning_or_evening_inside_Porto INTEGER,
+  users_feasible_travelTimes_morning_and_evening_inside_Porto INTEGER
 );
 
-CREATE TEMPORARY TABLE stats_number_users_subsample (
-total_users INTEGER,
-users_activity_weekdays INTEGER,
-users_activity_home_hours INTEGER,
-users_activity_working_hours INTEGER,
-users_with_home INTEGER,
-users_with_work INTEGER,
-users_with_home_or_work INTEGER,
-users_with_home_and_work INTEGER,
-users_with_home_and_work_not_same INTEGER,
-users_morning_calls INTEGER,
-users_evening_calls INTEGER,
-users_calls_morning_home INTEGER,
-users_calls_morning_work INTEGER,
-users_home_or_work_morning INTEGER,
-users_home_and_work_morning INTEGER,
-users_home_or_work_morning_not_same INTEGER,
-users_home_and_work_morning_not_same INTEGER,
-users_calls_evening_home INTEGER,
-users_calls_evening_work INTEGER,
-users_home_or_work_evening INTEGER,
-users_home_and_work_evening INTEGER,
-users_home_or_work_evening_not_same INTEGER,
-users_home_and_work_evening_not_same INTEGER,
-users_home_and_work_morning_or_evening_not_same INTEGER,
-users_home_and_work_morning_and_evening_not_same INTEGER,
-users_feasible_travelTimes_morning INTEGER,
-users_feasible_travelTimes_evening INTEGER,
-users_feasible_travelTimes_morning_or_evening INTEGER,
-users_feasible_travelTimes_morning_and_evening INTEGER,
-users_feasible_travelTimes_morning_or_evening_inside_Porto INTEGER,
-users_feasible_travelTimes_morning_and_evening_inside_Porto INTEGER
 
+
+CREATE TABLE stats_number_users_region (
+  total_users INTEGER,
+  users_activity_weekdays INTEGER,
+  users_activity_home_hours INTEGER,
+  users_activity_working_hours INTEGER,
+  users_with_home INTEGER,
+  users_with_work INTEGER,
+  users_with_home_or_work INTEGER,
+  users_with_home_and_work INTEGER,
+  users_with_home_and_work_not_same INTEGER,
+  users_morning_calls INTEGER,
+  users_evening_calls INTEGER,
+  users_calls_morning_home INTEGER,
+  users_calls_morning_work INTEGER,
+  users_home_or_work_morning INTEGER,
+  users_home_and_work_morning INTEGER,
+  users_home_or_work_morning_not_same INTEGER,
+  users_home_and_work_morning_not_same INTEGER,
+  users_calls_evening_home INTEGER,
+  users_calls_evening_work INTEGER,
+  users_home_or_work_evening INTEGER,
+  users_home_and_work_evening INTEGER,
+  users_home_or_work_evening_not_same INTEGER,
+  users_home_and_work_evening_not_same INTEGER,
+  users_home_and_work_morning_or_evening_not_same INTEGER,
+  users_home_and_work_morning_and_evening_not_same INTEGER,
+  users_feasible_travelTimes_morning INTEGER,
+  users_feasible_travelTimes_evening INTEGER,
+  users_feasible_travelTimes_morning_or_evening INTEGER,
+  users_feasible_travelTimes_morning_and_evening INTEGER,
+  users_feasible_travelTimes_morning_or_evening_inside_Porto INTEGER,
+  users_feasible_travelTimes_morning_and_evening_inside_Porto INTEGER
 );
 
-CREATE TEMPORARY TABLE stats_number_records_preprocess (
+
+
+CREATE TABLE stats_number_records_preprocess (
   records_raw_data INTEGER, -- issue
   records_without_negative_or_null_values INTEGER, -- issue
   records_without_duplicates INTEGER,
@@ -93,7 +101,7 @@ CREATE TEMPORARY TABLE stats_number_records_preprocess (
   records_without_different_duration INTEGER
 );
 
-CREATE TEMPORARY TABLE stats_number_records_region (
+CREATE TABLE stats_number_records_region (
   records_porto_users INTEGER,
   --records_by_minimum_requirements INTEGER,
   records_activity_weekdays INTEGER,
@@ -124,7 +132,7 @@ CREATE TEMPORARY TABLE stats_number_records_region (
 
 );
 
-CREATE TEMPORARY TABLE stats_number_records_subsample (
+CREATE TABLE stats_number_records_subsample (
   records_porto_users INTEGER,
   --records_by_minimum_requirements INTEGER,
   records_activity_weekdays INTEGER,
@@ -154,11 +162,6 @@ CREATE TEMPORARY TABLE stats_number_records_subsample (
   records_with_home_work_inside_not_same INTEGER,
   records_subsample INTEGER
 
-);
-CREATE TEMPORARY TABLE ODPorto_stats (
-  number_users INTEGER,
-  number_records INTEGER,
-  number_activities INTEGER
 );
 
 
