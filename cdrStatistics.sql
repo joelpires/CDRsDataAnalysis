@@ -81,8 +81,8 @@ CREATE TABLE stats_number_records_subsample (
   records_users_activity_weekdays INTEGER,
   records_users_with_home_and_work INTEGER,
   records_users_with_home_and_work_not_same INTEGER,
-  records_users_calls_morning INTEGER,
-  records_users_calls_evening INTEGER,
+  records_users_morning_calls INTEGER,
+  records_users_evening_calls INTEGER,
   records_users_feasible_travelTimes_morning INTEGER,
   records_users_feasible_travelTimes_evening INTEGER,
   records_users_feasible_travelTimes_morning_or_evening INTEGER,
@@ -97,10 +97,12 @@ CREATE TABLE stats_number_records_region (
   records_users_activity_weekdays INTEGER,
   records_users_with_home_and_work INTEGER,
   records_users_with_home_and_work_not_same INTEGER,
-  records_users_calls_morning INTEGER,
-  records_users_calls_evening INTEGER,
+  records_users_morning_calls INTEGER,
+  records_users_evening_calls INTEGER,
   records_users_feasible_travelTimes_morning INTEGER,
   records_users_feasible_travelTimes_evening INTEGER,
+  records_users_feasible_travelTimes_morning_or_evening INTEGER,
+  records_users_feasible_travelTimes_morning_and_evening INTEGER,
   records_users_feasible_travelTimes_morning_or_evening_inside_Porto INTEGER,
   records_users_feasible_travelTimes_morning_and_evening_inside_Porto INTEGER
 );
@@ -155,11 +157,14 @@ SET number_activities = (SELECT count(*) FROM ODPORTO);
 UPDATE stats_number_users_subsample
 SET total_users = (SELECT count(*) FROM subsample_users_characterization);
 
+CREATE TEMPORARY TABLE temp_users_activity_weekdays AS (
+  SELECT *
+  FROM subsample_users_characterization
+  WHERE "Number of Calls Made/Received During the Weekdays" IS NOT NULL
+);
+
 UPDATE stats_number_users_subsample
-SET users_activity_weekdays = (SELECT count(*)
-                               FROM subsample_users_characterization
-                               WHERE "Number of Calls Made/Received During the Weekdays" IS NOT NULL
-                              );
+SET users_activity_weekdays = (SELECT count(*) FROM temp_users_activity_weekdays);
 
 UPDATE stats_number_users_subsample
 SET users_activity_home_hours = (SELECT count(*)
@@ -192,36 +197,45 @@ SET users_with_home_or_work = (SELECT count(*)
                                OR home_id IS NOT NULL
                                );
 
-UPDATE stats_number_users_subsample
-SET users_with_home_and_work = (SELECT count(*)
-                                FROM subsample_users_characterization
-                                WHERE workplace_id IS NOT NULL
-                                AND home_id IS NOT NULL
-                               );
-
-
-
+CREATE TEMPORARY TABLE temp_users_with_home_and_work AS (
+  SELECT *
+  FROM subsample_users_characterization
+  WHERE workplace_id IS NOT NULL
+  AND home_id IS NOT NULL
+);
 
 UPDATE stats_number_users_subsample
-SET users_with_home_and_work_not_same = (SELECT count(*)
-                                         FROM subsample_users_characterization
-                                         WHERE workplace_id IS NOT NULL
-                                         AND home_id IS NOT NULL
-                                         AND home_id != workplace_id
-                                        );
+SET users_with_home_and_work = (SELECT count(*) FROM temp_users_with_home_and_work);
+
+
+CREATE TEMPORARY TABLE temp_users_with_home_and_work_not_same AS (
+  SELECT *
+  FROM subsample_users_characterization
+  WHERE workplace_id IS NOT NULL
+  AND home_id IS NOT NULL
+  AND home_id != workplace_id
+);
 
 UPDATE stats_number_users_subsample
-SET users_morning_calls = (SELECT count(*)
-                           FROM subsample_users_characterization
-                           WHERE "Number of Calls Made/Received During the Morning" IS NOT NULL
-                          );
+SET users_with_home_and_work_not_same = (SELECT count(*) FROM temp_users_with_home_and_work_not_same);
+
+CREATE TEMPORARY TABLE temp_users_morning_calls AS (
+  SELECT *
+  FROM subsample_users_characterization
+  WHERE "Number of Calls Made/Received During the Morning" IS NOT NULL
+);
 
 UPDATE stats_number_users_subsample
-SET users_evening_calls = (SELECT count(*)
-                           FROM subsample_users_characterization
-                           WHERE "Number of Calls Made/Received During the Evening" IS NOT NULL
-                          );
+SET users_morning_calls = (SELECT count(*) FROM temp_users_morning_calls);
 
+CREATE TEMPORARY TABLE temp_users_evening_calls AS (
+  SELECT *
+  FROM subsample_users_characterization
+  WHERE "Number of Calls Made/Received During the Evening" IS NOT NULL
+);
+
+UPDATE stats_number_users_subsample
+SET users_evening_calls = (SELECT count(*) FROM temp_users_evening_calls);
 
 
 UPDATE stats_number_users_subsample
@@ -324,53 +338,72 @@ SET users_home_and_work_morning_and_evening_not_same = (SELECT count(*)
                                                            AND home_id != workplace_id
                                                       );
 
-UPDATE stats_number_users_subsample
-SET users_feasible_travelTimes_morning = (SELECT count(*)
-                                           FROM subsample_users_characterization
-                                          WHERE minTravelTime_H_W IS NOT NULL
-                                            AND "Travel Speed H_W (Km/h)" <= 250
-                                            AND "Travel Speed H_W (Km/h)" >= 3
-                                          );
+CREATE TEMPORARY TABLE temp_users_feasible_travelTimes_morning AS (
+  SELECT *
+  FROM subsample_users_characterization
+  WHERE minTravelTime_H_W IS NOT NULL
+  AND "Travel Speed H_W (Km/h)" <= 250
+  AND "Travel Speed H_W (Km/h)" >= 3
+);
 
 UPDATE stats_number_users_subsample
-SET users_feasible_travelTimes_evening = (SELECT count(*)
-                                           FROM subsample_users_characterization
-                                          WHERE minTravelTime_W_H IS NOT NULL
-                                            AND "Travel Speed W_H (Km/h)" <= 250
-                                            AND "Travel Speed W_H (Km/h)" >= 3
-                                    );
+SET users_feasible_travelTimes_morning = (SELECT count(*) FROM temp_users_feasible_travelTimes_morning);
+
+
+CREATE TEMPORARY TABLE temp_users_feasible_travelTimes_evening AS (
+  SELECT *
+  FROM subsample_users_characterization
+  WHERE minTravelTime_W_H IS NOT NULL
+    AND "Travel Speed W_H (Km/h)" <= 250
+    AND "Travel Speed W_H (Km/h)" >= 3
+);
 
 UPDATE stats_number_users_subsample
-SET users_feasible_travelTimes_morning_or_evening = (SELECT count(*)
-                                                       FROM subsample_users_characterization
-                                                      WHERE ((minTravelTime_H_W IS NOT NULL AND "Travel Speed H_W (Km/h)" <= 250 AND "Travel Speed H_W (Km/h)" >= 3)
-                                                         OR (minTravelTime_W_H IS NOT NULL AND "Travel Speed W_H (Km/h)" <= 250 AND "Travel Speed W_H (Km/h)" >= 3))
-                                                    );
+SET users_feasible_travelTimes_evening = (SELECT count(*) FROM temp_users_feasible_travelTimes_evening);
+
+CREATE TEMPORARY TABLE temp_users_feasible_travelTimes_morning_or_evening AS (
+  SELECT *
+  FROM subsample_users_characterization
+  WHERE ((minTravelTime_H_W IS NOT NULL AND "Travel Speed H_W (Km/h)" <= 250 AND "Travel Speed H_W (Km/h)" >= 3)
+     OR (minTravelTime_W_H IS NOT NULL AND "Travel Speed W_H (Km/h)" <= 250 AND "Travel Speed W_H (Km/h)" >= 3))
+);
 
 UPDATE stats_number_users_subsample
-SET users_feasible_travelTimes_morning_and_evening = (SELECT count(*)
-                                                       FROM subsample_users_characterization
-                                                       WHERE ((minTravelTime_H_W IS NOT NULL AND "Travel Speed H_W (Km/h)" <= 250 AND "Travel Speed H_W (Km/h)" >= 3)
-                                                         AND (minTravelTime_W_H IS NOT NULL AND "Travel Speed W_H (Km/h)" <= 250 AND "Travel Speed W_H (Km/h)" >= 3))
-                                    );
+SET users_feasible_travelTimes_morning_or_evening = (SELECT count(*) FROM temp_users_feasible_travelTimes_morning_or_evening);
+
+CREATE TEMPORARY TABLE temp_users_feasible_travelTimes_morning_and_evening AS (
+  SELECT *
+  FROM subsample_users_characterization
+  WHERE ((minTravelTime_H_W IS NOT NULL AND "Travel Speed H_W (Km/h)" <= 250 AND "Travel Speed H_W (Km/h)" >= 3)
+    AND (minTravelTime_W_H IS NOT NULL AND "Travel Speed W_H (Km/h)" <= 250 AND "Travel Speed W_H (Km/h)" >= 3))
+);
 
 UPDATE stats_number_users_subsample
-SET users_feasible_travelTimes_morning_or_evening_inside_Porto = (SELECT count(*)
-                                                                   FROM subsample_users_characterization
-                                                                   WHERE home_id IN (SELECT cell_id FROM call_dim_porto)
-                                                                     AND workplace_id IN (SELECT cell_id FROM call_dim_porto)
-                                                                     AND ((minTravelTime_H_W IS NOT NULL AND "Travel Speed H_W (Km/h)" <= 250 AND "Travel Speed H_W (Km/h)" >= 3)
-                                                                     OR (minTravelTime_W_H IS NOT NULL AND "Travel Speed W_H (Km/h)" <= 250 AND "Travel Speed W_H (Km/h)" >= 3))
-                                                                  );
+SET users_feasible_travelTimes_morning_and_evening = (SELECT count(*) FROM temp_users_feasible_travelTimes_morning_and_evening);
+
+CREATE TEMPORARY TABLE temp_users_feasible_travelTimes_morning_or_evening_inside_Porto AS (
+  SELECT *
+  FROM subsample_users_characterization
+  WHERE home_id IN (SELECT cell_id FROM call_dim_porto)
+    AND workplace_id IN (SELECT cell_id FROM call_dim_porto)
+    AND ((minTravelTime_H_W IS NOT NULL AND "Travel Speed H_W (Km/h)" <= 250 AND "Travel Speed H_W (Km/h)" >= 3)
+     OR (minTravelTime_W_H IS NOT NULL AND "Travel Speed W_H (Km/h)" <= 250 AND "Travel Speed W_H (Km/h)" >= 3))
+);
 
 UPDATE stats_number_users_subsample
-SET users_feasible_travelTimes_morning_and_evening_inside_Porto = (SELECT count(*)
-                                                                   FROM subsample_users_characterization
-                                                                   WHERE home_id IN (SELECT cell_id FROM call_dim_porto)
-                                                                     AND workplace_id IN (SELECT cell_id FROM call_dim_porto)
-                                                                     AND ((minTravelTime_H_W IS NOT NULL AND "Travel Speed H_W (Km/h)" <= 250 AND "Travel Speed H_W (Km/h)" >= 3)
-                                                                     AND (minTravelTime_W_H IS NOT NULL AND "Travel Speed W_H (Km/h)" <= 250 AND "Travel Speed W_H (Km/h)" >= 3))
-                                                                  );
+SET users_feasible_travelTimes_morning_or_evening_inside_Porto = (SELECT count(*) FROM temp_users_feasible_travelTimes_morning_or_evening_inside_Porto);
+
+CREATE TEMPORARY TABLE temp_users_feasible_travelTimes_morning_and_evening_inside_Porto AS (
+  SELECT *
+  FROM subsample_users_characterization
+  WHERE home_id IN (SELECT cell_id FROM call_dim_porto)
+    AND workplace_id IN (SELECT cell_id FROM call_dim_porto)
+    AND ((minTravelTime_H_W IS NOT NULL AND "Travel Speed H_W (Km/h)" <= 250 AND "Travel Speed H_W (Km/h)" >= 3)
+    AND (minTravelTime_W_H IS NOT NULL AND "Travel Speed W_H (Km/h)" <= 250 AND "Travel Speed W_H (Km/h)" >= 3))
+);
+
+UPDATE stats_number_users_subsample
+SET users_feasible_travelTimes_morning_and_evening_inside_Porto = (SELECT count(*) FROM temp_users_feasible_travelTimes_morning_and_evening_inside_Porto);
 
 
 ---------------------------------------------------- STATS OF THE SUBSAMPLE OF RECORDS SELECTED ACCORDINGLY TO THE CHANGE OF VARIABLES ---------------------------
@@ -382,16 +415,13 @@ SET records_users_activity_weekdays = (SELECT count(*)
                                        FROM(
                                         SELECT *
                                         FROM call_fct_porto_weekdays
-                                        WHERE originating_id IN (SELECT id
-                                                                 FROM subsample_users_characterization
-                                                                 WHERE "Number of Calls Made/Received During the Weekdays" IS NOT NULL)
+                                        WHERE originating_id IN (SELECT * FROM temp_users_activity_weekdays)
+
                                         UNION
 
                                         SELECT *
                                         FROM call_fct_porto_weekdays
-                                        WHERE terminating_id IN (SELECT id
-                                                                 FROM subsample_users_characterization
-                                                                 WHERE "Number of Calls Made/Received During the Weekdays" IS NOT NULL)
+                                        WHERE terminating_id IN (SELECT * FROM temp_users_activity_weekdays)
                                        ) b
                                       );
 
@@ -400,16 +430,12 @@ SET records_users_with_home_and_work = (SELECT count(*)
                                        FROM(
                                         SELECT *
                                         FROM call_fct_porto_weekdays
-                                        WHERE originating_id IN (SELECT id
-                                                                 FROM subsample_users_characterization
-                                                                 WHERE workplace_id IS NOT NULL AND home_id IS NOT NULL)
+                                        WHERE originating_id IN (SELECT * FROM temp_users_with_home_and_work)
                                         UNION
 
                                         SELECT *
                                         FROM call_fct_porto_weekdays
-                                        WHERE terminating_id IN (SELECT id
-                                                                 FROM subsample_users_characterization
-                                                                 WHERE workplace_id IS NOT NULL AND home_id IS NOT NULL)
+                                        WHERE terminating_id IN (SELECT * FROM temp_users_with_home_and_work)
                                        ) b
                                       );
 
@@ -418,16 +444,13 @@ SET records_users_with_home_and_work_not_same = (SELECT count(*)
                                                  FROM(
                                                   SELECT *
                                                   FROM call_fct_porto_weekdays
-                                                  WHERE originating_id IN (SELECT id
-                                                                           FROM subsample_users_characterization
-                                                                           WHERE workplace_id IS NOT NULL AND home_id IS NOT NULL AND workplace_id != home_id)
+                                                  WHERE originating_id IN (SELECT * FROM temp_users_with_home_and_work_not_same)
+
                                                   UNION
 
                                                   SELECT *
                                                   FROM call_fct_porto_weekdays
-                                                  WHERE terminating_id IN (SELECT id
-                                                                           FROM subsample_users_characterization
-                                                                           WHERE workplace_id IS NOT NULL AND home_id IS NOT NULL AND workplace_id != home_id)
+                                                  WHERE terminating_id IN (SELECT * FROM temp_users_with_home_and_work_not_same)
                                                  ) b
                                                 );
 
@@ -436,52 +459,40 @@ SET records_users_morning_calls = (SELECT count(*)
                                                  FROM(
                                                   SELECT *
                                                   FROM call_fct_porto_weekdays
-                                                  WHERE originating_id IN (SELECT id
-                                                                           FROM subsample_users_characterization
-                                                                           WHERE "Number of Calls Made/Received During the Morning" IS NOT NULL)
+                                                  WHERE originating_id IN (SELECT * FROM temp_users_morning_calls)
                                                   UNION
 
                                                   SELECT *
                                                   FROM call_fct_porto_weekdays
-                                                  WHERE terminating_id IN (SELECT id
-                                                                           FROM subsample_users_characterization
-                                                                           WHERE "Number of Calls Made/Received During the Morning" IS NOT NULL)
+                                                  WHERE terminating_id IN (SELECT * FROM temp_users_morning_calls)
                                                  ) b
                                                 );
 
 UPDATE stats_number_records_subsample
-SET records_users_morning_calls = (SELECT count(*)
-                                                 FROM(
-                                                  SELECT *
-                                                  FROM call_fct_porto_weekdays
-                                                  WHERE originating_id IN (SELECT id
-                                                                           FROM subsample_users_characterization
-                                                                           WHERE "Number of Calls Made/Received During the Evening" IS NOT NULL)
-                                                  UNION
+SET records_users_evening_calls = (SELECT count(*)
+                                   FROM (
+                                    SELECT *
+                                    FROM call_fct_porto_weekdays
+                                    WHERE originating_id IN (SELECT * FROM temp_users_evening_calls)
+                                    UNION
 
-                                                  SELECT *
-                                                  FROM call_fct_porto_weekdays
-                                                  WHERE terminating_id IN (SELECT id
-                                                                           FROM subsample_users_characterization
-                                                                           WHERE "Number of Calls Made/Received During the Evening" IS NOT NULL)
-                                                 ) b
-                                                );
+                                    SELECT *
+                                    FROM call_fct_porto_weekdays
+                                    WHERE terminating_id IN (SELECT * FROM temp_users_evening_calls)
+                                   ) b
+                                  );
 
 UPDATE stats_number_records_subsample
 SET records_users_feasible_travelTimes_morning = (SELECT count(*)
                                                    FROM (
                                                     SELECT *
                                                     FROM call_fct_porto_weekdays
-                                                    WHERE originating_id IN (SELECT id
-                                                                             FROM subsample_users_characterization
-                                                                             WHERE minTravelTime_H_W IS NOT NULL AND "Travel Speed H_W (Km/h)" <= 250 AND "Travel Speed H_W (Km/h)" >= 3)
+                                                    WHERE originating_id IN (SELECT * FROM temp_users_feasible_travelTimes_morning)
                                                     UNION
 
                                                     SELECT *
                                                     FROM call_fct_porto_weekdays
-                                                    WHERE terminating_id IN (SELECT id
-                                                                             FROM subsample_users_characterization
-                                                                             WHERE minTravelTime_H_W IS NOT NULL AND "Travel Speed H_W (Km/h)" <= 250 AND "Travel Speed H_W (Km/h)" >= 3)
+                                                    WHERE terminating_id IN (SELECT * FROM temp_users_feasible_travelTimes_morning)
                                                    ) b
                                                   );
 
@@ -490,16 +501,13 @@ SET records_users_feasible_travelTimes_evening = (SELECT count(*)
                                                    FROM (
                                                     SELECT *
                                                     FROM call_fct_porto_weekdays
-                                                    WHERE originating_id IN (SELECT id
-                                                                             FROM subsample_users_characterization
-                                                                             WHERE minTravelTime_W_H IS NOT NULL AND "Travel Speed W_H (Km/h)" <= 250 AND "Travel Speed W_H (Km/h)" >= 3)
+                                                    WHERE originating_id IN (SELECT * FROM temp_users_feasible_travelTimes_evening)
+
                                                     UNION
 
                                                     SELECT *
                                                     FROM call_fct_porto_weekdays
-                                                    WHERE terminating_id IN (SELECT id
-                                                                             FROM subsample_users_characterization
-                                                                             WHERE minTravelTime_W_H IS NOT NULL AND "Travel Speed W_H (Km/h)" <= 250 AND "Travel Speed W_H (Km/h)" >= 3)
+                                                    WHERE terminating_id IN (SELECT * FROM temp_users_feasible_travelTimes_evening)
                                                    ) b
                                                   );
 
@@ -508,18 +516,13 @@ SET records_users_feasible_travelTimes_morning_or_evening = (SELECT count(*)
                                                              FROM (
                                                               SELECT *
                                                               FROM call_fct_porto_weekdays
-                                                              WHERE originating_id IN (SELECT id
-                                                                                       FROM subsample_users_characterization
-                                                                                       WHERE ((minTravelTime_H_W IS NOT NULL AND "Travel Speed H_W (Km/h)" <= 250 AND "Travel Speed H_W (Km/h)" >= 3)
-                                                                                          OR (minTravelTime_W_H IS NOT NULL AND "Travel Speed W_H (Km/h)" <= 250 AND "Travel Speed W_H (Km/h)" >= 3)))
+                                                              WHERE originating_id IN (SELECT * FROM temp_users_feasible_travelTimes_morning_or_evening)
+
                                                               UNION
 
                                                               SELECT *
                                                               FROM call_fct_porto_weekdays
-                                                              WHERE terminating_id IN (SELECT id
-                                                                                       FROM subsample_users_characterization
-                                                                                       WHERE ((minTravelTime_H_W IS NOT NULL AND "Travel Speed H_W (Km/h)" <= 250 AND "Travel Speed H_W (Km/h)" >= 3)
-                                                                                          OR (minTravelTime_W_H IS NOT NULL AND "Travel Speed W_H (Km/h)" <= 250 AND "Travel Speed W_H (Km/h)" >= 3)))
+                                                              WHERE terminating_id IN (SELECT * FROM temp_users_feasible_travelTimes_morning_or_evening)
                                                              ) b
                                                             );
 UPDATE stats_number_records_subsample
@@ -527,18 +530,12 @@ SET records_users_feasible_travelTimes_morning_and_evening = (SELECT count(*)
                                                              FROM (
                                                               SELECT *
                                                               FROM call_fct_porto_weekdays
-                                                              WHERE originating_id IN (SELECT id
-                                                                                       FROM subsample_users_characterization
-                                                                                       WHERE ((minTravelTime_H_W IS NOT NULL AND "Travel Speed H_W (Km/h)" <= 250 AND "Travel Speed H_W (Km/h)" >= 3)
-                                                                                          AND (minTravelTime_W_H IS NOT NULL AND "Travel Speed W_H (Km/h)" <= 250 AND "Travel Speed W_H (Km/h)" >= 3)))
+                                                              WHERE originating_id IN (SELECT * FROM temp_users_feasible_travelTimes_morning_and_evening)
                                                               UNION
 
                                                               SELECT *
                                                               FROM call_fct_porto_weekdays
-                                                              WHERE terminating_id IN (SELECT id
-                                                                                       FROM subsample_users_characterization
-                                                                                       WHERE ((minTravelTime_H_W IS NOT NULL AND "Travel Speed H_W (Km/h)" <= 250 AND "Travel Speed H_W (Km/h)" >= 3)
-                                                                                          AND (minTravelTime_W_H IS NOT NULL AND "Travel Speed W_H (Km/h)" <= 250 AND "Travel Speed W_H (Km/h)" >= 3)))
+                                                              WHERE terminating_id IN (SELECT * FROM temp_users_feasible_travelTimes_morning_and_evening)
                                                              ) b
                                                             );
 
@@ -547,22 +544,12 @@ SET records_users_feasible_travelTimes_morning_or_evening_inside_Porto = (SELECT
                                                                    FROM (
                                                                     SELECT *
                                                                     FROM call_fct_porto_weekdays
-                                                                    WHERE originating_id IN (SELECT id
-                                                                                             FROM subsample_users_characterization
-                                                                                             WHERE home_id IN (SELECT cell_id FROM call_dim_porto)
-                                                                                               AND workplace_id IN (SELECT cell_id FROM call_dim_porto)
-                                                                                               AND ((minTravelTime_H_W IS NOT NULL AND "Travel Speed H_W (Km/h)" <= 250 AND "Travel Speed H_W (Km/h)" >= 3)
-                                                                                               OR (minTravelTime_W_H IS NOT NULL AND "Travel Speed W_H (Km/h)" <= 250 AND "Travel Speed W_H (Km/h)" >= 3)))
+                                                                    WHERE originating_id IN (SELECT * FROM temp_users_feasible_travelTimes_morning_or_evening_inside_Porto)
                                                                     UNION
 
                                                                     SELECT *
                                                                     FROM call_fct_porto_weekdays
-                                                                    WHERE terminating_id IN (SELECT id
-                                                                                             FROM subsample_users_characterization
-                                                                                             WHERE home_id IN (SELECT cell_id FROM call_dim_porto)
-                                                                                               AND workplace_id IN (SELECT cell_id FROM call_dim_porto)
-                                                                                               AND ((minTravelTime_H_W IS NOT NULL AND "Travel Speed H_W (Km/h)" <= 250 AND "Travel Speed H_W (Km/h)" >= 3)
-                                                                                               OR (minTravelTime_W_H IS NOT NULL AND "Travel Speed W_H (Km/h)" <= 250 AND "Travel Speed W_H (Km/h)" >= 3)))
+                                                                    WHERE terminating_id IN (SELECT * FROM temp_users_feasible_travelTimes_morning_or_evening_inside_Porto)
                                                                    ) b
                                                                   );
 
@@ -572,34 +559,27 @@ SET records_users_feasible_travelTimes_morning_and_evening_inside_Porto = (SELEC
                                                                          FROM (
                                                                           SELECT *
                                                                           FROM call_fct_porto_weekdays
-                                                                          WHERE originating_id IN (SELECT id
-                                                                                                   FROM subsample_users_characterization
-                                                                                                   WHERE home_id IN (SELECT cell_id FROM call_dim_porto)
-                                                                                                     AND workplace_id IN (SELECT cell_id FROM call_dim_porto)
-                                                                                                     AND ((minTravelTime_H_W IS NOT NULL AND "Travel Speed H_W (Km/h)" <= 250 AND "Travel Speed H_W (Km/h)" >= 3)
-                                                                                                     OR (minTravelTime_W_H IS NOT NULL AND "Travel Speed W_H (Km/h)" <= 250 AND "Travel Speed W_H (Km/h)" >= 3)))
+                                                                          WHERE originating_id IN (SELECT * FROM temp_users_feasible_travelTimes_morning_and_evening_inside_Porto)
                                                                           UNION
 
                                                                           SELECT *
                                                                           FROM call_fct_porto_weekdays
-                                                                          WHERE terminating_id IN (SELECT id
-                                                                                                   FROM subsample_users_characterization
-                                                                                                   WHERE home_id IN (SELECT cell_id FROM call_dim_porto)
-                                                                                                     AND workplace_id IN (SELECT cell_id FROM call_dim_porto)
-                                                                                                     AND ((minTravelTime_H_W IS NOT NULL AND "Travel Speed H_W (Km/h)" <= 250 AND "Travel Speed H_W (Km/h)" >= 3)
-                                                                                                     OR (minTravelTime_W_H IS NOT NULL AND "Travel Speed W_H (Km/h)" <= 250 AND "Travel Speed W_H (Km/h)" >= 3)))
+                                                                          WHERE terminating_id IN (SELECT * FROM temp_users_feasible_travelTimes_morning_and_evening_inside_Porto)
                                                                    ) b
                                                                   );
 
 ---------------------------------------------------- STATS OF THE USERS THAT MADE/RECEIVED CALLS INSIDE THE REGION --------------------------------
 UPDATE stats_number_users_region
-SET total_users = (SELECT count(*) FROM subsample_users_characterization);
+SET total_users = (SELECT count(*) FROM region_users_characterization);
+
+CREATE TEMPORARY TABLE temp_region_users_activity_weekdays  AS (
+  SELECT *
+  FROM region_users_characterization
+  WHERE "Number of Calls Made/Received During the Weekdays" IS NOT NULL
+);
 
 UPDATE stats_number_users_region
-SET users_activity_weekdays = (SELECT count(*)
-                               FROM subsample_users_characterization
-                               WHERE "Number of Calls Made/Received During the Weekdays" IS NOT NULL
-                              );
+SET users_activity_weekdays = (SELECT count(*) FROM temp_region_users_activity_weekdays);
 
 UPDATE stats_number_users_region
 SET users_activity_home_hours = (SELECT count(*)
@@ -632,32 +612,44 @@ SET users_with_home_or_work = (SELECT count(*)
                                OR home_id IS NOT NULL
                                );
 
-UPDATE stats_number_users_region
-SET users_with_home_and_work = (SELECT count(*)
-                                FROM subsample_users_characterization
-                                WHERE workplace_id IS NOT NULL
-                                AND home_id IS NOT NULL
-                               );
+CREATE TEMPORARY TABLE temp_region_users_with_home_and_work  AS (
+  SELECT *
+  FROM region_users_characterization
+  WHERE workplace_id IS NOT NULL
+  AND home_id IS NOT NULL
+);
 
 UPDATE stats_number_users_region
-SET users_with_home_and_work_not_same = (SELECT count(*)
-                                         FROM subsample_users_characterization
-                                         WHERE workplace_id IS NOT NULL
-                                         AND home_id IS NOT NULL
-                                         AND home_id != workplace_id
-                                        );
+SET users_with_home_and_work = (SELECT count(*) FROM temp_region_users_with_home_and_work);
+
+CREATE TEMPORARY TABLE temp_region_users_with_home_and_work_not_same AS (
+  SELECT *
+  FROM region_users_characterization
+  WHERE workplace_id IS NOT NULL
+  AND home_id IS NOT NULL
+  AND home_id != workplace_id
+);
 
 UPDATE stats_number_users_region
-SET users_morning_calls = (SELECT count(*)
-                           FROM subsample_users_characterization
-                           WHERE "Number of Calls Made/Received During the Morning" IS NOT NULL
-                          );
+SET users_with_home_and_work_not_same = (SELECT count(*) FROM temp_region_users_with_home_and_work_not_same);
+
+CREATE TEMPORARY TABLE temp_region_users_morning_calls AS (
+  SELECT *
+  FROM region_users_characterization
+  WHERE "Number of Calls Made/Received During the Morning" IS NOT NULL
+);
 
 UPDATE stats_number_users_region
-SET users_evening_calls = (SELECT count(*)
-                           FROM subsample_users_characterization
-                           WHERE "Number of Calls Made/Received During the Evening" IS NOT NULL
-                          );
+SET users_morning_calls = (SELECT count(*) FROM temp_region_users_morning_calls);
+
+CREATE TEMPORARY TABLE temp_region_users_evening_calls AS (
+  SELECT *
+  FROM region_users_characterization
+  WHERE "Number of Calls Made/Received During the Evening" IS NOT NULL
+);
+
+UPDATE stats_number_users_region
+SET users_evening_calls = (SELECT count(*) FROM temp_region_users_evening_calls);
 
 UPDATE stats_number_users_region
 SET users_calls_morning_home = (SELECT count(*)
@@ -759,54 +751,233 @@ SET users_home_and_work_morning_and_evening_not_same = (SELECT count(*)
                                                            AND home_id != workplace_id
                                     );
 
-UPDATE stats_number_users_region
-SET users_feasible_travelTimes_morning = (SELECT count(*)
-                                           FROM subsample_users_characterization
-                                          WHERE minTravelTime_H_W IS NOT NULL
-                                            AND "Travel Speed H_W (Km/h)" <= 250
-                                            AND "Travel Speed H_W (Km/h)" >= 3
-                                          );
+CREATE TEMPORARY TABLE temp_region_users_feasible_travelTimes_morning AS (
+  SELECT *
+  FROM region_users_characterization
+  WHERE minTravelTime_H_W IS NOT NULL
+    AND "Travel Speed H_W (Km/h)" <= 250
+    AND "Travel Speed H_W (Km/h)" >= 3
+);
 
 UPDATE stats_number_users_region
-SET users_feasible_travelTimes_evening = (SELECT count(*)
-                                           FROM subsample_users_characterization
-                                          WHERE minTravelTime_W_H IS NOT NULL
-                                            AND "Travel Speed W_H (Km/h)" <= 250
-                                            AND "Travel Speed W_H (Km/h)" >= 3
-                                    );
+SET users_feasible_travelTimes_morning = (SELECT count(*) FROM temp_region_users_feasible_travelTimes_morning);
+
+CREATE TEMPORARY TABLE temp_region_users_feasible_travelTimes_evening AS (
+  SELECT *
+  FROM region_users_characterization
+  WHERE minTravelTime_W_H IS NOT NULL
+    AND "Travel Speed W_H (Km/h)" <= 250
+    AND "Travel Speed W_H (Km/h)" >= 3
+);
 
 UPDATE stats_number_users_region
-SET users_feasible_travelTimes_morning_or_evening = (SELECT count(*)
-                                                       FROM subsample_users_characterization
-                                                      WHERE ((minTravelTime_H_W IS NOT NULL AND "Travel Speed H_W (Km/h)" <= 250 AND "Travel Speed H_W (Km/h)" >= 3)
-                                                         OR (minTravelTime_W_H IS NOT NULL AND "Travel Speed W_H (Km/h)" <= 250 AND "Travel Speed W_H (Km/h)" >= 3))
-                                    );
+SET users_feasible_travelTimes_evening = (SELECT count(*) FROM temp_region_users_feasible_travelTimes_evening);
+
+CREATE TEMPORARY TABLE temp_region_users_feasible_travelTimes_morning_or_evening AS (
+  SELECT *
+  FROM region_users_characterization
+  WHERE ((minTravelTime_H_W IS NOT NULL AND "Travel Speed H_W (Km/h)" <= 250 AND "Travel Speed H_W (Km/h)" >= 3)
+     OR (minTravelTime_W_H IS NOT NULL AND "Travel Speed W_H (Km/h)" <= 250 AND "Travel Speed W_H (Km/h)" >= 3))
+);
 
 UPDATE stats_number_users_region
-SET users_feasible_travelTimes_morning_and_evening = (SELECT count(*)
-                                                       FROM subsample_users_characterization
-                                                       WHERE ((minTravelTime_H_W IS NOT NULL AND "Travel Speed H_W (Km/h)" <= 250 AND "Travel Speed H_W (Km/h)" >= 3)
-                                                         AND (minTravelTime_W_H IS NOT NULL AND "Travel Speed W_H (Km/h)" <= 250 AND "Travel Speed W_H (Km/h)" >= 3))
-                                    );
+SET users_feasible_travelTimes_morning_or_evening = (SELECT count(*) FROM temp_region_users_feasible_travelTimes_morning_or_evening);
+
+CREATE TEMPORARY TABLE temp_region_users_feasible_travelTimes_morning_and_evening AS (
+  SELECT *
+  FROM region_users_characterization
+  WHERE ((minTravelTime_H_W IS NOT NULL AND "Travel Speed H_W (Km/h)" <= 250 AND "Travel Speed H_W (Km/h)" >= 3)
+    AND (minTravelTime_W_H IS NOT NULL AND "Travel Speed W_H (Km/h)" <= 250 AND "Travel Speed W_H (Km/h)" >= 3))
+);
 
 UPDATE stats_number_users_region
-SET users_feasible_travelTimes_morning_or_evening_inside_Porto = (SELECT count(*)
-                                                                   FROM subsample_users_characterization
-                                                                   WHERE home_id IN (SELECT cell_id FROM call_dim_porto)
-                                                                     AND workplace_id IN (SELECT cell_id FROM call_dim_porto)
-                                                                     AND ((minTravelTime_H_W IS NOT NULL AND "Travel Speed H_W (Km/h)" <= 250 AND "Travel Speed H_W (Km/h)" >= 3)
-                                                                     AND (minTravelTime_W_H IS NOT NULL AND "Travel Speed W_H (Km/h)" <= 250 AND "Travel Speed W_H (Km/h)" >= 3))
+SET users_feasible_travelTimes_morning_and_evening = (SELECT count(*) FROM temp_region_users_feasible_travelTimes_morning_and_evening);
+
+CREATE TEMPORARY TABLE temp_region_users_feasible_travelTimes_morning_or_evening_inside_Porto AS (
+  SELECT *
+  FROM region_users_characterization
+  WHERE home_id IN (SELECT cell_id FROM call_dim_porto)
+    AND workplace_id IN (SELECT cell_id FROM call_dim_porto)
+    AND ((minTravelTime_H_W IS NOT NULL AND "Travel Speed H_W (Km/h)" <= 250 AND "Travel Speed H_W (Km/h)" >= 3)
+    OR (minTravelTime_W_H IS NOT NULL AND "Travel Speed W_H (Km/h)" <= 250 AND "Travel Speed W_H (Km/h)" >= 3))
+);
+
+UPDATE stats_number_users_region
+SET users_feasible_travelTimes_morning_or_evening_inside_Porto = (SELECT count(*) FROM temp_region_users_feasible_travelTimes_morning_or_evening_inside_Porto);
+
+CREATE TEMPORARY TABLE temp_region_users_feasible_travelTimes_morning_and_evening_inside_Porto AS (
+  SELECT *
+  FROM region_users_characterization
+  WHERE home_id IN (SELECT cell_id FROM call_dim_porto)
+    AND workplace_id IN (SELECT cell_id FROM call_dim_porto)
+    AND ((minTravelTime_H_W IS NOT NULL AND "Travel Speed H_W (Km/h)" <= 250 AND "Travel Speed H_W (Km/h)" >= 3)
+    AND (minTravelTime_W_H IS NOT NULL AND "Travel Speed W_H (Km/h)" <= 250 AND "Travel Speed W_H (Km/h)" >= 3))
+);
+
+UPDATE stats_number_users_region
+SET users_feasible_travelTimes_morning_and_evening_inside_Porto = (SELECT count(*) FROM temp_region_users_feasible_travelTimes_morning_and_evening_inside_Porto;
+
+---------------------------------------------------- STATS OF THE RECORDS OF THE USERS THAT MADE/RECEIVED CALLS INSIDE THE REGION --------------------------------
+UPDATE stats_number_records_region
+SET total_records = (SELECT count(*) FROM call_fct_porto);
+
+UPDATE stats_number_records_region
+SET records_users_activity_weekdays = (SELECT count(*)
+                                       FROM(
+                                        SELECT *
+                                        FROM call_fct_porto_weekdays
+                                        WHERE originating_id IN (SELECT * FROM temp_region_users_activity_weekdays)
+
+                                        UNION
+
+                                        SELECT *
+                                        FROM call_fct_porto_weekdays
+                                        WHERE terminating_id IN (SELECT * FROM temp_region_users_activity_weekdays)
+                                       ) b
+                                      );
+
+UPDATE stats_number_records_region
+SET records_users_with_home_and_work = (SELECT count(*)
+                                       FROM(
+                                        SELECT *
+                                        FROM call_fct_porto_weekdays
+                                        WHERE originating_id IN (SELECT * FROM temp_region_users_with_home_and_work)
+                                        UNION
+
+                                        SELECT *
+                                        FROM call_fct_porto_weekdays
+                                        WHERE terminating_id IN (SELECT * FROM temp_region_users_with_home_and_work)
+                                       ) b
+                                      );
+
+UPDATE stats_number_records_region
+SET records_users_with_home_and_work_not_same = (SELECT count(*)
+                                                 FROM(
+                                                  SELECT *
+                                                  FROM call_fct_porto_weekdays
+                                                  WHERE originating_id IN (SELECT * FROM temp_region_users_with_home_and_work_not_same)
+
+                                                  UNION
+
+                                                  SELECT *
+                                                  FROM call_fct_porto_weekdays
+                                                  WHERE terminating_id IN (SELECT * FROM temp_region_users_with_home_and_work_not_same)
+                                                 ) b
+                                                );
+
+UPDATE stats_number_records_region
+SET records_users_morning_calls = (SELECT count(*)
+                                                 FROM(
+                                                  SELECT *
+                                                  FROM call_fct_porto_weekdays
+                                                  WHERE originating_id IN (SELECT * FROM temp_region_users_morning_calls)
+                                                  UNION
+
+                                                  SELECT *
+                                                  FROM call_fct_porto_weekdays
+                                                  WHERE terminating_id IN (SELECT * FROM temp_region_users_morning_calls)
+                                                 ) b
+                                                );
+
+UPDATE stats_number_records_region
+SET records_users_evening_calls = (SELECT count(*)
+                                   FROM (
+                                    SELECT *
+                                    FROM call_fct_porto_weekdays
+                                    WHERE originating_id IN (SELECT * FROM temp_region_users_evening_calls)
+                                    UNION
+
+                                    SELECT *
+                                    FROM call_fct_porto_weekdays
+                                    WHERE terminating_id IN (SELECT * FROM temp_region_users_evening_calls)
+                                   ) b
+                                  );
+
+UPDATE stats_number_records_region
+SET records_users_feasible_travelTimes_morning = (SELECT count(*)
+                                                   FROM (
+                                                    SELECT *
+                                                    FROM call_fct_porto_weekdays
+                                                    WHERE originating_id IN (SELECT * FROM temp_region_users_feasible_travelTimes_morning)
+                                                    UNION
+
+                                                    SELECT *
+                                                    FROM call_fct_porto_weekdays
+                                                    WHERE terminating_id IN (SELECT * FROM temp_region_users_feasible_travelTimes_morning)
+                                                   ) b
+                                                  );
+
+UPDATE stats_number_records_region
+SET records_users_feasible_travelTimes_evening = (SELECT count(*)
+                                                   FROM (
+                                                    SELECT *
+                                                    FROM call_fct_porto_weekdays
+                                                    WHERE originating_id IN (SELECT * FROM temp_region_users_feasible_travelTimes_evening)
+
+                                                    UNION
+
+                                                    SELECT *
+                                                    FROM call_fct_porto_weekdays
+                                                    WHERE terminating_id IN (SELECT * FROM temp_region_users_feasible_travelTimes_evening)
+                                                   ) b
+                                                  );
+
+UPDATE stats_number_records_region
+SET records_users_feasible_travelTimes_morning_or_evening = (SELECT count(*)
+                                                             FROM (
+                                                              SELECT *
+                                                              FROM call_fct_porto_weekdays
+                                                              WHERE originating_id IN (SELECT * FROM temp_region_users_feasible_travelTimes_morning_or_evening)
+
+                                                              UNION
+
+                                                              SELECT *
+                                                              FROM call_fct_porto_weekdays
+                                                              WHERE terminating_id IN (SELECT * FROM temp_region_users_feasible_travelTimes_morning_or_evening)
+                                                             ) b
+                                                            );
+UPDATE stats_number_records_region
+SET records_users_feasible_travelTimes_morning_and_evening = (SELECT count(*)
+                                                             FROM (
+                                                              SELECT *
+                                                              FROM call_fct_porto_weekdays
+                                                              WHERE originating_id IN (SELECT * FROM temp_region_users_feasible_travelTimes_morning_and_evening)
+                                                              UNION
+
+                                                              SELECT *
+                                                              FROM call_fct_porto_weekdays
+                                                              WHERE terminating_id IN (SELECT * FROM temp_region_users_feasible_travelTimes_morning_and_evening)
+                                                             ) b
+                                                            );
+
+UPDATE stats_number_records_region
+SET records_users_feasible_travelTimes_morning_or_evening_inside_Porto = (SELECT count(*)
+                                                                   FROM (
+                                                                    SELECT *
+                                                                    FROM call_fct_porto_weekdays
+                                                                    WHERE originating_id IN (SELECT * FROM temp_region_users_feasible_travelTimes_morning_or_evening_inside_Porto)
+                                                                    UNION
+
+                                                                    SELECT *
+                                                                    FROM call_fct_porto_weekdays
+                                                                    WHERE terminating_id IN (SELECT * FROM temp_region_users_feasible_travelTimes_morning_or_evening_inside_Porto)
+                                                                   ) b
                                                                   );
 
-UPDATE stats_number_users_region
-SET users_feasible_travelTimes_morning_and_evening_inside_Porto = (SELECT count(*)
-                                                                   FROM subsample_users_characterization
-                                                                   WHERE home_id IN (SELECT cell_id FROM call_dim_porto)
-                                                                     AND workplace_id IN (SELECT cell_id FROM call_dim_porto)
-                                                                     AND ((minTravelTime_H_W IS NOT NULL AND "Travel Speed H_W (Km/h)" <= 250 AND "Travel Speed H_W (Km/h)" >= 3)
-                                                                     AND (minTravelTime_W_H IS NOT NULL AND "Travel Speed W_H (Km/h)" <= 250 AND "Travel Speed W_H (Km/h)" >= 3))
-                                                                  );
 
+UPDATE stats_number_records_region
+SET records_users_feasible_travelTimes_morning_and_evening_inside_Porto = (SELECT count(*)
+                                                                         FROM (
+                                                                          SELECT *
+                                                                          FROM call_fct_porto_weekdays
+                                                                          WHERE originating_id IN (SELECT * FROM temp_region_users_feasible_travelTimes_morning_and_evening_inside_Porto)
+                                                                          UNION
+
+                                                                          SELECT *
+                                                                          FROM call_fct_porto_weekdays
+                                                                          WHERE terminating_id IN (SELECT * FROM temp_region_users_feasible_travelTimes_morning_and_evening_inside_Porto)
+                                                                   ) b
+                                                                  );
 
 -------------------------------------------------- RESULTS OF ALL OPERATIONS IN ORDER TO MAKE THE STATISTICAL ANALYSIS ----------------------------------------------------------------------------------------------
 SELECT * FROM stats_number_users_preprocess;
@@ -819,3 +990,5 @@ SELECT * FROM stats_number_users_subsample;
 SELECT * FROM stats_number_records_subsample;
 
 SELECT * FROM ODPorto_stats;
+
+DISCARD TEMP;
