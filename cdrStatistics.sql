@@ -615,7 +615,6 @@ SET users_feasible_travelTimes_morning_and_evening_inside_Porto = (SELECT count(
                                                                   );
 
 
-DROP TABLE
 -------------------------------------------------- RESULTS OF ALL OPERATIONS IN ORDER TO MAKE THE STATISTICAL ANALYSIS ----------------------------------------------------------------------------------------------
 SELECT * FROM stats_number_users_preprocess;
 SELECT * FROM stats_number_records_preprocess;

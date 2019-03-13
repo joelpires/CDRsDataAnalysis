@@ -1,4 +1,5 @@
 -- ISSUES --
+-- issue: checkar se há algum min travel time com valor de 0
 -- issue: decidir o que fazer com os dados de oscillation case4
 -- issue: create oscillations table from case4 table. O QUE FAZER COM AS OSCILLATIONS?
 -- issue: verificar se há duplicados nos ranked
@@ -8,168 +9,6 @@
 -- issue: if there's more than one most visited cell, analyze...(is it an oscillation?)
           -- see if this issue happens frequently
 
-------------------------------------------- CREATING THE NECESSARY TABLES AND COLUMNS FOR POSTERIOR STATISTICAL ANALYSIS ----------------------------------------------------------
-
-CREATE TEMPORARY TABLE stats_number_users_preprocess (
-  users_raw_data INTEGER, -- issue
-  users_without_negative_or_null_values INTEGER, -- issue
-  users_without_duplicates INTEGER,
-  users_without_unknownCells INTEGER,
-  users_without_duplicates_and_unknownCells INTEGER,
-  users_without_case1 INTEGER,
-  users_without_case1_and_case2 INTEGER,
-  users_without_different_duration INTEGER
-);
-
-
-CREATE TEMPORARY TABLE stats_number_users_region (
-  users_porto INTEGER,
-  --users_by_minimum_requirements INTEGER,
-  users_activity_weekdays INTEGER,
-  users_activity_working_hours INTEGER,
-  users_activity_home_hours INTEGER,
-  users_with_home INTEGER,
-  users_with_work INTEGER,
-  users_with_home_or_work INTEGER,
-  users_with_home_and_work INTEGER,
-  users_with_home_work_not_same INTEGER,
-  users_morning_calls INTEGER,
-  users_evening_calls INTEGER,
-  users_evening_or_morning_calls INTEGER,
-  users_evening_and_morning_calls INTEGER,
-  users_calls_morning_home INTEGER,
-  users_calls_morning_work INTEGER,
-  users_calls_evening_home INTEGER,
-  users_calls_evening_work INTEGER,
-  users_home_or_work_morning INTEGER,
-  users_home_or_work_evening INTEGER,
-  users_home_and_work_morning INTEGER,
-  users_home_and_work_evening INTEGER,
-  users_home_and_work_morning_or_evening INTEGER,
-  users_home_and_work_morning_and_evening INTEGER,
-  cleaned_users_home_and_work_morning INTEGER,
-  cleaned_users_home_and_work_evening INTEGER,
-  cleaned_users_home_and_work_morning_and_evening INTEGER,
-
-  users_with_home_and_work_inside_region INTEGER,
-
-  users_subsample INTEGER
-);
-
-CREATE TEMPORARY TABLE stats_number_users_subsample (
-total_users INTEGER,
-users_activity_weekdays INTEGER,
-users_activity_home_hours INTEGER,
-users_activity_working_hours INTEGER,
-users_with_home INTEGER,
-users_with_work INTEGER,
-users_with_home_or_work INTEGER,
-users_with_home_and_work INTEGER,
-users_with_home_and_work_not_same INTEGER,
-users_morning_calls INTEGER,
-users_evening_calls INTEGER,
-users_calls_morning_home INTEGER,
-users_calls_morning_work INTEGER,
-users_home_or_work_morning INTEGER,
-users_home_and_work_morning INTEGER,
-users_home_or_work_morning_not_same INTEGER,
-users_home_and_work_morning_not_same INTEGER,
-users_calls_evening_home INTEGER,
-users_calls_evening_work INTEGER,
-users_home_or_work_evening INTEGER,
-users_home_and_work_evening INTEGER,
-users_home_or_work_evening_not_same INTEGER,
-users_home_and_work_evening_not_same INTEGER,
-users_home_and_work_morning_or_evening_not_same INTEGER,
-users_home_and_work_morning_and_evening_not_same INTEGER,
-users_feasible_travelTimes_morning INTEGER,
-users_feasible_travelTimes_evening INTEGER,
-users_feasible_travelTimes_morning_or_evening INTEGER,
-users_feasible_travelTimes_morning_and_evening INTEGER,
-users_feasible_travelTimes_morning_or_evening_inside_Porto INTEGER,
-users_feasible_travelTimes_morning_and_evening_inside_Porto INTEGER
-
-);
-
-CREATE TEMPORARY TABLE stats_number_records_preprocess (
-  records_raw_data INTEGER, -- issue
-  records_without_negative_or_null_values INTEGER, -- issue
-  records_without_duplicates INTEGER,
-  records_without_unknownCells INTEGER,
-  records_without_duplicates_and_unknownCells INTEGER,
-  records_without_case1 INTEGER,
-  records_without_case1_and_case2 INTEGER,
-  records_oscillations INTEGER,
-  records_without_different_duration INTEGER
-);
-
-CREATE TEMPORARY TABLE stats_number_records_region (
-  records_porto_users INTEGER,
-  --records_by_minimum_requirements INTEGER,
-  records_activity_weekdays INTEGER,
-  records_activity_working_hours INTEGER,
-  records_activity_home_hours INTEGER,
-  records_with_home_or_work INTEGER,
-  records_with_home_and_work INTEGER,
-  records_morning_calls INTEGER,
-  records_evening_calls INTEGER,
-  records_evening_or_morning_calls INTEGER,
-  records_evening_and_morning_calls INTEGER,
-  records_calls_morning_home INTEGER,
-  records_calls_morning_work INTEGER,
-  records_home_or_work_morning INTEGER,
-  records_home_and_work_morning INTEGER,
-  records_calls_evening_home INTEGER,
-  records_calls_evening_work INTEGER,
-  records_home_or_work_evening INTEGER,
-  records_home_and_work_evening INTEGER,
-  records_home_and_work_morning_or_evening INTEGER,
-  records_home_and_work_morning_and_evening INTEGER,
-  cleaned_records_home_and_work_morning INTEGER,
-  cleaned_records_home_and_work_evening INTEGER,
-  cleaned_records_home_and_work_morning_and_evening INTEGER,
-
-  records_with_home_and_work_inside_region INTEGER,
-  records_with_home_work_inside_not_same INTEGER
-
-);
-
-CREATE TEMPORARY TABLE stats_number_records_subsample (
-  records_porto_users INTEGER,
-  --records_by_minimum_requirements INTEGER,
-  records_activity_weekdays INTEGER,
-  records_activity_working_hours INTEGER,
-  records_activity_home_hours INTEGER,
-  records_with_home_or_work INTEGER,
-  records_with_home_and_work INTEGER,
-  records_morning_calls INTEGER,
-  records_evening_calls INTEGER,
-  records_evening_or_morning_calls INTEGER,
-  records_evening_and_morning_calls INTEGER,
-  records_calls_morning_home INTEGER,
-  records_calls_morning_work INTEGER,
-  records_home_or_work_morning INTEGER,
-  records_home_and_work_morning INTEGER,
-  records_calls_evening_home INTEGER,
-  records_calls_evening_work INTEGER,
-  records_home_or_work_evening INTEGER,
-  records_home_and_work_evening INTEGER,
-  records_home_and_work_morning_or_evening INTEGER,
-  records_home_and_work_morning_and_evening INTEGER,
-  cleaned_records_home_and_work_morning INTEGER,
-  cleaned_records_home_and_work_evening INTEGER,
-  cleaned_records_home_and_work_morning_and_evening INTEGER,
-
-  records_with_home_and_work_inside_region INTEGER,
-  records_with_home_work_inside_not_same INTEGER,
-  records_subsample INTEGER
-
-);
-CREATE TEMPORARY TABLE ODPorto_stats (
-  number_users INTEGER,
-  number_records INTEGER,
-  number_activities INTEGER
-);
 
 -- ------------------------------------------------------------------------------------------------ PROCESS ALL THE DATA ------------------------------------------------------------------------------------------- --
 UPDATE stats_number_records_preprocess
@@ -679,6 +518,12 @@ CREATE TABLE porto_users AS (
 
 ----------------------------------------------------------
 --  OBTAIN THE CDR'S OF THESE USERS  --
+
+/* CREATING THE NECESSARY INDEXES
+-- CREATE INDEX unique_call_fct_orig ON unique_call_fct (originating_id);
+-- CREATE INDEX unique_call_fct_term ON unique_call_fct (terminating_id);
+*/
+
 CREATE TABLE call_fct_porto AS (
   SELECT originating_id,
        originating_cell_id,
@@ -689,9 +534,25 @@ CREATE TABLE call_fct_porto AS (
        to_timestamp(floor(((732677 - 719528)* 86400) + (((date_id/100000.0)-1)*24*60*60)))::time AS time,
        duration_amt
   FROM unique_call_fct
+  WHERE originating_id IN (SELECT * FROM porto_users)
+
+  UNION
+
+  SELECT  originating_id,
+          originating_cell_id,
+          terminating_id,
+          terminating_cell_id,
+          date_id,
+          date,
+          to_timestamp(floor(((732677 - 719528)* 86400) + (((date_id/100000.0)-1)*24*60*60)))::time AS time,
+          duration_amt
+  FROM unique_call_fct
   WHERE terminating_id IN (SELECT * FROM porto_users)
-        OR originating_id IN (SELECT * FROM porto_users)
 );
+
+-- CREATING THE NECESSARY INDEXES
+CREATE INDEX call_fct_porto_orig ON call_fct_porto (originating_id);
+CREATE INDEX call_fct_porto_term ON call_fct_porto (terminating_id);
 
 UPDATE stats_number_records_region
 SET records_porto_users = (SELECT count(*) FROM call_fct_porto);
@@ -1479,8 +1340,7 @@ CREATE TEMPORARY TABLE subsample_users_characterization AS(
 CREATE TEMPORARY TABLE ODPorto_users_characterization AS(
   SELECT *
   FROM subsample_users_characterization
-  WHERE home_id != workplace_id
-        AND home_id IN (SELECT cell_id FROM call_dim_porto)
+  WHERE home_id IN (SELECT cell_id FROM call_dim_porto)
         AND workplace_id IN (SELECT cell_id FROM call_dim_porto)
         AND ((minTravelTime_H_W IS NOT NULL AND "Travel Speed H_W (Km/h)" <= 250 AND "Travel Speed H_W (Km/h)" >= 3)
               OR (minTravelTime_W_H IS NOT NULL AND "Travel Speed W_H (Km/h)" <= 250 AND "Travel Speed W_H (Km/h)" >= 3))
@@ -1503,6 +1363,22 @@ CREATE TABLE ODPORTO  AS(
   SELECT terminating_id AS id, terminating_cell_id AS cell_id, date_id, date, time, duration_amt
   FROM subsample_ODPORTO
 );
+
+
+----------------------------------------------------------------------------------------- RESULTS OF ALL THE OPERATIONS ----------------------------------------------------------------------------------------------
+SELECT * FROM statsmunicipals;
+
+SELECT * FROM region_users_characterization;
+
+SELECT * FROM subsample_users_characterization;
+
+SELECT * FROM ODPorto_users_characterization;
+
+SELECT * FROM ODPorto;
+
+-- SELECT * FROM select_users_by_dependent_variables;
+
+
 
 -- ------------------------------- EXTRA CALCULATIONS ----------------------------- --
 -- MOST VISITED CELLS IN GENERAL, GROUPED BY USER ID --
@@ -1559,235 +1435,3 @@ CREATE TEMPORARY TABLE lessVisitedCells_W AS (
 );
 
 DISCARD TEMP;
-
--- -------------------------------------------------------------------------------------------------- ELABORATING STATS ----------------------------------------------------------------------------------------- --
--- STATS OF THE PORTO USERS THAT WILL BE USED TO CALCULATE ROUTES AND MEANS OF TRANSPORT --
-UPDATE ODPorto_stats
-SET number_users = (SELECT count(*) FROM ODPorto_users_characterization);
-
-UPDATE ODPorto_stats
-SET number_records = (SELECT count(*) FROM subsample_ODPORTO);
-
-UPDATE ODPorto_stats
-SET number_activities = (SELECT count(*) FROM ODPORTO);
-
--- STATS OF THE SELECTED SUBSET ACCORDINGLY TO THE CHANGE OF VARIABLES --
-UPDATE stats_number_users_subsample
-SET total_users = (SELECT count(DISTINCT id) FROM subsample_users_characterization);
-
-UPDATE stats_number_users_subsample
-SET users_activity_weekdays = (SELECT count(DISTINCT id)
-                               FROM subsample_users_characterization
-                               WHERE "Number of Calls Made/Received During the Weekdays" IS NOT NULL
-                              );
-
-UPDATE stats_number_users_subsample
-SET users_activity_home_hours = (SELECT count(DISTINCT id)
-                                 FROM subsample_users_characterization
-                                 WHERE "Number of Calls Made/Received During the Non-Working Hours" IS NOT NULL
-                                );
-
-UPDATE stats_number_users_subsample
-SET users_activity_working_hours = (SELECT count(DISTINCT id)
-                                    FROM subsample_users_characterization
-                                    WHERE "Number of Calls Made/Received During the Working Hours" IS NOT NULL
-                                   );
-
-UPDATE stats_number_users_subsample
-SET users_with_home = (SELECT count(DISTINCT id)
-                       FROM subsample_users_characterization
-                       WHERE home_id IS NOT NULL
-                       );
-
-UPDATE stats_number_users_subsample
-SET users_with_work = (SELECT count(DISTINCT id)
-                       FROM subsample_users_characterization
-                       WHERE workplace_id IS NOT NULL
-                       );
-
-UPDATE stats_number_users_subsample
-SET users_with_home_or_work = (SELECT count(DISTINCT id)
-                               FROM subsample_users_characterization
-                               WHERE workplace_id IS NOT NULL
-                               OR home_id IS NOT NULL
-                               );
-
-UPDATE stats_number_users_subsample
-SET users_with_home_and_work = (SELECT count(DISTINCT id)
-                                FROM subsample_users_characterization
-                                WHERE workplace_id IS NOT NULL
-                                AND home_id IS NOT NULL
-                               );
-
-UPDATE stats_number_users_subsample
-SET users_with_home_and_work_not_same = (SELECT count(DISTINCT id)
-                       FROM subsample_users_characterization
-                       WHERE workplace_id IS NOT NULL
-                       AND home_id IS NOT NULL
-                       AND home_id != workplace_id
-);
-
-UPDATE stats_number_users_subsample
-SET users_morning_calls = (SELECT count(DISTINCT id)
-                                     FROM subsample_users_characterization
-                                     WHERE "Number of Calls Made/Received During the Morning" IS NOT NULL
-                                    );
-
-UPDATE stats_number_users_subsample
-SET users_evening_calls = (SELECT count(DISTINCT id)
-                           FROM subsample_users_characterization
-                           WHERE "Number of Calls Made/Received During the Evening" IS NOT NULL
-                          );
-
-UPDATE stats_number_users_subsample
-SET users_calls_morning_home = (SELECT count(DISTINCT id)
-                                     FROM subsample_users_characterization
-                                     WHERE "Number of Calls Made/Received During the Morning" IS NOT NULL
-                                    );
-
-UPDATE stats_number_users_subsample
-SET users_calls_morning_work = (SELECT count(DISTINCT id)
-                                     FROM subsample_users_characterization
-                                     WHERE "Number of Calls Made/Received During the Morning" IS NOT NULL
-                                    );
-
-UPDATE stats_number_users_subsample
-SET users_home_or_work_morning = (SELECT count(DISTINCT id)
-                                     FROM subsample_users_characterization
-                                     WHERE "Number of Calls Made/Received During the Morning" IS NOT NULL
-                                    );
-
-UPDATE stats_number_users_subsample
-SET users_home_and_work_morning = (SELECT count(DISTINCT id)
-                                     FROM subsample_users_characterization
-                                     WHERE "Number of Calls Made/Received During the Morning" IS NOT NULL
-                                    );
-
-UPDATE stats_number_users_subsample
-SET users_home_or_work_morning_not_same = (SELECT count(DISTINCT id)
-                                     FROM subsample_users_characterization
-                                     WHERE "Number of Calls Made/Received During the Morning" IS NOT NULL
-                                    );
-
-UPDATE stats_number_users_subsample
-SET users_home_and_work_morning_not_same = (SELECT count(DISTINCT id)
-                                     FROM subsample_users_characterization
-                                     WHERE "Number of Calls Made/Received During the Morning" IS NOT NULL
-                                    );
-
-UPDATE stats_number_users_subsample
-SET users_calls_evening_home = (SELECT count(DISTINCT id)
-                                     FROM subsample_users_characterization
-                                     WHERE "Number of Calls Made/Received During the Morning" IS NOT NULL
-                                    );
-
-UPDATE stats_number_users_subsample
-SET users_calls_evening_work = (SELECT count(DISTINCT id)
-                                     FROM subsample_users_characterization
-                                     WHERE "Number of Calls Made/Received During the Morning" IS NOT NULL
-                                    );
-
-UPDATE stats_number_users_subsample
-SET users_home_or_work_evening = (SELECT count(DISTINCT id)
-                                     FROM subsample_users_characterization
-                                     WHERE "Number of Calls Made/Received During the Morning" IS NOT NULL
-                                    );
-
-UPDATE stats_number_users_subsample
-SET users_home_and_work_evening = (SELECT count(DISTINCT id)
-                                     FROM subsample_users_characterization
-                                     WHERE "Number of Calls Made/Received During the Morning" IS NOT NULL
-                                    );
-
-UPDATE stats_number_users_subsample
-SET users_home_or_work_evening_not_same = (SELECT count(DISTINCT id)
-                                     FROM subsample_users_characterization
-                                     WHERE "Number of Calls Made/Received During the Morning" IS NOT NULL
-                                    );
-
-UPDATE stats_number_users_subsample
-SET users_home_and_work_evening_not_same = (SELECT count(DISTINCT id)
-                                     FROM subsample_users_characterization
-                                     WHERE "Number of Calls Made/Received During the Morning" IS NOT NULL
-                                    );
-
-UPDATE stats_number_users_subsample
-SET users_home_and_work_morning_or_evening_not_same = (SELECT count(DISTINCT id)
-                                     FROM subsample_users_characterization
-                                     WHERE "Number of Calls Made/Received During the Morning" IS NOT NULL
-                                    );
-
-UPDATE stats_number_users_subsample
-SET users_home_and_work_morning_and_evening_not_same = (SELECT count(DISTINCT id)
-                                     FROM subsample_users_characterization
-                                     WHERE "Number of Calls Made/Received During the Morning" IS NOT NULL
-                                    );
-
-UPDATE stats_number_users_subsample
-SET users_feasible_travelTimes_morning = (SELECT count(DISTINCT id)
-                                     FROM subsample_users_characterization
-                                     WHERE "Number of Calls Made/Received During the Morning" IS NOT NULL
-                                    );
-
-UPDATE stats_number_users_subsample
-SET users_feasible_travelTimes_evening = (SELECT count(DISTINCT id)
-                                     FROM subsample_users_characterization
-                                     WHERE "Number of Calls Made/Received During the Morning" IS NOT NULL
-                                    );
-
-UPDATE stats_number_users_subsample
-SET users_feasible_travelTimes_morning_or_evening = (SELECT count(DISTINCT id)
-                                     FROM subsample_users_characterization
-                                     WHERE "Number of Calls Made/Received During the Morning" IS NOT NULL
-                                    );
-
-UPDATE stats_number_users_subsample
-SET users_feasible_travelTimes_morning_and_evening = (SELECT count(DISTINCT id)
-                                     FROM subsample_users_characterization
-                                     WHERE "Number of Calls Made/Received During the Morning" IS NOT NULL
-                                    );
-
-UPDATE stats_number_users_subsample
-SET users_feasible_travelTimes_morning_or_evening_inside_Porto = (SELECT count(DISTINCT id)
-                                     FROM subsample_users_characterization
-                                     WHERE "Number of Calls Made/Received During the Morning" IS NOT NULL
-                                    );
-
-UPDATE stats_number_users_subsample
-SET users_feasible_travelTimes_morning_and_evening_inside_Porto = (SELECT count(DISTINCT id)
-                                     FROM subsample_users_characterization
-                                     WHERE "Number of Calls Made/Received During the Morning" IS NOT NULL
-                                    );
-
-
-
-
-
-
-
-
-
-
-
-
-
--------------------------------------------------- RESULTS OF ALL OPERATIONS IN ORDER TO MAKE THE STATISTICAL ANALYSIS ----------------------------------------------------------------------------------------------
-SELECT * FROM stats_number_users_preprocess;
-SELECT * FROM stats_number_records_preprocess;
-SELECT * FROM statsmunicipals;
-
-SELECT * FROM stats_number_users_region;
-SELECT * FROM stats_number_records_region;
-SELECT * FROM region_users_characterization;
-
-SELECT * FROM stats_number_users_subsample;
-SELECT * FROM stats_number_records_subsample;
-SELECT * FROM subsample_users_characterization;
-
-SELECT * FROM ODPorto_stats;
-SELECT * FROM ODPorto_users_characterization;
-SELECT * FROM ODPorto;
-
-
-
--- SELECT * FROM select_users_by_dependent_variables;
