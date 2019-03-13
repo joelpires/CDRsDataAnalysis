@@ -551,8 +551,8 @@ CREATE TABLE call_fct_porto AS (
 );
 
 -- CREATING THE NECESSARY INDEXES
-CREATE INDEX call_fct_porto_orig ON call_fct_porto (originating_id);
-CREATE INDEX call_fct_porto_term ON call_fct_porto (terminating_id);
+-- CREATE INDEX call_fct_porto_orig ON call_fct_porto (originating_id);
+-- CREATE INDEX call_fct_porto_term ON call_fct_porto (terminating_id);
 
 UPDATE stats_number_records_region
 SET records_porto_users = (SELECT count(*) FROM call_fct_porto);
@@ -595,6 +595,10 @@ CREATE TEMPORARY TABLE call_fct_porto_weekdays AS (
   WHERE extract(isodow from date) -1 < 5
 );
 
+-- CREATING THE NECESSARY INDEXES
+CREATE INDEX call_fct_porto_weekdays_orig ON call_fct_porto_weekdays (originating_id);
+CREATE INDEX call_fct_porto_weekdays_term ON call_fct_porto_weekdays (terminating_id);
+
 ----------------------------------------------------------
 --  OBTAIN THE NUMBER OF CALLS MADE/RECEIVED DURING THE WEEKDAYS GROUP BY USERID  --
 CREATE TEMPORARY TABLE numberCallsWeekdays AS (
@@ -602,10 +606,12 @@ CREATE TEMPORARY TABLE numberCallsWeekdays AS (
   FROM(
       SELECT originating_id AS uid, count(*) AS qtd
       FROM call_fct_porto_weekdays
+      GROUP BY uid
 
       UNION ALL
         SELECT terminating_id AS uid, count(*) AS qtd
         FROM call_fct_porto_weekdays
+        GROUP BY uid
   ) t
   GROUP BY uid
 );
@@ -618,10 +624,14 @@ CREATE TEMPORARY TABLE numberCalls_home_hours AS (
       SELECT originating_id AS uid, count(*) AS qtd
       FROM call_fct_porto_weekdays
       WHERE time > '22:00:00'::time OR time < '07:00:00'::time
+      GROUP BY uid
+
       UNION ALL
-        SELECT terminating_id AS uid, count(*) AS qtd
-        FROM call_fct_porto_weekdays
-        WHERE time > '22:00:00'::time OR time < '07:00:00'::time
+
+      SELECT terminating_id AS uid, count(*) AS qtd
+      FROM call_fct_porto_weekdays
+      WHERE time > '22:00:00'::time OR time < '07:00:00'::time
+      GROUP BY uid
   ) t
   GROUP BY uid
 );
@@ -633,11 +643,16 @@ CREATE TEMPORARY TABLE numberCalls_working_hours AS (
   FROM(
       SELECT originating_id AS uid, count(*) AS qtd
       FROM call_fct_porto_weekdays
-       WHERE (time > '9:00:00'::time AND time < '12:00:00'::time) OR (time > '14:30:00'::time AND time < '17:00:00'::time)
+      WHERE (time > '9:00:00'::time AND time < '12:00:00'::time) OR (time > '14:30:00'::time AND time < '17:00:00'::time)
+      GROUP BY uid
+
       UNION ALL
-        SELECT terminating_id AS uid, count(*) AS qtd
-        FROM call_fct_porto_weekdays
-        WHERE (time > '9:00:00'::time AND time < '12:00:00'::time) OR (time > '14:30:00'::time AND time < '17:00:00'::time)
+
+      SELECT terminating_id AS uid, count(*) AS qtd
+      FROM call_fct_porto_weekdays
+      WHERE (time > '9:00:00'::time AND time < '12:00:00'::time) OR (time > '14:30:00'::time AND time < '17:00:00'::time)
+      GROUP BY uid
+
   ) t
   GROUP BY uid
 );
@@ -654,10 +669,11 @@ CREATE TEMPORARY TABLE visitedCellsByIds_H AS(  -- table with the visited cells 
       GROUP BY originating_id, originating_cell_id
 
       UNION ALL
-        SELECT terminating_id AS id, terminating_cell_id AS cell_id, count(*) AS qtd
-        FROM call_fct_porto_weekdays
-        WHERE time > '22:00:00'::time OR time < '07:00:00'::time
-        GROUP BY terminating_id, terminating_cell_id
+
+      SELECT terminating_id AS id, terminating_cell_id AS cell_id, count(*) AS qtd
+      FROM call_fct_porto_weekdays
+      WHERE time > '22:00:00'::time OR time < '07:00:00'::time
+      GROUP BY terminating_id, terminating_cell_id
   ) t
   GROUP BY id, cell_id
 );
@@ -826,6 +842,9 @@ CREATE TABLE call_fct_porto_weekdays_restructured  AS(
   SELECT terminating_id AS id, terminating_cell_id AS cell_id, date_id, date, time, duration_amt
   FROM call_fct_porto_weekdays
 );
+
+-- CREATING THE NECESSARY INDEXES
+CREATE INDEX call_fct_porto_weekdays_ids ON call_fct_porto_weekdays (id);
 
 ----------------------------------------------------------
 --  OBTAIN THE NUMBER OF CALLS MADE/RECEIVED DURING THE MORNING HOURS GROUP BY USERID  --
