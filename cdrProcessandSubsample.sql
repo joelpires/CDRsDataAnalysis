@@ -1,6 +1,7 @@
 -- ISSUES --
 -- issue: checkar se há algum min travel time com valor de 0
 -- ver se os criterios de cleaning travelling speed fazem sentido
+-- ver questão dos duplicados e chamadas para torres que nós nao temos acesso
 -- issue: decidir o que fazer com os dados de oscillation case4
 -- issue: create oscillations table from case4 table. O QUE FAZER COM AS OSCILLATIONS?
 -- issue: verificar se há duplicados nos ranked
@@ -12,12 +13,12 @@
 
 
 -- ------------------------------------------------------------------------------------------------ PROCESS ALL THE DATA ------------------------------------------------------------------------------------------- --
+-- STATS
 UPDATE stats_number_records_preprocess
 SET records_raw_data = 400000;
 
 UPDATE stats_number_users_preprocess
 SET users_raw_data = 400000;
-
 ----------------------------------------------------------
 -- DELETE NEGATIVE OR NULL VALUES (only 16 values removed)
 DELETE
@@ -34,19 +35,20 @@ WHERE duration_amt < 1
       OR originating_cell_id IS NULL
       OR terminating_cell_id IS NULL
       OR date_id IS NULL;
-
+---------------------------------------------------------
+-- STATS
 UPDATE stats_number_users_preprocess
 SET users_without_negative_or_null_values = 400000-16;
 
 UPDATE stats_number_records_preprocess
 SET records_without_negative_or_null_values = 400000-16;
-----------------------------------------------------------
 
+----------------------------------------------------------
 -- CHECK IF THERE ARE DUPLICATES ON CALL_DIM
 SELECT COUNT(*) FROM call_dim; -- 6511 towers
 SELECT COUNT (DISTINCT cell_id) FROM call_dim; -- 6511 towers
-----------------------------------------------------------
 
+----------------------------------------------------------
 -- CHECK IF CELL TOWERS LOCATIONS MAKE SENSE
 -- already seen on ArcGIS and yes, all the cellular towers are within the Portugal territory
 -----------------------------------------------------------
@@ -380,22 +382,6 @@ SELECT min(date_id) FROM unique_call_fct; -- is 9200000 - corresponds to Sunday,
 SELECT max(date_id) FROM unique_call_fct; -- is 54686399 - corresponds to Saturday, 30 June of 2007 21:44:09 (is valid)
 -- PERIOD OF THE STUDY: 2 de April of 2006 01:00:00 to 30 June of 2007 21:44:09 (424 different days of communication)
 
-----------------------------------------------------------
--- OBTAIN THE TOTAL CALLS MADE BY EACH USER --
-CREATE TEMPORARY TABLE totalCallsByUser AS(
-  SELECT id, count(id) AS totalCalls
-  FROM (
-    SELECT originating_id AS id
-    FROM unique_call_fct
-
-    UNION ALL
-
-    SELECT terminating_id AS id
-    FROM unique_call_fct
-  ) a
-  GROUP BY id
-);
-
 -- --------------------------------------- CHARACTERIZATION OF THE MUNICIPALS (in portugal continental) IN ORDER TO CHOOSE THE RIGHT ONES TO STUDY ------------------------------------------------------------
 
 -- GET THE NUMBER OF TOWERS AND AVERAGE TOWER DENSITY PER REGION --
@@ -525,11 +511,9 @@ CREATE TABLE porto_users AS (
 -- CREATE INDEX unique_call_fct_term ON unique_call_fct (terminating_id);
 */
 
-CREATE TABLE call_fct_porto AS (
-  SELECT originating_id,
-       originating_cell_id,
-       terminating_id,
-       terminating_cell_id,
+CREATE TABLE call_fct_porto_restructured AS (
+  SELECT originating_id AS id,
+       originating_cell_id AS cell_id,
        date_id,
        date,
        to_timestamp(floor(((732677 - 719528)* 86400) + (((date_id/100000.0)-1)*24*60*60)))::time AS time,
@@ -537,12 +521,10 @@ CREATE TABLE call_fct_porto AS (
   FROM unique_call_fct
   WHERE originating_id IN (SELECT * FROM porto_users)
 
-  UNION
+  UNION ALL
 
-  SELECT  originating_id,
-          originating_cell_id,
-          terminating_id,
-          terminating_cell_id,
+  SELECT  terminating_id AS id,
+          terminating_cell_id AS cell_id,
           date_id,
           date,
           to_timestamp(floor(((732677 - 719528)* 86400) + (((date_id/100000.0)-1)*24*60*60)))::time AS time,
@@ -551,10 +533,12 @@ CREATE TABLE call_fct_porto AS (
   WHERE terminating_id IN (SELECT * FROM porto_users)
 );
 
--- CREATING THE NECESSARY INDEXES
--- CREATE INDEX call_fct_porto_orig ON call_fct_porto (originating_id);
--- CREATE INDEX call_fct_porto_term ON call_fct_porto (terminating_id);
+/*-- CREATING THE NECESSARY INDEXES
+CREATE INDEX call_fct_porto_ids ON call_fct_porto_restructured (id);
+*/
 
+
+/*
 UPDATE stats_number_records_region
 SET records_porto_users = (SELECT count(*) FROM call_fct_porto);
 
@@ -570,22 +554,13 @@ SET users_porto = (SELECT count(DISTINCT id)
                     FROM call_fct_porto
                   ) c2
 );
-
+*/
 ----------------------------------------------------------
 -- AMOUNT OF TALK BY USER IN THE REGION --
 CREATE TEMPORARY TABLE durationsByUser AS(
-  SELECT uid, sum(duration) as amountOfTalk
-  FROM(
-      SELECT originating_id AS uid, duration_amt AS duration
-      FROM call_fct_porto
-      GROUP BY originating_id, duration_amt
-
-      UNION ALL
-        SELECT terminating_id AS uid, duration_amt AS duration
-        FROM call_fct_porto
-        GROUP BY terminating_id, duration_amt
-  ) t
-  GROUP BY uid
+  SELECT id, sum(duration_amt) as amountOfTalk
+  FROM call_fct_porto_restructured
+  GROUP BY id
 );
 
 ----------------------------------------------------------
@@ -601,108 +576,68 @@ CREATE TEMPORARY TABLE frequenciesByUser AS (
                sum(qtd) qtd,
                COALESCE(ROUND(ABS((date_part('day',age(date, lag(date) OVER (PARTITION BY id order by id)))/365 + date_part('month',age(date, lag(date) OVER (PARTITION BY id order by id)))/12 + date_part('year',age(date, lag(date) OVER (PARTITION BY id order by id))))*365 )), 0) as diffDays
         FROM (
-            SELECT originating_id AS id, date, count(*) AS qtd
-            FROM call_fct_porto
-            GROUP BY originating_id, date
-
-            UNION ALL
-              SELECT terminating_id AS id, date, count(*) AS qtd
-              FROM call_fct_porto
-              GROUP BY terminating_id, date
-             )ss
+             SELECT id, date, count(*) AS qtd
+             FROM call_fct_porto_restructured
+             GROUP BY id, date
+        )ss
         GROUP BY id, date
     ) ss1
     GROUP BY id
 );
 
 ----------------------------------------------------------
+-- OBTAIN THE TOTAL CALLS MADE BY EACH USER --
+CREATE TEMPORARY TABLE totalCallsInsideRegion AS(
+  SELECT id, count(*) AS callsInsideRegion
+  FROM call_fct_porto_restructured
+  WHERE cell_id IN (SELECT cell_id FROM call_dim_porto)
+  GROUP BY id
+);
+
+----------------------------------------------------------
 --  OBTAIN THE CALLS MADE/RECEIVED DURING THE WEEKDAYS  --
 CREATE TABLE call_fct_porto_weekdays AS (
   SELECT *
-  FROM call_fct_porto
+  FROM call_fct_porto_restructured
   WHERE extract(isodow from date) -1 < 5
 );
 
 -- CREATING THE NECESSARY INDEXES
--- CREATE INDEX call_fct_porto_weekdays_orig ON call_fct_porto_weekdays (originating_id);
--- CREATE INDEX call_fct_porto_weekdays_term ON call_fct_porto_weekdays (terminating_id);
+-- CREATE INDEX call_fct_porto_weekdays_ids ON call_fct_porto_weekdays (id);
 
 ----------------------------------------------------------
 --  OBTAIN THE NUMBER OF CALLS MADE/RECEIVED DURING THE WEEKDAYS GROUP BY USERID  --
 CREATE TEMPORARY TABLE numberCallsWeekdays AS (
-  SELECT uid, sum (qtd) AS numberCallsWeekdays
-  FROM(
-      SELECT originating_id AS uid, count(*) AS qtd
-      FROM call_fct_porto_weekdays
-      GROUP BY uid
-
-      UNION ALL
-        SELECT terminating_id AS uid, count(*) AS qtd
-        FROM call_fct_porto_weekdays
-        GROUP BY uid
-  ) t
-  GROUP BY uid
+  SELECT id, count(*) AS numberCallsWeekdays
+  FROM call_fct_porto_weekdays
+  GROUP BY id
 );
 
 ----------------------------------------------------------
 --  OBTAIN THE NUMBER OF CALLS MADE/RECEIVED DURING THE HOME HOURS GROUP BY USERID  --
 CREATE TEMPORARY TABLE numberCalls_home_hours AS (
-  SELECT uid, sum (qtd) AS numberCalls_home_hours
-  FROM(
-      SELECT originating_id AS uid, count(*) AS qtd
-      FROM call_fct_porto_weekdays
-      WHERE time > '22:00:00'::time OR time < '07:00:00'::time
-      GROUP BY uid
-
-      UNION ALL
-
-      SELECT terminating_id AS uid, count(*) AS qtd
-      FROM call_fct_porto_weekdays
-      WHERE time > '22:00:00'::time OR time < '07:00:00'::time
-      GROUP BY uid
-  ) t
-  GROUP BY uid
+  SELECT id, count(*) AS qtd
+  FROM call_fct_porto_weekdays
+  WHERE time > '22:00:00'::time OR time < '07:00:00'::time
+  GROUP BY id
 );
 
 ----------------------------------------------------------
 --  OBTAIN THE NUMBER OF CALLS MADE/RECEIVED DURING THE WORKING HOURS GROUP BY USERID  --
 CREATE TEMPORARY TABLE numberCalls_working_hours AS (
-  SELECT uid, sum (qtd) AS numberCalls_working_hours
-  FROM(
-      SELECT originating_id AS uid, count(*) AS qtd
-      FROM call_fct_porto_weekdays
-      WHERE (time > '9:00:00'::time AND time < '12:00:00'::time) OR (time > '14:30:00'::time AND time < '17:00:00'::time)
-      GROUP BY uid
-
-      UNION ALL
-
-      SELECT terminating_id AS uid, count(*) AS qtd
-      FROM call_fct_porto_weekdays
-      WHERE (time > '9:00:00'::time AND time < '12:00:00'::time) OR (time > '14:30:00'::time AND time < '17:00:00'::time)
-      GROUP BY uid
-
-  ) t
-  GROUP BY uid
+  SELECT id, count(*) AS qtd
+  FROM call_fct_porto_weekdays
+  WHERE (time > '9:00:00'::time AND time < '12:00:00'::time) OR (time > '14:30:00'::time AND time < '17:00:00'::time)
+  GROUP BY id
 );
 
 ----------------------------------------------------------
 -- MOST VISITED CELLS --
 -- HOME --
 CREATE TEMPORARY TABLE visitedCellsByIds_H AS(  -- table with the visited cells by each user during the home hours
-  SELECT id, cell_id, sum(qtd) AS qtd
-  FROM(
-      SELECT originating_id AS id, originating_cell_id AS cell_id, count(*) AS qtd
-      FROM call_fct_porto_weekdays
-      WHERE time > '22:00:00'::time OR time < '07:00:00'::time
-      GROUP BY originating_id, originating_cell_id
-
-      UNION ALL
-
-      SELECT terminating_id AS id, terminating_cell_id AS cell_id, count(*) AS qtd
-      FROM call_fct_porto_weekdays
-      WHERE time > '22:00:00'::time OR time < '07:00:00'::time
-      GROUP BY terminating_id, terminating_cell_id
-  ) t
+  SELECT id, cell_id, count(*) AS qtd
+  FROM call_fct_porto_weekdays
+  WHERE time > '22:00:00'::time OR time < '07:00:00'::time
   GROUP BY id, cell_id
 );
 ----------------------------------------------------------
@@ -711,6 +646,7 @@ Let's create a table that tells us which users have a well defined cellular towe
   . 0, OR the user does not have registered calls during the hours that is supposed to be at home OR it was not possible to identify only one cellular tower with the most activity
   . 1, otherwise
 */
+
 CREATE TABLE mostVisitedCells_H AS (
   SELECT id, cell_id AS mostVisitedCell, qtd
   FROM visitedCellsByIds_H
@@ -723,7 +659,7 @@ CREATE TABLE mostVisitedCells_H AS (
 );
 
 CREATE TEMPORARY TABLE hasMostVisitedCell_H AS(
-  SELECT uid AS id
+  SELECT id
   FROM durationsByUser
 );
 
@@ -750,19 +686,9 @@ WHERE id IN (
 
 -- WORK --
 CREATE TEMPORARY TABLE visitedCellsByIds_W AS(  -- table with the visited cells by each user during the working hours
-  SELECT id, cell_id, sum(qtd) AS qtd
-  FROM(
-      SELECT originating_id AS id, originating_cell_id AS cell_id, count(*) AS qtd
-      FROM call_fct_porto_weekdays
-      WHERE (time > '9:00:00'::time AND time < '12:00:00'::time) OR (time > '14:30:00'::time AND time < '17:00:00'::time) -- respecting launch hours
-      GROUP BY originating_id, originating_cell_id
-
-      UNION ALL
-        SELECT terminating_id AS id, terminating_cell_id AS cell_id, count(*) AS qtd
-        FROM call_fct_porto_weekdays
-        WHERE (time > '9:00:00'::time AND time < '12:00:00'::time) OR (time > '14:30:00'::time AND time < '17:00:00'::time) -- respecting launch hours
-        GROUP BY terminating_id, terminating_cell_id
-  ) t
+  SELECT id, cell_id, count(*) AS qtd
+  FROM call_fct_porto_weekdays
+  WHERE (time > '9:00:00'::time AND time < '12:00:00'::time) OR (time > '14:30:00'::time AND time < '17:00:00'::time) -- respecting launch hours
   GROUP BY id, cell_id
 );
 
@@ -785,7 +711,7 @@ CREATE TABLE mostVisitedCells_W AS (
 );
 
 CREATE TEMPORARY TABLE hasMostVisitedCell_W AS(
-  SELECT uid AS id
+  SELECT id
   FROM durationsByUser
 );
 
@@ -845,65 +771,29 @@ CREATE TEMPORARY TABLE home_workplace_by_user AS (
 
 ----------------------------------------------------------
 CREATE TEMPORARY TABLE visitedCellsByIds_G AS( -- DIFFERENT VISITED CELLS IN GENERAL, GROUPED BY USER ID --
-  SELECT id, cell_id, sum(qtd) AS qtd
-  FROM(
-    SELECT originating_id AS id, originating_cell_id AS cell_id, count(*) AS qtd
-    FROM call_fct_porto
-    GROUP BY originating_id, originating_cell_id
-
-    UNION ALL
-      SELECT terminating_id AS id, terminating_cell_id AS cell_id, count(*) AS qtd
-      FROM call_fct_porto
-      GROUP BY terminating_id, terminating_cell_id
-  ) t
+  SELECT id, cell_id, count(*) AS qtd
+  FROM call_fct_porto_restructured
   GROUP BY id, cell_id
 );
-
-----------------------------------------------------------
--- RESTRUCTURING THE RECORDS
-CREATE TEMPORARY TABLE call_fct_porto_weekdays_restructured  AS(
-  SELECT originating_id AS id, originating_cell_id AS cell_id, date_id, date, time, duration_amt
-  FROM call_fct_porto_weekdays
-
-  UNION ALL
-
-  SELECT terminating_id AS id, terminating_cell_id AS cell_id, date_id, date, time, duration_amt
-  FROM call_fct_porto_weekdays
-);
-
--- CREATING THE NECESSARY INDEXES
--- CREATE INDEX call_fct_porto_weekdays_ids ON call_fct_porto_weekdays_restructured (id);
-
 ----------------------------------------------------------
 --  OBTAIN THE NUMBER OF CALLS MADE/RECEIVED DURING THE MORNING HOURS GROUP BY USERID  --
 CREATE TEMPORARY TABLE numberCalls_morning_hours AS (
-  SELECT uid, sum (qtd) AS numberCalls_morning_hours
-  FROM(
-      SELECT originating_id AS uid, count(*) AS qtd
-      FROM call_fct_porto_weekdays
-       WHERE (time > '5:00:00'::time AND time < '12:00:00'::time)
-      GROUP BY uid
-
-      UNION ALL
-        SELECT terminating_id AS uid, count(*) AS qtd
-        FROM call_fct_porto_weekdays
-        WHERE (time > '5:00:00'::time AND time < '12:00:00'::time)
-        GROUP BY uid
-  ) t
-  GROUP BY uid
+  SELECT id, count(*) AS numberCalls_morning_hours  -- calculating all the calls made during the morning
+  FROM call_fct_porto_weekdays
+  WHERE (time > '5:00:00'::time AND time < '12:00:00'::time)
+  GROUP BY id
 );
 
 ----------------------------------------------------------
 --  OBTAIN THE NUMBER OF CALLS MADE/RECEIVED DURING THE EVENING HOURS
 CREATE TEMPORARY TABLE morning_calls AS (
   SELECT *  -- calculating all the calls made during the morning
-  FROM call_fct_porto_weekdays_restructured
+  FROM call_fct_porto_weekdays
   WHERE (time > '5:00:00'::time AND time < '12:00:00'::time)
   ORDER BY id, date_id
 );
 
------------------------------------------------------------- TRAVEL TIMES HOME -> WORK (we are assuming people go to work in the morning) --
-------------------------------------------------------------
+------------------------------------------------------------ TRAVEL TIMES HOME -> WORK (we are assuming people go to work in the morning) --------------------------------------------------------------
 -- calculate the number of calls made at home during the morning group by user
 CREATE TEMPORARY TABLE number_calls_home_morning AS(
   SELECT id, count(DISTINCT id) AS number_calls_home_morning
@@ -1052,19 +942,10 @@ WHERE minTravelTime_H_W = 0;
 ----------------------------------------------------------
 --  OBTAIN THE NUMBER OF CALLS MADE/RECEIVED DURING THE EVENING HOURS GROUP BY USERID  --
 CREATE TEMPORARY TABLE numberCalls_evening_hours AS (
-  SELECT uid, sum (qtd) AS numberCalls_evening_hours
-  FROM(
-      SELECT originating_id AS uid, count(*) AS qtd
-      FROM call_fct_porto_weekdays
-      WHERE (time > '15:00:00'::time AND time < '24:00:00'::time)
-      GROUP BY uid
-      UNION ALL
-        SELECT terminating_id AS uid, count(*) AS qtd
-        FROM call_fct_porto_weekdays
-        WHERE (time > '15:00:00'::time AND time < '24:00:00'::time)
-        GROUP BY uid
-  ) t
-  GROUP BY uid
+  SELECT id, count(*) AS numberCalls_evening_hours -- calculating all the calls made during the morning
+  FROM call_fct_porto_weekdays
+  WHERE (time > '15:00:00'::time AND time < '24:00:00'::time)
+  GROUP BY id
 );
 
 ------------------------------------------------------------
@@ -1072,7 +953,7 @@ CREATE TEMPORARY TABLE numberCalls_evening_hours AS (
 -- calculating all the calls that took place at home or in the workplace during the evening
 CREATE TEMPORARY TABLE evening_calls AS (
   SELECT *  -- calculating all the calls made during the morning
-  FROM call_fct_porto_weekdays_restructured
+  FROM call_fct_porto_weekdays
   WHERE (time > '15:00:00'::time AND time < '24:00:00'::time)
   ORDER BY id, date_id
 );
@@ -1227,21 +1108,53 @@ DELETE
 FROM travelTimes_W_H
 WHERE minTravelTime_W_H = 0;
 
+-- --------------------------------------------------------------------------- INTERMEDIATE CELL TOWERS WITHIN TRAVEL TIME ------------------------------------------------------------ --
+-- HOME -> WORK
+CREATE TEMPORARY TABLE intermediateTowers_H_W AS (
+  SELECT p.id, cell_id, date_id, date, time, minTravelTime_H_W, date_H_W, startdate_H_W, finishdate_H_W
+  FROM call_fct_porto_weekdays p
+
+  INNER JOIN (SELECT * FROM travelTimes_H_W) h
+  ON hwid = p.id
+  INNER JOIN (SELECT * FROM home_workplace_by_user) y
+  ON eid = p.id
+
+  WHERE time > startdate_H_W AND time < finishdate_H_W
+        AND p.cell_id != workplace_id
+        AND p.cell_id != home_id
+);
+
+-- WORK -> HOME
+CREATE TEMPORARY TABLE intermediateTowers_W_H AS (
+  SELECT p.id, cell_id, date_id, date, time, minTravelTime_W_H, date_W_H, startdate_W_H, finishdate_W_H
+  FROM call_fct_porto_weekdays p
+
+  INNER JOIN (SELECT * FROM travelTimes_W_H) h
+  ON whid = p.id
+  INNER JOIN (SELECT * FROM home_workplace_by_user) y
+  ON eid = p.id
+
+  WHERE time > startdate_W_H AND time < finishdate_W_H
+        AND p.cell_id != workplace_id
+        AND p.cell_id != home_id
+);
 
 -- --------------------------------------------------------------------------- CHARACTERIZE USERS BY MULTIPLE PARAMETERS ------------------------------------------------------------ --
 CREATE TABLE region_users_characterization AS (
 
-  SELECT aa.id,
+  SELECT frequenciesID AS user,
          amountOfTalk AS "Total Amount of Talk",
          (numberCalls/ activeDays) AS "Average Calls Per Day",
          sumDifferencesDays/activeDays AS "Average of Days Until Call",
-         CAST(numberCalls AS FLOAT) * 100/totalCalls AS "Calls inside Region (%)",
+         CAST(callsInsideRegion AS FLOAT) * 100/numberCalls AS "Calls inside Region (%)",
          CAST(activeDays AS FLOAT)* 100 / 424  AS "Active Days / Period of the Study (%)",
          numberCalls AS "Nº Calls (Made/Received)",
          activeDays AS "Nº Active Days",
          differentvisitedplaces AS "Different Places Visited",
          CAST(amountOfTalk AS FLOAT)/ activeDays AS "Average Talk Per Day",
          CAST(amountOfTalk AS FLOAT)/ numberCalls AS "Average Amount of Talk Per Call",
+         home_id,
+         workplace_id,
          CAST(st_distance(ST_Transform(geom_point_home, 3857), ST_Transform(geom_point_work, 3857)) AS FLOAT)/1000 AS "Distance_H_W (kms)",
          averageTravelTime_H_W,
          minTravelTime_H_W,
@@ -1249,17 +1162,17 @@ CREATE TABLE region_users_characterization AS (
          startdate_H_W,
          finishdate_H_W,
          (CAST(st_distance(ST_Transform(geom_point_home, 3857), ST_Transform(geom_point_work, 3857)) AS FLOAT)/1000)/(CAST(minTravelTime_H_W AS FLOAT)/60/60) AS "Travel Speed H_W (Km/h)",
+         number_intermediateTowers_H_W,
          averageTravelTime_W_H,
          minTravelTime_W_H,
          date_W_H,
          startdate_W_H,
          finishdate_W_H,
          (CAST(st_distance(ST_Transform(geom_point_home, 3857), ST_Transform(geom_point_work, 3857)) AS FLOAT)/1000)/ (CAST(minTravelTime_W_H AS FLOAT)/60/60) AS "Travel Speed W_H (Km/h)",
+         number_intermediateTowers_W_H,
          numberCallsWeekdays AS "Number of Calls Made/Received During the Weekdays",
          numberCalls_home_hours AS "Number of Calls Made/Received During the Non-Working Hours",
          numberCalls_working_hours AS "Number of Calls Made/Received During the Working Hours",
-         home_id,
-         workplace_id,
          numberCalls_morning_hours AS "Number of Calls Made/Received During the Morning",
          numberCalls_evening_hours AS "Number of Calls Made/Received During the Evening",
          number_calls_home_morning AS "Number of Calls Made/Received at Home During the Morning",
@@ -1274,107 +1187,100 @@ CREATE TABLE region_users_characterization AS (
     FROM visitedCellsByIds_G
     GROUP BY id
   ) b
-  ON aa.id = b.userid
+  ON frequenciesID = userid
 
-  INNER JOIN (SELECT * FROM durationsByUser) c
-  ON aa.id = c.uid
+  INNER JOIN (SELECT id AS durationsID, amountOfTalk FROM durationsByUser) c
+  ON frequenciesID = durationsID
 
-  INNER JOIN (SELECT * FROM totalCallsByUser) f
-  ON aa.id = f.id
+  INNER JOIN (SELECT id AS totalcallsID, callsInsideRegion FROM totalCallsInsideRegion) f
+  ON frequenciesID = totalcallsID
 
-  LEFT JOIN (SELECT id AS eid,
+  LEFT JOIN (SELECT eid AS localIDS,
                     home_id,
                     geom_point_home,
                     workplace_id,
                     geom_point_work
              FROM home_workplace_by_user) i
-  ON aa.id = eid
+  ON frequenciesID = localIDS
 
-  LEFT JOIN (SELECT uid, numberCallsWeekdays
+  LEFT JOIN (SELECT id AS weekdaysID, numberCallsWeekdays
              FROM numberCallsWeekdays) rr
-  ON aa.id = rr.uid
+  ON frequenciesID = weekdaysID
 
-  LEFT JOIN (SELECT uid, numberCalls_home_hours
+  LEFT JOIN (SELECT id AS home_hoursID, numberCalls_home_hours
              FROM numberCalls_home_hours) oo
-  ON aa.id = oo.uid
+  ON frequenciesID = home_hoursID
 
-  LEFT JOIN (SELECT uid, numberCalls_working_hours
+  LEFT JOIN (SELECT id AS working_hoursID, numberCalls_working_hours
              FROM numberCalls_working_hours) ss
-  ON aa.id = ss.uid
+  ON frequenciesID = working_hoursID
 
-  LEFT JOIN (SELECT uid, numberCalls_morning_hours
+  LEFT JOIN (SELECT id AS morning_hoursID, numberCalls_morning_hours
              FROM numberCalls_morning_hours) ww
-  ON aa.id = ww.uid
+  ON frequenciesID = morning_hoursID
 
-  LEFT JOIN (SELECT uid, numberCalls_evening_hours
+  LEFT JOIN (SELECT  id AS evening_hoursID, numberCalls_evening_hours
              FROM numberCalls_evening_hours) ll
-  ON aa.id = ll.uid
+  ON frequenciesID = evening_hoursID
 
-  LEFT JOIN (SELECT id, number_calls_home_morning
+  LEFT JOIN (SELECT id AS home_morningID, number_calls_home_morning
              FROM number_calls_home_morning) ooo
-  ON aa.id = ooo.id
+  ON frequenciesID = home_morningID
 
-  LEFT JOIN (SELECT id, number_calls_work_morning
+  LEFT JOIN (SELECT id AS work_morningID, number_calls_work_morning
              FROM number_calls_work_morning) ppp
-  ON aa.id = ppp.id
+  ON frequenciesID = work_morningID
 
-  LEFT JOIN (SELECT id, number_calls_home_evening
+  LEFT JOIN (SELECT id AS home_eveningID, number_calls_home_evening
              FROM number_calls_home_evening) lll
-  ON aa.id = lll.id
+  ON frequenciesID = home_eveningID
 
-  LEFT JOIN (SELECT id, number_calls_work_evening
+  LEFT JOIN (SELECT id AS work_eveningID, number_calls_work_evening
              FROM number_calls_work_evening) kkk
-  ON aa.id = kkk.id
+  ON frequenciesID = work_eveningID
 
-  LEFT JOIN (SELECT id,
+  LEFT JOIN (SELECT hwid AS travelTimes_H_WID,
                     averageTravelTime_H_W,
                     minTravelTime_H_W,
                     date_H_W,
                     startdate_H_W,
                     finishdate_H_W
              FROM travelTimes_H_W) kkk1
-  ON aa.id = kkk1.id
+  ON frequenciesID = travelTimes_H_WID
 
-  LEFT JOIN (SELECT id,
+  LEFT JOIN (SELECT id AS travelTimes_W_HID,
                     averageTravelTime_W_H,
                     minTravelTime_W_H,
                     date_W_H,
                     startdate_W_H,
                     finishdate_W_H
              FROM travelTimes_W_H) kkk2
-  ON aa.id = kkk2.id
+  ON frequenciesID = travelTimes_W_HID
+
+  LEFT JOIN ( SELECT id AS intermediateTowers_H_WID,
+                     count(DISTINCT cell_id) AS number_intermediateTowers_H_W
+              FROM intermediateTowers_H_W
+              GROUP BY id
+            ) kkkl
+  ON frequenciesID = intermediateTowers_H_WID
+
+ LEFT JOIN ( SELECT whid AS intermediateTowers_W_HID,
+                    count(DISTINCT cell_id)  AS number_intermediateTowers_W_H
+              FROM intermediateTowers_W_H
+              GROUP BY whid
+            ) kkko
+  ON frequenciesID = intermediateTowers_W_HID
 );
 
 SELECT count(distinct uid) FROM porto_users; -- reference 486809
-
--- should be equal or more (INNER JOIN)
-SELECT count(distinct id) FROM frequenciesByUser;
-SELECT count(distinct uid) FROM durationsByUser;
-SELECT count(distinct id) FROM totalCallsByUser;
-SELECT count(distinct id) FROM (
+-- should be equal (INNER JOIN)
+SELECT count(distinct userid) FROM (
     SELECT id AS userid, count(cell_id) AS differentVisitedPlaces
     FROM visitedCellsByIds_G
     GROUP BY id
 ) y;
 
-
-
-
-
--- should be equal or less (LEFT JOIN)
-SELECT count(distinct id) FROM home_workplace_by_user;
-SELECT count(distinct uid) FROM numberCallsWeekdays;
-SELECT count(distinct uid) FROM numberCalls_working_hours;
-SELECT count(distinct uid) FROM numberCalls_home_hours;
-SELECT count(distinct uid) FROM numberCalls_morning_hours;
-SELECT count(distinct uid) FROM numberCalls_evening_hours;
-SELECT count(distinct id) FROM number_calls_home_morning;
-SELECT count(distinct id) FROM number_calls_work_morning;
-SELECT count(distinct id) FROM number_calls_home_evening;
-SELECT count(distinct id) FROM number_calls_work_evening;
-SELECT count(distinct id) FROM travelTimes_H_W;
-SELECT count(distinct id) FROM travelTimes_W_H;
-
+SELECT count(distinct id) FROM region_users_characterization; -- reference 486809
 -- ------------------------------- SUBSAMPLING THE DATA BASED ON A SET OF PREFERENCES ----------------------------- --
 /*
 ESTABLISHING THE PARAMETERS AND PRIORITIZE THE INDICATORS FOR THE USERS' PROFILES THAT WE WANT. IGNORE USERS THAT:
@@ -1429,7 +1335,7 @@ CREATE TABLE ODPorto_users_characterization AS(
 
 CREATE TABLE ODPORTO AS (
   SELECT *
-  FROM call_fct_porto_weekdays_restructured
+  FROM call_fct_porto_weekdays
   WHERE id IN (SELECT id FROM ODPorto_users_characterization)
         OR id IN (SELECT id FROM ODPorto_users_characterization)
 );
