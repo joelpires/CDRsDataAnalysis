@@ -1,5 +1,6 @@
 -- ISSUES --
 -- issue: checkar se há algum min travel time com valor de 0
+-- ver se os criterios de cleaning travelling speed fazem sentido
 -- issue: decidir o que fazer com os dados de oscillation case4
 -- issue: create oscillations table from case4 table. O QUE FAZER COM AS OSCILLATIONS?
 -- issue: verificar se há duplicados nos ranked
@@ -588,16 +589,43 @@ CREATE TEMPORARY TABLE durationsByUser AS(
 );
 
 ----------------------------------------------------------
+-- DIFFERENT ACTIVE DAYS, DIFFERENT NUMBER OF CALLS AND FREQUENCY OF CALLING --
+CREATE TEMPORARY TABLE frequenciesByUser AS (
+    SELECT id,
+           count(date) AS activeDays,
+           sum(qtd) AS numberCalls,
+           sum(diffDays) AS sumDifferencesDays
+    FROM (
+        SELECT id,
+               date,
+               sum(qtd) qtd,
+               COALESCE(ROUND(ABS((date_part('day',age(date, lag(date) OVER (PARTITION BY id order by id)))/365 + date_part('month',age(date, lag(date) OVER (PARTITION BY id order by id)))/12 + date_part('year',age(date, lag(date) OVER (PARTITION BY id order by id))))*365 )), 0) as diffDays
+        FROM (
+            SELECT originating_id AS id, date, count(*) AS qtd
+            FROM call_fct_porto
+            GROUP BY originating_id, date
+
+            UNION ALL
+              SELECT terminating_id AS id, date, count(*) AS qtd
+              FROM call_fct_porto
+              GROUP BY terminating_id, date
+             )ss
+        GROUP BY id, date
+    ) ss1
+    GROUP BY id
+);
+
+----------------------------------------------------------
 --  OBTAIN THE CALLS MADE/RECEIVED DURING THE WEEKDAYS  --
-CREATE TEMPORARY TABLE call_fct_porto_weekdays AS (
+CREATE TABLE call_fct_porto_weekdays AS (
   SELECT *
   FROM call_fct_porto
   WHERE extract(isodow from date) -1 < 5
 );
 
 -- CREATING THE NECESSARY INDEXES
-CREATE INDEX call_fct_porto_weekdays_orig ON call_fct_porto_weekdays (originating_id);
-CREATE INDEX call_fct_porto_weekdays_term ON call_fct_porto_weekdays (terminating_id);
+-- CREATE INDEX call_fct_porto_weekdays_orig ON call_fct_porto_weekdays (originating_id);
+-- CREATE INDEX call_fct_porto_weekdays_term ON call_fct_porto_weekdays (terminating_id);
 
 ----------------------------------------------------------
 --  OBTAIN THE NUMBER OF CALLS MADE/RECEIVED DURING THE WEEKDAYS GROUP BY USERID  --
@@ -833,7 +861,7 @@ CREATE TEMPORARY TABLE visitedCellsByIds_G AS( -- DIFFERENT VISITED CELLS IN GEN
 
 ----------------------------------------------------------
 -- RESTRUCTURING THE RECORDS
-CREATE TABLE call_fct_porto_weekdays_restructured  AS(
+CREATE TEMPORARY TABLE call_fct_porto_weekdays_restructured  AS(
   SELECT originating_id AS id, originating_cell_id AS cell_id, date_id, date, time, duration_amt
   FROM call_fct_porto_weekdays
 
@@ -844,7 +872,7 @@ CREATE TABLE call_fct_porto_weekdays_restructured  AS(
 );
 
 -- CREATING THE NECESSARY INDEXES
-CREATE INDEX call_fct_porto_weekdays_ids ON call_fct_porto_weekdays (id);
+-- CREATE INDEX call_fct_porto_weekdays_ids ON call_fct_porto_weekdays_restructured (id);
 
 ----------------------------------------------------------
 --  OBTAIN THE NUMBER OF CALLS MADE/RECEIVED DURING THE MORNING HOURS GROUP BY USERID  --
@@ -1013,6 +1041,13 @@ CREATE TEMPORARY TABLE travelTimes_H_W AS(
   ON id = idUser
   AND travelTime = minTravelTime_H_W
 );
+-- issue: solve this problem more properly. The problem is that there are users that call in a specific originating_cell_id at a specific date_id and at the same time
+-- they are misteriously receiveing a call in a different terminating_cell_id
+-- this needs to be deeply analyzed in the unique_call_fct dataset as a case 5 table
+-- poderá ainda haver o caso de fazer table case 6 para users que chamam ou recebem mais que uma chamada ao mesmo tempo em células diferentes???
+DELETE
+FROM travelTimes_H_W
+WHERE minTravelTime_H_W = 0;
 
 ----------------------------------------------------------
 --  OBTAIN THE NUMBER OF CALLS MADE/RECEIVED DURING THE EVENING HOURS GROUP BY USERID  --
@@ -1031,6 +1066,7 @@ CREATE TEMPORARY TABLE numberCalls_evening_hours AS (
   ) t
   GROUP BY uid
 );
+
 ------------------------------------------------------------
 -- TRAVEL TIMES WORK -> HOME (we are assuming people go to home in the evening/night) --
 -- calculating all the calls that took place at home or in the workplace during the evening
@@ -1183,6 +1219,14 @@ CREATE TEMPORARY TABLE travelTimes_W_H AS(
   AND travelTime = minTravelTime_W_H
 );
 
+-- issue: solve this problem more properly. The problem is that there are users that call in a specific originating_cell_id at a specific date_id and at the same time
+-- they are misteriously receiveing a call in a different terminating_cell_id
+-- this needs to be deeply analyzed in the unique_call_fct dataset as a case 5 table
+-- poderá ainda haver o caso de fazer table case 6 para users que chamam ou recebem mais que uma chamada ao mesmo tempo em células diferentes???
+DELETE
+FROM travelTimes_W_H
+WHERE minTravelTime_W_H = 0;
+
 
 -- --------------------------------------------------------------------------- CHARACTERIZE USERS BY MULTIPLE PARAMETERS ------------------------------------------------------------ --
 CREATE TABLE region_users_characterization AS (
@@ -1198,7 +1242,6 @@ CREATE TABLE region_users_characterization AS (
          differentvisitedplaces AS "Different Places Visited",
          CAST(amountOfTalk AS FLOAT)/ activeDays AS "Average Talk Per Day",
          CAST(amountOfTalk AS FLOAT)/ numberCalls AS "Average Amount of Talk Per Call",
-
          CAST(st_distance(ST_Transform(geom_point_home, 3857), ST_Transform(geom_point_work, 3857)) AS FLOAT)/1000 AS "Distance_H_W (kms)",
          averageTravelTime_H_W,
          minTravelTime_H_W,
@@ -1223,30 +1266,8 @@ CREATE TABLE region_users_characterization AS (
          number_calls_work_morning AS "Number of Calls Made/Received in The Workplace During the Morning",
          number_calls_home_evening AS "Number of Calls Made/Received at Home During the Evening",
          number_calls_work_evening AS "Number of Calls Made/Received in The Workplace During the Evening"
-  FROM (
-    SELECT id,
-           count(date) AS activeDays,
-           sum(qtd) AS numberCalls,
-           sum(diffDays) AS sumDifferencesDays
-    FROM (
-        SELECT id,
-               date,
-               sum(qtd) qtd,
-               COALESCE(ROUND(ABS((date_part('day',age(date, lag(date) OVER (PARTITION BY id order by id)))/365 + date_part('month',age(date, lag(date) OVER (PARTITION BY id order by id)))/12 + date_part('year',age(date, lag(date) OVER (PARTITION BY id order by id))))*365 )), 0) as diffDays
-        FROM (
-            SELECT originating_id AS id, date, count(*) AS qtd
-            FROM call_fct_porto
-            GROUP BY originating_id, date
 
-            UNION ALL
-              SELECT terminating_id AS id, date, count(*) AS qtd
-              FROM call_fct_porto
-              GROUP BY terminating_id, date
-             )ss
-        GROUP BY id, date
-    ) ss1
-    GROUP BY id
-  ) aa
+  FROM frequenciesByUser aa
 
   INNER JOIN (
     SELECT id AS userid, count(cell_id) AS differentVisitedPlaces
@@ -1261,7 +1282,11 @@ CREATE TABLE region_users_characterization AS (
   INNER JOIN (SELECT * FROM totalCallsByUser) f
   ON aa.id = f.id
 
-  LEFT JOIN (SELECT id AS eid, home_id, geom_point_home, workplace_id, geom_point_work
+  LEFT JOIN (SELECT id AS eid,
+                    home_id,
+                    geom_point_home,
+                    workplace_id,
+                    geom_point_work
              FROM home_workplace_by_user) i
   ON aa.id = eid
 
@@ -1320,6 +1345,35 @@ CREATE TABLE region_users_characterization AS (
   ON aa.id = kkk2.id
 );
 
+SELECT count(distinct uid) FROM porto_users; -- reference 486809
+
+-- should be equal or more (INNER JOIN)
+SELECT count(distinct id) FROM frequenciesByUser;
+SELECT count(distinct uid) FROM durationsByUser;
+SELECT count(distinct id) FROM totalCallsByUser;
+SELECT count(distinct id) FROM (
+    SELECT id AS userid, count(cell_id) AS differentVisitedPlaces
+    FROM visitedCellsByIds_G
+    GROUP BY id
+) y;
+
+
+
+
+
+-- should be equal or less (LEFT JOIN)
+SELECT count(distinct id) FROM home_workplace_by_user;
+SELECT count(distinct uid) FROM numberCallsWeekdays;
+SELECT count(distinct uid) FROM numberCalls_working_hours;
+SELECT count(distinct uid) FROM numberCalls_home_hours;
+SELECT count(distinct uid) FROM numberCalls_morning_hours;
+SELECT count(distinct uid) FROM numberCalls_evening_hours;
+SELECT count(distinct id) FROM number_calls_home_morning;
+SELECT count(distinct id) FROM number_calls_work_morning;
+SELECT count(distinct id) FROM number_calls_home_evening;
+SELECT count(distinct id) FROM number_calls_work_evening;
+SELECT count(distinct id) FROM travelTimes_H_W;
+SELECT count(distinct id) FROM travelTimes_W_H;
 
 -- ------------------------------- SUBSAMPLING THE DATA BASED ON A SET OF PREFERENCES ----------------------------- --
 /*
@@ -1333,19 +1387,24 @@ ESTABLISHING THE PARAMETERS AND PRIORITIZE THE INDICATORS FOR THE USERS' PROFILE
 */
 
 
-CREATE TEMPORARY TABLE subsample_users_characterization AS(
+CREATE TABLE subsample_users_characterization AS(
   SELECT *
   FROM region_users_characterization
+
+  /*minimum requirements*/
   WHERE "Average Talk Per Day" < 18000 -- less than 5 hours of talk per day
   AND "Average Calls Per Day" < 3 * 24 -- someone that is working is not able to constantly being on the phone, so we limited to 3 calls per hour on average
   AND "Average Calls Per Day" > 1 -- at least (almost) two calls per day on average in order to us being able compute commuting trips
   AND "Nº Active Days" > 1 * 7 -- at least one week of call activity
   AND "Different Places Visited" >= 2 -- visited at least two different places
+
+  /*changing in dependent variables*/
   /*
-      AND "Average Calls Per Day" > 20
-      AND "Active Days / Period of the Study (%)" > 30
-          ...
+  AND "Average Calls Per Day" > 20
+  AND "Active Days / Period of the Study (%)" > 30
+  ...
   */
+
   ORDER BY "Average Calls Per Day" DESC,  -- order the set of preferences
           "Active Days / Period of the Study (%)" DESC,
           "Calls inside Region (%)" DESC,
@@ -1353,10 +1412,12 @@ CREATE TEMPORARY TABLE subsample_users_characterization AS(
           "Nº Active Days" DESC,
           "Average of Days Until Call" DESC
           -- "Different Places Visited" , "Total Amount of Talk", "Average Talk Per Day" and "Average Amount of Talk Per Call" are variables that do not matter
+
+  -- LIMIT 500
 );
 
 
-CREATE TEMPORARY TABLE ODPorto_users_characterization AS(
+CREATE TABLE ODPorto_users_characterization AS(
   SELECT *
   FROM subsample_users_characterization
   WHERE home_id IN (SELECT cell_id FROM call_dim_porto)
@@ -1366,23 +1427,12 @@ CREATE TEMPORARY TABLE ODPorto_users_characterization AS(
 
 );
 
-CREATE TEMPORARY TABLE subsample_ODPORTO AS (
+CREATE TABLE ODPORTO AS (
   SELECT *
-  FROM call_fct_porto
-  WHERE originating_id IN (SELECT id FROM ODPorto_users_characterization)
-        OR terminating_id IN (SELECT id FROM ODPorto_users_characterization)
+  FROM call_fct_porto_weekdays_restructured
+  WHERE id IN (SELECT id FROM ODPorto_users_characterization)
+        OR id IN (SELECT id FROM ODPorto_users_characterization)
 );
-
-CREATE TABLE ODPORTO  AS(
-  SELECT originating_id AS id, originating_cell_id AS cell_id, date_id, date, time, duration_amt
-  FROM subsample_ODPORTO
-
-  UNION ALL
-
-  SELECT terminating_id AS id, terminating_cell_id AS cell_id, date_id, date, time, duration_amt
-  FROM subsample_ODPORTO
-);
-
 
 ----------------------------------------------------------------------------------------- RESULTS OF ALL THE OPERATIONS ----------------------------------------------------------------------------------------------
 SELECT * FROM statsmunicipals;
