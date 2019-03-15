@@ -1,8 +1,7 @@
 ------------------------------------------- CREATING THE NECESSARY TABLES AND COLUMNS FOR POSTERIOR STATISTICAL ANALYSIS ----------------------------------------------------------
 CREATE TABLE ODPorto_stats (
   number_users INTEGER,
-  number_records INTEGER,
-  number_activities INTEGER
+  number_records INTEGER
 );
 INSERT INTO ODPorto_stats DEFAULT VALUES;
 
@@ -37,7 +36,13 @@ CREATE TABLE stats_number_users_subsample (
   users_feasible_travelTimes_morning_or_evening INTEGER,
   users_feasible_travelTimes_morning_and_evening INTEGER,
   users_feasible_travelTimes_morning_or_evening_inside_Porto INTEGER,
-  users_feasible_travelTimes_morning_and_evening_inside_Porto INTEGER
+  users_feasible_travelTimes_morning_and_evening_inside_Porto INTEGER,
+  users_with_intermediate_towers_H_W INTEGER,
+  users_with_intermediate_towers_W_H INTEGER,
+  users_with_intermediate_towers_H_W_or_W_H INTEGER,
+  users_with_intermediate_towers_H_W_and_W_H INTEGER,
+  users_with_intermediate_towers_H_W_or_W_H_inside_Porto INTEGER,
+  users_with_intermediate_towers_H_W_and_W_H_inside_Porto INTEGER
 );
 INSERT INTO stats_number_users_subsample DEFAULT VALUES;
 
@@ -72,7 +77,13 @@ CREATE TABLE stats_number_users_region (
   users_feasible_travelTimes_morning_or_evening INTEGER,
   users_feasible_travelTimes_morning_and_evening INTEGER,
   users_feasible_travelTimes_morning_or_evening_inside_Porto INTEGER,
-  users_feasible_travelTimes_morning_and_evening_inside_Porto INTEGER
+  users_feasible_travelTimes_morning_and_evening_inside_Porto INTEGER,
+  users_with_intermediate_towers_H_W INTEGER,
+  users_with_intermediate_towers_W_H INTEGER,
+  users_with_intermediate_towers_H_W_or_W_H INTEGER,
+  users_with_intermediate_towers_H_W_and_W_H INTEGER,
+  users_with_intermediate_towers_H_W_or_W_H_inside_Porto INTEGER,
+  users_with_intermediate_towers_H_W_and_W_H_inside_Porto INTEGER
 );
 INSERT INTO stats_number_users_region DEFAULT VALUES;
 
@@ -88,7 +99,8 @@ CREATE TABLE stats_number_records_subsample (
   records_users_feasible_travelTimes_morning_or_evening INTEGER,
   records_users_feasible_travelTimes_morning_and_evening INTEGER,
   records_users_feasible_travelTimes_morning_or_evening_inside_Porto INTEGER,
-  records_users_feasible_travelTimes_morning_and_evening_inside_Porto INTEGER
+  records_users_feasible_travelTimes_morning_and_evening_inside_Porto INTEGER,
+  records_users_with_intermediate_towers_H_W_and_W_H_inside_Porto INTEGER
 );
 INSERT INTO stats_number_records_subsample DEFAULT VALUES;
 
@@ -104,7 +116,9 @@ CREATE TABLE stats_number_records_region (
   records_users_feasible_travelTimes_morning_or_evening INTEGER,
   records_users_feasible_travelTimes_morning_and_evening INTEGER,
   records_users_feasible_travelTimes_morning_or_evening_inside_Porto INTEGER,
-  records_users_feasible_travelTimes_morning_and_evening_inside_Porto INTEGER
+  records_users_feasible_travelTimes_morning_and_evening_inside_Porto INTEGER,
+  records_users_with_intermediate_towers_inside_Porto INTEGER,
+  records_users_with_intermediate_towers_H_W_and_W_H_inside_Porto INTEGER
 );
 INSERT INTO stats_number_records_region DEFAULT VALUES;
 
@@ -135,11 +149,6 @@ CREATE TABLE stats_number_users_preprocess (
 INSERT INTO stats_number_users_preprocess DEFAULT VALUES;
 
 
-
-
-
-
-
 -- -------------------------------------------------------------------------------------------------- ELABORATING STATS ----------------------------------------------------------------------------------------- --
 
 ---------------------------------- STATS OF THE PORTO USERS THAT WILL BE USED TO CALCULATE ROUTES AND MEANS OF TRANSPORT ---------------------------
@@ -147,10 +156,7 @@ UPDATE ODPorto_stats
 SET number_users = (SELECT count(*) FROM ODPorto_users_characterization);
 
 UPDATE ODPorto_stats
-SET number_records = (SELECT count(*) FROM subsample_ODPORTO);
-
-UPDATE ODPorto_stats
-SET number_activities = (SELECT count(*) FROM ODPORTO);
+SET number_records = (SELECT count(*) FROM ODPORTO);
 
 
 ---------------------------------------------------- STATS OF THE SUBSAMPLE OF USERS SELECTED ACCORDINGLY TO THE CHANGE OF VARIABLES ---------------------------
@@ -408,21 +414,11 @@ SET users_feasible_travelTimes_morning_and_evening_inside_Porto = (SELECT count(
 
 ---------------------------------------------------- STATS OF THE SUBSAMPLE OF RECORDS SELECTED ACCORDINGLY TO THE CHANGE OF VARIABLES ---------------------------
 UPDATE stats_number_records_subsample
-SET total_records = (SELECT count(*) FROM call_fct_porto);
+SET total_records = (SELECT count(*) FROM call_fct_porto_restructured);
 
 UPDATE stats_number_records_subsample
 SET records_users_activity_weekdays = (SELECT count(*)
-                                       FROM(
-                                        SELECT *
-                                        FROM call_fct_porto_weekdays
-                                        WHERE originating_id IN (SELECT * FROM temp_users_activity_weekdays)
-
-                                        UNION
-
-                                        SELECT *
-                                        FROM call_fct_porto_weekdays
-                                        WHERE terminating_id IN (SELECT * FROM temp_users_activity_weekdays)
-                                       ) b
+                                       FROM call_fct_porto_weekdays
                                       );
 
 UPDATE stats_number_records_subsample
@@ -819,7 +815,7 @@ SET users_feasible_travelTimes_morning_and_evening_inside_Porto = (SELECT count(
 
 ---------------------------------------------------- STATS OF THE RECORDS OF THE USERS THAT MADE/RECEIVED CALLS INSIDE THE REGION --------------------------------
 UPDATE stats_number_records_region
-SET total_records = (SELECT count(*) FROM call_fct_porto);
+SET total_records = (SELECT count(*) FROM call_fct_porto_restructured);
 
 UPDATE stats_number_records_region
 SET records_users_activity_weekdays = (SELECT count(*)
