@@ -155,16 +155,20 @@ def connect():
 
         # create a cursor
         cur = conn.cursor()
-        """
-        cur.execute('SELECT originating_id, originating_cell_id, terminating_id, terminating_cell_id, date_id, duration_amt FROM public.call_fct WHERE duration_amt > 0 LIMIT 100')
+
+        cur.execute('SELECT * FROM public.ODPorto_users_characterization LIMIT 1')
 
         fetchedFCT = cur.fetchall()
-
+        print(fetchedFCT)
+        """
         cur.execute('SELECT cell_id, latitude, longitude FROM public.call_dim LIMIT 1000')
         fetchedDIM = cur.fetchall()
         subCellIds = parseDBColumns(fetchedDIM, 0, int)
         """
 
+
+
+        """
 
         key1 = os.environ.get('MAPSAPIKEYJO')
         key2 = os.environ.get('MAPSAPIMA')
@@ -177,7 +181,7 @@ def connect():
         request = directionsAPIendpoint + nav_request
         print(request)
 
-        """
+      
         response = urllib.request.urlopen(request).read()
         directions = json.loads(response)
 

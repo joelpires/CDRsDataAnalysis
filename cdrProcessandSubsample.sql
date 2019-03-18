@@ -739,7 +739,7 @@ WHERE id IN (
 
 ----------------------------------------------------------
 CREATE TEMPORARY TABLE home_id_by_user AS (
-  SELECT h.hid AS hid, home_id, geom_point AS geom_point_home
+  SELECT h.hid AS hid, home_id, latitude AS home_latitude, longitude AS home_longitude, geom_point AS geom_point_home
 
   FROM hasMostVisitedCell_H l
 
@@ -752,7 +752,7 @@ CREATE TEMPORARY TABLE home_id_by_user AS (
 );
 
 CREATE TEMPORARY TABLE workplace_id_by_user AS (
-  SELECT h.wid AS wid, workplace_id, geom_point AS geom_point_work
+  SELECT h.wid AS wid, workplace_id, latitude AS work_latitude, longitude AS work_longitude, geom_point AS geom_point_work
   FROM hasMostVisitedCell_W
 
   LEFT JOIN (SELECT id AS Wid, mostVisitedCell AS workplace_id FROM mostVisitedCells_W) h
@@ -763,14 +763,13 @@ CREATE TEMPORARY TABLE workplace_id_by_user AS (
 );
 
 CREATE TEMPORARY TABLE home_workplace_by_user AS (
-  SELECT hid AS id, home_id, geom_point_home, workplace_id, geom_point_work
+  SELECT hid AS eid, home_id, home_latitude, home_longitude, geom_point_home, workplace_id, work_latitude, work_longitude, geom_point_work
   FROM home_id_by_user j
   INNER JOIN (SELECT Wid AS userid,* FROM workplace_id_by_user) l
   ON hid = userid
 );
 
 ----------------------------------------------------------
-DROP TABLE visitedCellsByIds_G;
 CREATE TEMPORARY TABLE visitedCellsByIds_G AS( -- DIFFERENT VISITED CELLS IN GENERAL, GROUPED BY USER ID --
   SELECT id, cell_id, count(*) AS qtd
   FROM call_fct_porto_restructured
@@ -797,7 +796,7 @@ CREATE TEMPORARY TABLE morning_calls AS (
 ------------------------------------------------------------ TRAVEL TIMES HOME -> WORK (we are assuming people go to work in the morning) --------------------------------------------------------------
 -- calculate the number of calls made at home during the morning group by user
 CREATE TEMPORARY TABLE number_calls_home_morning AS(
-  SELECT id, count(DISTINCT id) AS number_calls_home_morning
+  SELECT id, count(DISTINCT date_id) AS number_calls_home_morning
   FROM (
     SELECT *
     FROM (
@@ -808,7 +807,7 @@ CREATE TEMPORARY TABLE number_calls_home_morning AS(
              cell_id,
              home_id
       FROM morning_calls
-      INNER JOIN (SELECT id AS userid, home_id FROM home_workplace_by_user WHERE home_id IS NOT NULL) u
+      INNER JOIN (SELECT eid AS userid, home_id FROM home_workplace_by_user WHERE home_id IS NOT NULL) u
       ON id = userid
     ) h
     WHERE cell_id = home_id
@@ -819,7 +818,7 @@ CREATE TEMPORARY TABLE number_calls_home_morning AS(
 ------------------------------------------------------------
 -- calculate the number of calls made at workplace during the morning group by user
 CREATE TEMPORARY TABLE number_calls_work_morning AS(
-  SELECT id, count(DISTINCT id) AS number_calls_work_morning
+  SELECT id, count(DISTINCT date_id) AS number_calls_work_morning
   FROM (
     SELECT *
     FROM (
@@ -830,7 +829,7 @@ CREATE TEMPORARY TABLE number_calls_work_morning AS(
              cell_id,
              workplace_id
       FROM morning_calls
-      INNER JOIN (SELECT id AS userid, workplace_id FROM home_workplace_by_user WHERE workplace_id IS NOT NULL) u
+      INNER JOIN (SELECT eid AS userid, workplace_id FROM home_workplace_by_user WHERE workplace_id IS NOT NULL) u
       ON id = userid
     ) h
     WHERE cell_id = workplace_id
@@ -851,7 +850,7 @@ CREATE TEMPORARY TABLE commuting_calls_morning AS(
            home_id,
            workplace_id
     FROM morning_calls
-    INNER JOIN (SELECT id AS userid, home_id, workplace_id FROM home_workplace_by_user WHERE home_id IS NOT NULL AND workplace_id IS NOT NULL AND home_id != workplace_id) u
+    INNER JOIN (SELECT eid AS userid, home_id, workplace_id FROM home_workplace_by_user WHERE home_id IS NOT NULL AND workplace_id IS NOT NULL AND home_id != workplace_id) u
     ON id = userid
   ) h
   WHERE cell_id = home_id OR cell_id = workplace_id
@@ -963,7 +962,7 @@ CREATE TEMPORARY TABLE evening_calls AS (
 ------------------------------------------------------------
 -- calculate the number of calls made at home during the evening group by user
 CREATE TEMPORARY TABLE number_calls_home_evening AS(
-  SELECT id, count(DISTINCT id) AS number_calls_home_evening
+  SELECT id, count(DISTINCT date_id) AS number_calls_home_evening
   FROM (
     SELECT *
     FROM (
@@ -975,7 +974,7 @@ CREATE TEMPORARY TABLE number_calls_home_evening AS(
              home_id,
              workplace_id
       FROM evening_calls
-      INNER JOIN (SELECT id AS userid, home_id, workplace_id FROM home_workplace_by_user WHERE home_id IS NOT NULL AND workplace_id IS NOT NULL AND home_id != workplace_id) u
+      INNER JOIN (SELECT eid AS userid, home_id, workplace_id FROM home_workplace_by_user WHERE home_id IS NOT NULL AND workplace_id IS NOT NULL AND home_id != workplace_id) u
       ON id = userid
     ) h
     WHERE cell_id = home_id
@@ -986,7 +985,7 @@ CREATE TEMPORARY TABLE number_calls_home_evening AS(
 ------------------------------------------------------------
 -- calculate the number of calls made at workplace during the evening group by user
 CREATE TEMPORARY TABLE number_calls_work_evening AS(
-  SELECT id, count(DISTINCT id) AS number_calls_work_evening
+  SELECT id, count(DISTINCT date_id) AS number_calls_work_evening
   FROM (
     SELECT *
     FROM (
@@ -998,7 +997,7 @@ CREATE TEMPORARY TABLE number_calls_work_evening AS(
              home_id,
              workplace_id
       FROM evening_calls
-      INNER JOIN (SELECT id AS userid, home_id, workplace_id FROM home_workplace_by_user WHERE home_id IS NOT NULL AND workplace_id IS NOT NULL AND home_id != workplace_id) u
+      INNER JOIN (SELECT eid AS userid, home_id, workplace_id FROM home_workplace_by_user WHERE home_id IS NOT NULL AND workplace_id IS NOT NULL AND home_id != workplace_id) u
       ON id = userid
     ) h
     WHERE cell_id = workplace_id
@@ -1019,7 +1018,7 @@ CREATE TEMPORARY TABLE commuting_calls_evening AS(
            home_id,
            workplace_id
     FROM evening_calls
-    INNER JOIN (SELECT id AS userid, home_id, workplace_id FROM home_workplace_by_user WHERE home_id IS NOT NULL AND workplace_id IS NOT NULL AND home_id != workplace_id) u
+    INNER JOIN (SELECT eid AS userid, home_id, workplace_id FROM home_workplace_by_user WHERE home_id IS NOT NULL AND workplace_id IS NOT NULL AND home_id != workplace_id) u
     ON id = userid
   ) h
   WHERE cell_id = home_id OR cell_id = workplace_id
@@ -1111,39 +1110,57 @@ WHERE minTravelTime_W_H = 0;
 
 -- --------------------------------------------------------------------------- INTERMEDIATE CELL TOWERS WITHIN TRAVEL TIME ------------------------------------------------------------ --
 -- HOME -> WORK
+
+ALTER TABLE travelTimes_H_W
+RENAME COLUMN id TO hwid;
+
 CREATE TEMPORARY TABLE intermediateTowers_H_W AS (
-  SELECT p.id, cell_id, date_id, date, time, minTravelTime_H_W, date_H_W, startdate_H_W, finishdate_H_W
+  SELECT p.id, p.cell_id, date_id, date, time, minTravelTime_H_W, date_H_W, startdate_H_W, finishdate_H_W, latitude, longitude
   FROM call_fct_porto_weekdays p
 
   INNER JOIN (SELECT * FROM travelTimes_H_W) h
   ON hwid = p.id
+
   INNER JOIN (SELECT * FROM home_workplace_by_user) y
   ON eid = p.id
+
+  INNER JOIN (SELECT cell_id AS tower, * FROM call_dim) t
+  ON p.cell_id = tower
 
   WHERE time > startdate_H_W AND time < finishdate_H_W
         AND p.cell_id != workplace_id
         AND p.cell_id != home_id
-);
 
+);
+SELECT count(*) FROM intermediateTowers_H_W;
+ALTER TABLE travelTimes_W_H
+RENAME COLUMN id TO whid;
 -- WORK -> HOME
 CREATE TEMPORARY TABLE intermediateTowers_W_H AS (
-  SELECT p.id, cell_id, date_id, date, time, minTravelTime_W_H, date_W_H, startdate_W_H, finishdate_W_H
+  SELECT p.id, p.cell_id, date_id, date, time, minTravelTime_W_H, date_W_H, startdate_W_H, finishdate_W_H, latitude, longitude
   FROM call_fct_porto_weekdays p
 
   INNER JOIN (SELECT * FROM travelTimes_W_H) h
   ON whid = p.id
+
   INNER JOIN (SELECT * FROM home_workplace_by_user) y
   ON eid = p.id
+
+  INNER JOIN (SELECT cell_id AS tower, * FROM call_dim) t
+  ON p.cell_id = tower
+
 
   WHERE time > startdate_W_H AND time < finishdate_W_H
         AND p.cell_id != workplace_id
         AND p.cell_id != home_id
 );
 
+ALTER TABLE frequenciesByUser
+RENAME COLUMN id TO frequenciesID;
 -- --------------------------------------------------------------------------- CHARACTERIZE USERS BY MULTIPLE PARAMETERS ------------------------------------------------------------ --
 CREATE TABLE region_users_characterization AS (
 
-  SELECT frequenciesID AS user,
+  SELECT frequenciesID AS user_id,
          amountOfTalk AS "Total Amount of Talk",
          (numberCalls/ activeDays) AS "Average Calls Per Day",
          sumDifferencesDays/activeDays AS "Average of Days Until Call",
@@ -1155,7 +1172,11 @@ CREATE TABLE region_users_characterization AS (
          CAST(amountOfTalk AS FLOAT)/ activeDays AS "Average Talk Per Day",
          CAST(amountOfTalk AS FLOAT)/ numberCalls AS "Average Amount of Talk Per Call",
          home_id,
+         home_latitude,
+         home_longitude,
          workplace_id,
+         work_latitude,
+         work_longitude,
          CAST(st_distance(ST_Transform(geom_point_home, 3857), ST_Transform(geom_point_work, 3857)) AS FLOAT)/1000 AS "Distance_H_W (kms)",
          averageTravelTime_H_W,
          minTravelTime_H_W,
@@ -1163,13 +1184,13 @@ CREATE TABLE region_users_characterization AS (
          startdate_H_W,
          finishdate_H_W,
          (CAST(st_distance(ST_Transform(geom_point_home, 3857), ST_Transform(geom_point_work, 3857)) AS FLOAT)/1000)/(CAST(minTravelTime_H_W AS FLOAT)/60/60) AS "Travel Speed H_W (Km/h)",
-         number_intermediateTowers_H_W,
          averageTravelTime_W_H,
          minTravelTime_W_H,
          date_W_H,
          startdate_W_H,
          finishdate_W_H,
          (CAST(st_distance(ST_Transform(geom_point_home, 3857), ST_Transform(geom_point_work, 3857)) AS FLOAT)/1000)/ (CAST(minTravelTime_W_H AS FLOAT)/60/60) AS "Travel Speed W_H (Km/h)",
+         number_intermediateTowers_H_W,
          number_intermediateTowers_W_H,
          numberCallsWeekdays AS "Number of Calls Made/Received During the Weekdays",
          numberCalls_home_hours AS "Number of Calls Made/Received During the Non-Working Hours",
@@ -1198,8 +1219,12 @@ CREATE TABLE region_users_characterization AS (
 
   LEFT JOIN (SELECT eid AS localIDS,
                     home_id,
+                    home_latitude,
+                    home_longitude,
                     geom_point_home,
                     workplace_id,
+                    work_latitude,
+                    work_longitude,
                     geom_point_work
              FROM home_workplace_by_user) i
   ON frequenciesID = localIDS
@@ -1249,7 +1274,7 @@ CREATE TABLE region_users_characterization AS (
              FROM travelTimes_H_W) kkk1
   ON frequenciesID = travelTimes_H_WID
 
-  LEFT JOIN (SELECT id AS travelTimes_W_HID,
+  LEFT JOIN (SELECT whid AS travelTimes_W_HID,
                     averageTravelTime_W_H,
                     minTravelTime_W_H,
                     date_W_H,
@@ -1265,14 +1290,13 @@ CREATE TABLE region_users_characterization AS (
             ) kkkl
   ON frequenciesID = intermediateTowers_H_WID
 
- LEFT JOIN ( SELECT whid AS intermediateTowers_W_HID,
+ LEFT JOIN ( SELECT id AS intermediateTowers_W_HID,
                     count(DISTINCT cell_id)  AS number_intermediateTowers_W_H
               FROM intermediateTowers_W_H
-              GROUP BY whid
+              GROUP BY id
             ) kkko
   ON frequenciesID = intermediateTowers_W_HID
 );
-
 
 -- ------------------------------- SUBSAMPLING THE DATA BASED ON A SET OF PREFERENCES ----------------------------- --
 /*
@@ -1284,7 +1308,6 @@ ESTABLISHING THE PARAMETERS AND PRIORITIZE THE INDICATORS FOR THE USERS' PROFILE
             . During the period of study, some of the people could change the home and/or the workplace locations
             . People can take vacations and travel abroad
 */
-
 
 CREATE TABLE subsample_users_characterization AS(
   SELECT *
