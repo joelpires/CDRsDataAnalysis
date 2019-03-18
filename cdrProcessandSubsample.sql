@@ -770,6 +770,7 @@ CREATE TEMPORARY TABLE home_workplace_by_user AS (
 );
 
 ----------------------------------------------------------
+DROP TABLE visitedCellsByIds_G;
 CREATE TEMPORARY TABLE visitedCellsByIds_G AS( -- DIFFERENT VISITED CELLS IN GENERAL, GROUPED BY USER ID --
   SELECT id, cell_id, count(*) AS qtd
   FROM call_fct_porto_restructured
@@ -1207,11 +1208,11 @@ CREATE TABLE region_users_characterization AS (
              FROM numberCallsWeekdays) rr
   ON frequenciesID = weekdaysID
 
-  LEFT JOIN (SELECT id AS home_hoursID, numberCalls_home_hours
+  LEFT JOIN (SELECT id AS home_hoursID, qtd AS numberCalls_home_hours
              FROM numberCalls_home_hours) oo
   ON frequenciesID = home_hoursID
 
-  LEFT JOIN (SELECT id AS working_hoursID, numberCalls_working_hours
+  LEFT JOIN (SELECT id AS working_hoursID, qtd AS numberCalls_working_hours
              FROM numberCalls_working_hours) ss
   ON frequenciesID = working_hoursID
 
@@ -1272,15 +1273,7 @@ CREATE TABLE region_users_characterization AS (
   ON frequenciesID = intermediateTowers_W_HID
 );
 
-SELECT count(distinct uid) FROM porto_users; -- reference 486809
--- should be equal (INNER JOIN)
-SELECT count(distinct userid) FROM (
-    SELECT id AS userid, count(cell_id) AS differentVisitedPlaces
-    FROM visitedCellsByIds_G
-    GROUP BY id
-) y;
 
-SELECT count(distinct id) FROM region_users_characterization; -- reference 486809
 -- ------------------------------- SUBSAMPLING THE DATA BASED ON A SET OF PREFERENCES ----------------------------- --
 /*
 ESTABLISHING THE PARAMETERS AND PRIORITIZE THE INDICATORS FOR THE USERS' PROFILES THAT WE WANT. IGNORE USERS THAT:
@@ -1322,7 +1315,6 @@ CREATE TABLE subsample_users_characterization AS(
   -- LIMIT 500
 );
 
-
 CREATE TABLE ODPorto_users_characterization AS(
   SELECT *
   FROM subsample_users_characterization
@@ -1330,6 +1322,8 @@ CREATE TABLE ODPorto_users_characterization AS(
         AND workplace_id IN (SELECT cell_id FROM call_dim_porto)
         AND ((minTravelTime_H_W IS NOT NULL AND "Travel Speed H_W (Km/h)" <= 250 AND "Travel Speed H_W (Km/h)" >= 3)
               OR (minTravelTime_W_H IS NOT NULL AND "Travel Speed W_H (Km/h)" <= 250 AND "Travel Speed W_H (Km/h)" >= 3))
+
+        AND (number_intermediateTowers_H_W IS NOT NULL OR number_intermediateTowers_W_H IS NOT NULL)
 
 );
 
@@ -1351,7 +1345,6 @@ SELECT * FROM ODPorto_users_characterization;
 
 SELECT * FROM ODPorto;
 
--- SELECT * FROM select_users_by_dependent_variables;
 
 
 
