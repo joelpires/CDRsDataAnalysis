@@ -158,8 +158,27 @@ def connect():
 
         cur.execute('SELECT * FROM public.ODPorto_users_characterization LIMIT 1')
 
-        fetchedFCT = cur.fetchall()
-        print(fetchedFCT)
+        fetchedODPorto_users = cur.fetchall()
+
+        key1 = os.environ.get('MAPSAPIKEYJO')
+        key2 = os.environ.get('MAPSAPIMA')
+
+        roadsAPIendpoint = 'https://roads.googleapis.com/v1/snapToRoads?'
+        directionsAPIendpoint = 'https://maps.googleapis.com/maps/api/directions/json?'
+
+        for i in range(len(fetchedODPorto_users)):
+            home_location = "" + str(fetchedODPorto_users[i][12]) + "," + fetchedODPorto_users[i][13]
+            work_location = "" + str(fetchedODPorto_users[i][15]) + "," + fetchedODPorto_users[i][16]
+
+            walking_request = 'origin={}&destination={}&mode={}&key={}'.format(home_location, work_location,"walking", key1)
+            train_request = 'origin={}&destination={}&mode={}&key={}'.format(home_location, work_location, "walking",key1)
+            bus_request = 'origin={}&destination={}&mode={}&key={}'.format(home_location, work_location, "walking", key1)
+            subway_request = 'origin={}&destination={}&mode={}&key={}'.format(home_location, work_location, "walking",key1)
+            subway_request = 'origin={}&destination={}&mode={}&key={}'.format(home_location, work_location, "walking",key1)
+
+
+
+
         """
         cur.execute('SELECT cell_id, latitude, longitude FROM public.call_dim LIMIT 1000')
         fetchedDIM = cur.fetchall()
@@ -170,11 +189,10 @@ def connect():
 
         """
 
-        key1 = os.environ.get('MAPSAPIKEYJO')
-        key2 = os.environ.get('MAPSAPIMA')
+
+        
         print(key2)
-        directionsAPIendpoint = 'https://maps.googleapis.com/maps/api/directions/json?'
-        roadsAPIendpoint = 'https://roads.googleapis.com/v1/snapToRoads?'
+
 
 
         nav_request = 'origin={}&destination={}&mode={}&key={}'.format("41.163802,-8.611141", "41.167032,-8.602099", "walking", key2)

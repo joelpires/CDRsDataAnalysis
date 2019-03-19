@@ -987,4 +987,4 @@ SELECT * FROM stats_number_records_subsample;
 
 SELECT * FROM ODPorto_stats;
 
-DISCARD TEMP;
+-- DISCARD TEMP;
