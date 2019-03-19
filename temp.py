@@ -141,6 +141,51 @@ def stats(data):
     return statistics
 
 
+def analyzeLegs(mode, route, mobilityByUsers, userID, multimode):
+    differentModes = []
+    routePoints = []
+    for leg in route['legs']:
+
+        mobilityByUsers[userID]['duration'] = leg['duration']['value']
+
+        previousMode = route['legs'][0]['steps'][0]['travel_mode']
+
+        if mode == "TRANSIT" and previousMode == "TRANSIT":
+            previousMode = route['legs'][0]['steps'][0]['transit_details']['line']['vehicles']['type']
+
+        for step in leg['steps']:
+
+            if mode == "TRANSIT" and step['travel_mode'] == "TRANSIT":
+                atualMode = step['transit_details']['line']['vehicles']['type']
+            else:
+                atualMode = step['travel_mode']
+
+
+            if (previousMode != atualMode or step['travel_mode'] != mode) and multimode is False:
+                return []
+            else:
+                for j in polyline.decode(step['polyline']['points']):
+                    routePoints.append(j)
+
+            differentModes.append(previousMode)
+
+
+            if mode == "TRANSIT" and step['travel_mode'] == "TRANSIT":
+                previousMode = step['transit_details']['line']['vehicles']['type']
+            else:
+                previousMode = step['travel_mode']
+
+        if (multimode is True and differentModes[1:] != differentModes[:-1]):
+            mobilityByUsers[userID]['transport_modes'].append(differentModes)
+            return routePoints
+        elif (multimode is False and differentModes[1:] == differentModes[:-1]):
+            mobilityByUsers[userID]['transport_modes'].append(previousMode)
+            return routePoints
+        else:
+            return []
+
+
+
 
 """ Connect to the PostgreSQL database server """
 def connect():
@@ -163,87 +208,50 @@ def connect():
 
         key1 = os.environ.get('MAPSAPIKEYJO')
         key2 = os.environ.get('MAPSAPIMA')
+        chosenkey = key1
 
         roadsAPIendpoint = 'https://roads.googleapis.com/v1/snapToRoads?'
         directionsAPIendpoint = 'https://maps.googleapis.com/maps/api/directions/json?'
 
         mobilityByUsers = defaultdict(dict)
 
+
         countRequests = 0
         for i in range(len(fetchedODPorto_users)):
+
             userID = str(fetchedODPorto_users[i][0])
             home_location = "" + str(fetchedODPorto_users[i][12]) + "," + str(fetchedODPorto_users[i][13])
             work_location = "" + str(fetchedODPorto_users[i][15]) + "," + str(fetchedODPorto_users[i][16])
             min_traveltime_h_w = "" + str(fetchedODPorto_users[i][19])
             min_traveltime_w_h = "" + str(fetchedODPorto_users[i][25])
             mobilityByUsers[userID]['duration'] = 0
-            mobilityByUsers[userID]['transport_mode'] = ""
+            mobilityByUsers[userID]['transport_modes'] = list()
             mobilityByUsers[userID]['routes'] = list()
 
-            multimode_request = directionsAPIendpoint + 'origin={}&destination={}&alternatives=true&key={}'.format(home_location, work_location, key1)
 
-            walking_request = directionsAPIendpoint + 'origin={}&destination={}&mode={}&alternatives=true&key={}'.format(home_location, work_location,"walking", key1)
+            travel_modes = ["DRIVING"] #, "BICYCLING", "WALKING", "TRANSIT", "MULTIMODE
+            multimode = False
 
-            bicycling_request = directionsAPIendpoint +'origin={}&destination={}&mode={}&alternatives=true&key={}'.format(home_location, work_location, "bicycling",key1)
+            for mode in travel_modes:
+                if(mode == "MULTIMODE"):
+                    request = directionsAPIendpoint + 'origin={}&destination={}&alternatives=true&key={}'.format(home_location, work_location, chosenkey)
+                    multimode = True
+                else:
+                    request = directionsAPIendpoint + 'origin={}&destination={}&mode={}&alternatives=true&key={}'.format(home_location, work_location, mode, chosenkey)
 
-            transit_request = directionsAPIendpoint + 'origin={}&destination={}&mode={}&alternatives=true&key={}'.format(home_location, work_location, "transit", key1)
+                response = json.loads(urllib.request.urlopen(request).read())
 
-            driving_request = directionsAPIendpoint + 'origin={}&destination={}&mode={}&alternatives=true&key={}'.format(home_location, work_location, "driving", key1)
+                #pode nao ter resposta
+                if response['status'] == 'OK':
 
-            #response = json.loads(urllib.request.urlopen(multimode_request).read())
-            response = json.loads(urllib.request.urlopen(walking_request).read())
-            #response = json.loads(urllib.request.urlopen(bicycling_request).read())
-            #response = json.loads(urllib.request.urlopen(transit_request).read())
-            #response = json.loads(urllib.request.urlopen(driving_request).read())
+                    for route in response['routes']:
+                        calculated_route = analyzeLegs(mode, route, mobilityByUsers, userID, multimode)
 
-            #pode nao ter resposta
-            if response['status'] == 'OK':
-                for route in response['routes']:
-                    for leg in route['legs']:
-                        mobilityByUsers[userID]['duration'] = leg['duration']['value']
-                        for step in route['steps']:
-
-
-
+                        if calculated_route:
+                            mobilityByUsers[userID]['routes'].append(calculated_route)
 
 
             countRequests += 4
-
-
-
-
-        """
-        cur.execute('SELECT cell_id, latitude, longitude FROM public.call_dim LIMIT 1000')
-        fetchedDIM = cur.fetchall()
-        subCellIds = parseDBColumns(fetchedDIM, 0, int)
-        """
-
-
-
-        """
-
-
-        
-        print(key2)
-
-
-
-        nav_request = 'origin={}&destination={}&mode={}&key={}'.format("41.163802,-8.611141", "41.167032,-8.602099", "walking", key2)
-        request = directionsAPIendpoint + nav_request
-        print(request)
-
-      
-        response = urllib.request.urlopen(request).read()
-        directions = json.loads(response)
-
-
-
-        for i in directions['routes'][0]['legs'][0]['steps']:
-            for j in polyline.decode(i['polyline']['points']):
-                print(j)
-        """
-        for i in polyline.decode(directions['routes'][0]['overview_polyline']['points']):
-            print(i)
 
 
         elapsed_time = time.time() - start_time
