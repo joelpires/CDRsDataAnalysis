@@ -16,6 +16,7 @@ import datetime
 import numpy as np
 import scipy.stats as st
 import polyline
+from collections import defaultdict
 
 """ function that will parser the database.ini """
 def config(filename='database.ini', section='postgresql'):
@@ -166,15 +167,47 @@ def connect():
         roadsAPIendpoint = 'https://roads.googleapis.com/v1/snapToRoads?'
         directionsAPIendpoint = 'https://maps.googleapis.com/maps/api/directions/json?'
 
-        for i in range(len(fetchedODPorto_users)):
-            home_location = "" + str(fetchedODPorto_users[i][12]) + "," + fetchedODPorto_users[i][13]
-            work_location = "" + str(fetchedODPorto_users[i][15]) + "," + fetchedODPorto_users[i][16]
+        mobilityByUsers = defaultdict(dict)
 
-            walking_request = 'origin={}&destination={}&mode={}&key={}'.format(home_location, work_location,"walking", key1)
-            train_request = 'origin={}&destination={}&mode={}&key={}'.format(home_location, work_location, "walking",key1)
-            bus_request = 'origin={}&destination={}&mode={}&key={}'.format(home_location, work_location, "walking", key1)
-            subway_request = 'origin={}&destination={}&mode={}&key={}'.format(home_location, work_location, "walking",key1)
-            subway_request = 'origin={}&destination={}&mode={}&key={}'.format(home_location, work_location, "walking",key1)
+        countRequests = 0
+        for i in range(len(fetchedODPorto_users)):
+            userID = str(fetchedODPorto_users[i][0])
+            home_location = "" + str(fetchedODPorto_users[i][12]) + "," + str(fetchedODPorto_users[i][13])
+            work_location = "" + str(fetchedODPorto_users[i][15]) + "," + str(fetchedODPorto_users[i][16])
+            min_traveltime_h_w = "" + str(fetchedODPorto_users[i][19])
+            min_traveltime_w_h = "" + str(fetchedODPorto_users[i][25])
+            mobilityByUsers[userID]['duration'] = 0
+            mobilityByUsers[userID]['transport_mode'] = ""
+            mobilityByUsers[userID]['routes'] = list()
+
+            multimode_request = directionsAPIendpoint + 'origin={}&destination={}&alternatives=true&key={}'.format(home_location, work_location, key1)
+
+            walking_request = directionsAPIendpoint + 'origin={}&destination={}&mode={}&alternatives=true&key={}'.format(home_location, work_location,"walking", key1)
+
+            bicycling_request = directionsAPIendpoint +'origin={}&destination={}&mode={}&alternatives=true&key={}'.format(home_location, work_location, "bicycling",key1)
+
+            transit_request = directionsAPIendpoint + 'origin={}&destination={}&mode={}&alternatives=true&key={}'.format(home_location, work_location, "transit", key1)
+
+            driving_request = directionsAPIendpoint + 'origin={}&destination={}&mode={}&alternatives=true&key={}'.format(home_location, work_location, "driving", key1)
+
+            #response = json.loads(urllib.request.urlopen(multimode_request).read())
+            response = json.loads(urllib.request.urlopen(walking_request).read())
+            #response = json.loads(urllib.request.urlopen(bicycling_request).read())
+            #response = json.loads(urllib.request.urlopen(transit_request).read())
+            #response = json.loads(urllib.request.urlopen(driving_request).read())
+
+            #pode nao ter resposta
+            if response['status'] == 'OK':
+                for route in response['routes']:
+                    for leg in route['legs']:
+                        mobilityByUsers[userID]['duration'] = leg['duration']['value']
+                        for step in route['steps']:
+
+
+
+
+
+            countRequests += 4
 
 
 
