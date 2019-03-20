@@ -176,7 +176,7 @@ def analyzeLegs(mode, route, mobilityByUsers, userID, multimode):
                 previousMode = step['travel_mode']
 
         if (multimode is True and differentModes[1:] != differentModes[:-1]):
-            mobilityByUsers[userID]['transport_modes'].append(differentModes)
+            mobilityByUsers[userID]['transport_modes'].append(set(differentModes))
             return routePoints
         elif (multimode is False and differentModes[1:] == differentModes[:-1]):
             mobilityByUsers[userID]['transport_modes'].append(previousMode)
@@ -217,6 +217,7 @@ def connect():
 
 
         countRequests = 0
+        #DIRECTIONS API
         for i in range(len(fetchedODPorto_users)):
 
             userID = str(fetchedODPorto_users[i][0])
@@ -229,7 +230,7 @@ def connect():
             mobilityByUsers[userID]['routes'] = list()
 
 
-            travel_modes = ["DRIVING"] #, "BICYCLING", "WALKING", "TRANSIT", "MULTIMODE
+            travel_modes = ["MULTIMODE"] #, "BICYCLING", "WALKING", "TRANSIT", "MULTIMODE
             multimode = False
 
             for mode in travel_modes:
@@ -238,12 +239,11 @@ def connect():
                     multimode = True
                 else:
                     request = directionsAPIendpoint + 'origin={}&destination={}&mode={}&alternatives=true&key={}'.format(home_location, work_location, mode, chosenkey)
-
+                request = "https://maps.googleapis.com/maps/api/directions/json?&mode=transit&origin=frontera+el+hierro&destination=la+restinga+el+hierro&alternatives=true&key=AIzaSyD1uL38USx9YBdzVKxw5GuCeOqY-2Xhj3Q"
                 response = json.loads(urllib.request.urlopen(request).read())
 
                 #pode nao ter resposta
                 if response['status'] == 'OK':
-
                     for route in response['routes']:
                         calculated_route = analyzeLegs(mode, route, mobilityByUsers, userID, multimode)
 
@@ -252,6 +252,9 @@ def connect():
 
 
             countRequests += 4
+
+
+
 
 
         elapsed_time = time.time() - start_time
