@@ -17,6 +17,7 @@ import numpy as np
 import scipy.stats as st
 import polyline
 from collections import defaultdict
+import arcpy
 
 """ function that will parser the database.ini """
 def config(filename='database.ini', section='postgresql'):
@@ -144,6 +145,7 @@ def stats(data):
 def analyzeLegs(mode, route, mobilityByUsers, userID, multimode):
     differentModes = []
     routePoints = []
+
     for leg in route['legs']:
 
         mobilityByUsers[userID]['duration'] = leg['duration']['value']
@@ -160,7 +162,6 @@ def analyzeLegs(mode, route, mobilityByUsers, userID, multimode):
             else:
                 atualMode = step['travel_mode']
 
-
             if (previousMode != atualMode or step['travel_mode'] != mode) and multimode is False:
                 return []
             else:
@@ -176,9 +177,11 @@ def analyzeLegs(mode, route, mobilityByUsers, userID, multimode):
                 previousMode = step['travel_mode']
 
         if (multimode is True and differentModes[1:] != differentModes[:-1]):
+
             mobilityByUsers[userID]['transport_modes'].append(set(differentModes))
             return routePoints
         elif (multimode is False and differentModes[1:] == differentModes[:-1]):
+
             mobilityByUsers[userID]['transport_modes'].append(previousMode)
             return routePoints
         else:
@@ -210,15 +213,16 @@ def connect():
         key2 = os.environ.get('MAPSAPIMA')
         chosenkey = key1
 
-        roadsAPIendpoint = 'https://roads.googleapis.com/v1/snapToRoads?'
+        roadsAPIendpoint = 'https://roads.googleapis.com/v1/nearestRoads?'
         directionsAPIendpoint = 'https://maps.googleapis.com/maps/api/directions/json?'
 
         mobilityByUsers = defaultdict(dict)
 
+        countRequestsDirections = 0
 
-        countRequests = 0
         #DIRECTIONS API
         for i in range(len(fetchedODPorto_users)):
+            if ()
 
             userID = str(fetchedODPorto_users[i][0])
             home_location = "" + str(fetchedODPorto_users[i][12]) + "," + str(fetchedODPorto_users[i][13])
@@ -230,32 +234,45 @@ def connect():
             mobilityByUsers[userID]['routes'] = list()
 
 
-            travel_modes = ["MULTIMODE"] #, "BICYCLING", "WALKING", "TRANSIT", "MULTIMODE
+            travel_modes = ["DRIVING"] #, "BICYCLING", "WALKING", "TRANSIT", "MULTIMODE
             multimode = False
-
+            """
             for mode in travel_modes:
                 if(mode == "MULTIMODE"):
                     request = directionsAPIendpoint + 'origin={}&destination={}&alternatives=true&key={}'.format(home_location, work_location, chosenkey)
                     multimode = True
                 else:
                     request = directionsAPIendpoint + 'origin={}&destination={}&mode={}&alternatives=true&key={}'.format(home_location, work_location, mode, chosenkey)
-                request = "https://maps.googleapis.com/maps/api/directions/json?&mode=transit&origin=frontera+el+hierro&destination=la+restinga+el+hierro&alternatives=true&key=AIzaSyD1uL38USx9YBdzVKxw5GuCeOqY-2Xhj3Q"
+
+
                 response = json.loads(urllib.request.urlopen(request).read())
+                countRequestsDirections += 1
 
                 #pode nao ter resposta
                 if response['status'] == 'OK':
                     for route in response['routes']:
                         calculated_route = analyzeLegs(mode, route, mobilityByUsers, userID, multimode)
-
                         if calculated_route:
                             mobilityByUsers[userID]['routes'].append(calculated_route)
+            """
+            calculated_route = [(41.15641, -8.64247), (41.15635, -8.64219), (41.15626, -8.64171), (41.15626, -8.64171), (41.15411, -8.64243), (41.15411, -8.64243), (41.15452, -8.6438), (41.15454, -8.6439), (41.15454, -8.64402), (41.15434, -8.64586), (41.15436, -8.64593), (41.15436, -8.64599), (41.15431, -8.64661), (41.1543, -8.64688), (41.1543, -8.64721), (41.15429, -8.64752), (41.15429, -8.6478), (41.15427, -8.64828), (41.15427, -8.64828), (41.15442, -8.64818), (41.15472, -8.64795), (41.15472, -8.64795), (41.15495, -8.648), (41.15535, -8.6482)]
+            #for calculated_route in mobilityByUsers[userID]['routes']:
+            print(calculated_route)
+
+            calculated_route = str(calculated_route).replace("[", "")
+            calculated_route = calculated_route.replace("]", "")
+            calculated_route = calculated_route.replace("), ", ",")
+            calculated_route = calculated_route.replace("(", "")
+            calculated_route = calculated_route.replace(")", "")
+            calculated_route = calculated_route.replace(" ", "")
+            print(calculated_route)
 
 
-            countRequests += 4
 
 
 
 
+        print("NUMBER OF REQUESTS TO DIRECTIONS API: " + str(countRequestsDirections))
 
         elapsed_time = time.time() - start_time
         print(str(elapsed_time/60) + " minutes")
