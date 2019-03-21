@@ -23,6 +23,7 @@ import arcpy
 
 countRequests = 0
 cur = None
+atualAPILimit = 59500
 
 
 """ function that will parser the database.ini """
@@ -56,7 +57,7 @@ def parseDBColumns(listToParse, collumn, _constructor):
     return collumnList
 
 
-def calculate_routes(origin, destination, city, userID):
+def calculate_routes(origin, destination, city, userID, commutingtype):
     global countRequests
     global cur
 
@@ -74,6 +75,9 @@ def calculate_routes(origin, destination, city, userID):
         if (countRequests >= 59000):  #budget limit for each google account
             return
 
+        mobilityUser = {}
+        mobilityUser['routeNumber'] = routeNumber
+
         if (mode == "MULTIMODE"):
             request = directionsAPIendpoint + 'origin={}&destination={}&alternatives=true&key={}'.format(origin,destination,chosenkey)
             multimode = True
@@ -86,21 +90,21 @@ def calculate_routes(origin, destination, city, userID):
         # pode nao ter resposta
         if response['status'] == 'OK':
             for route in response['routes']:
-                mobilityUser = analyzeLegs(mode, route, multimode)
-                if mobilityUser['route']:
-                    interpolated_route = interpolate(mobilityUser['route'], city, userID)
+                mobilityUser = analyzeLegs(mode, route, mobilityUser, multimode)
 
-                    for point in interpolated_route:
-                        query = "INSERT INTO " + city + "_possible_routes (userID, H_W, routeNumber, duration, transportMode, latitude, longitude) VALUES ("userID, H_W, ")"
+                if mobilityUser['route']:
+                    mobilityUser['route'] = interpolate(mobilityUser, city, userID, commutingtype)
+
+                    for point in mobilityUser['route']:
+                        query = "INSERT INTO " + city + "_possible_routes (userID, commutingtype, routeNumber, duration, transportMode, latitude, longitude) VALUES ("+ userID + "," + commutingtype + "," + mobilityUser['routeNumber'] + "," + mobilityUser['duration'] + "," + mobilityUser['transport_modes'] + "," + point[0] + "," + point[1] + ")"
                         cur.execute(query)
 
-                    routeNumber += 1
+                        routeNumber += 1
 
 
-def analyzeLegs(mode, route, multimode):
+def analyzeLegs(mode, route, mobilityUser, multimode):
     differentModes = []
     routePoints = []
-    mobilityUser = {}
 
     for leg in route['legs']:
 
@@ -147,14 +151,14 @@ def analyzeLegs(mode, route, multimode):
 
 
 
-def interpolate(route, city, userID):
+def interpolate(mobilityUser, city, userID, commutingtype):
     # convert the points to .csv files
-    filename1 = str(userID) + "_" + str(mobilityByUsers[userID]['transport_modes'][routeNumber]) + "_non_interpolated_route_points_" + str(routeNumber)
+    filename1 = city + "_" + commutingtype + "_" + str(userID) + "_" + str(mobilityUser['transport_modes']) + "_non_interpolated_route_points_" + str(mobilityUser['routeNumber'])
     path_csvs = "C:\Users\Joel\Documents\ArcGIS\\non_interpolated_route_points_csvs\\"
     with open(path_csvs + filename1 + ".csv", mode='w') as fp:
         fp.write("latitude, longitude")
         fp.write("\n")
-        for point in route:
+        for point in mobilityUser['route']:
             line = str(point[0]) + "," + str(point[1])
             fp.write(line)
             fp.write("\n")
@@ -173,13 +177,13 @@ def interpolate(route, city, userID):
                                                 filename1)
 
     # Execute PointsToLine
-    filename2 = str(userID) + "_" + str(mobilityByUsers[userID]['transport_modes'][routeNumber]) + "_route_line_" + str(routeNumber)
+    filename2 = city + "_" + commutingtype + "_" + str(userID) + "_" + str(mobilityUser['transport_modes']) + "_route_line_" + str(mobilityUser['routeNumber'])
     path_shapefile2 = "C:/Users/Joel/Documents/ArcGIS/route_lines_shapefiles/"
     arcpy.PointsToLine_management(path_shapefile1 + filename1 + ".shp",
                                   path_shapefile2 + filename2)
 
     # interpolate the points
-    filename3 = str(userID) + "_" + str(mobilityByUsers[userID]['transport_modes'][routeNumber]) + "_interpolated_route_points_" + str(routeNumber)
+    filename3 = city + "_" + commutingtype + "_" + str(userID) + "_" + str(mobilityUser['transport_modes']) + "_interpolated_route_points_" + str(mobilityUser['routeNumber'])
     path_shapefile3 = "C:/Users/Joel/Documents/ArcGIS/interpolated_route_points_shapefiles/"
     arcpy.GeneratePointsAlongLines_management(path_shapefile2 + filename2 + ".shp",
                                               path_shapefile3 + filename3 + ".shp",
@@ -241,16 +245,11 @@ def connect():
                 min_traveltime_h_w = str(fetched_users[i][19])
                 min_traveltime_w_h = str(fetched_users[i][25])
 
-                if(min_traveltime_h_w == "None"):
-                    H_W = 0
-                if (min_traveltime_w_h == "None"):
-                    W_H = 0
+                if (min_traveltime_h_w != "None"):
+                    calculate_routes(home_location, work_location, city, userID, "H_W")
 
-                if (H_W == 1):
-                    calculate_routes(home_location, work_location, city, userID)
-
-                if (W_H == 1):
-                    calculate_routes(work_location, home_location, city, userID)
+                if (min_traveltime_w_h != "None"):
+                    calculate_routes(work_location, home_location, city, userID, "W_H")
 
 
         print("NUMBER OF REQUESTS TO DIRECTIONS API: " + str(countRequests))
