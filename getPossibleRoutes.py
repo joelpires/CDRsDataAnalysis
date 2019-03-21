@@ -3,6 +3,8 @@ Exploratory Analysis Tools for CDR Dataset
 March 2019
 Joel Pires
 """
+__author__ = 'Joel Pires'
+__date__ = 'March 2019'
 
 import time
 import os
@@ -10,8 +12,7 @@ import urllib, json
 from glob import glob
 import csv
 
-__author__ = 'Joel Pires'
-__date__ = 'January 2019'
+
 
 import psycopg2
 import configparser
@@ -192,6 +193,10 @@ def analyzeLegs(mode, route, mobilityByUsers, userID, multimode):
             return []
 
 
+def calculate_routes(origin, destination):
+
+
+
 
 
 """ Connect to the PostgreSQL database server """
@@ -231,19 +236,32 @@ def connect():
                 return
 
             userID = str(fetchedODPorto_users[i][0])
-            home_location = "" + str(fetchedODPorto_users[i][12]) + "," + str(fetchedODPorto_users[i][13])
-            work_location = "" + str(fetchedODPorto_users[i][15]) + "," + str(fetchedODPorto_users[i][16])
-            min_traveltime_h_w = "" + str(fetchedODPorto_users[i][19])
-            min_traveltime_w_h = "" + str(fetchedODPorto_users[i][25])
+            home_location = str(fetchedODPorto_users[i][12]) + "," + str(fetchedODPorto_users[i][13])
+            work_location = str(fetchedODPorto_users[i][15]) + "," + str(fetchedODPorto_users[i][16])
+            min_traveltime_h_w = str(fetchedODPorto_users[i][19])
+            min_traveltime_w_h = str(fetchedODPorto_users[i][25])
+
+            if(min_traveltime_h_w == "None"):
+                H_W = 0
+            if (min_traveltime_w_h == "None"):
+                W_H = 0
+
             mobilityByUsers[userID]['duration'] = 0
             mobilityByUsers[userID]['transport_modes'] = list()
             mobilityByUsers[userID]['routes'] = list()
 
 
-            travel_modes = ["DRIVING","BICYCLING", "WALKING", "TRANSIT", "MULTIMODE"]
-            multimode = False
+
+
+            if (H_W == 1):
+                calculate_routes(home_location, work_location)
+
+            if (W_H == 1):
+                calculate_routes(work_location, home_location)
 
             """
+            travel_modes = ["DRIVING"]#,"BICYCLING", "WALKING", "TRANSIT", "MULTIMODE"]
+            multimode = False
             for mode in travel_modes:
                 if(mode == "MULTIMODE"):
                     request = directionsAPIendpoint + 'origin={}&destination={}&alternatives=true&key={}'.format(home_location, work_location, chosenkey)
@@ -263,53 +281,70 @@ def connect():
                             
 
             """
-                            calculated_route = [(41.15641, -8.64247), (41.15635, -8.64219), (41.15626, -8.64171), (41.15626, -8.64171),
-                                (41.15411, -8.64243), (41.15411, -8.64243), (41.15452, -8.6438), (41.15454, -8.6439),
-                                (41.15454, -8.64402), (41.15434, -8.64586), (41.15436, -8.64593), (41.15436, -8.64599),
-                                (41.15431, -8.64661), (41.1543, -8.64688), (41.1543, -8.64721), (41.15429, -8.64752),
-                                (41.15429, -8.6478), (41.15427, -8.64828), (41.15427, -8.64828), (41.15442, -8.64818),
-                                (41.15472, -8.64795), (41.15472, -8.64795), (41.15495, -8.648), (41.15535, -8.6482)]
 
-                            calculated_route = str(calculated_route).replace("[", "")
-                            calculated_route = calculated_route.replace("]", "")
-                            calculated_route = calculated_route.replace("), ", "\n")
-                            calculated_route = calculated_route.replace("(", "")
-                            calculated_route = calculated_route.replace(")", "")
-                            calculated_route = calculated_route.replace(" ", "")
+            calculated_route = [(41.15641, -8.64247), (41.15635, -8.64219), (41.15626, -8.64171), (41.15626, -8.64171),
+                (41.15411, -8.64243), (41.15411, -8.64243), (41.15452, -8.6438), (41.15454, -8.6439),
+                (41.15454, -8.64402), (41.15434, -8.64586), (41.15436, -8.64593), (41.15436, -8.64599),
+                (41.15431, -8.64661), (41.1543, -8.64688), (41.1543, -8.64721), (41.15429, -8.64752),
+                (41.15429, -8.6478), (41.15427, -8.64828), (41.15427, -8.64828), (41.15442, -8.64818),
+                (41.15472, -8.64795), (41.15472, -8.64795), (41.15495, -8.648), (41.15535, -8.6482)]
+            mobilityByUsers[userID]['transport_modes'].append("DRIVING")
 
-                            # convert the points to .csv files
+            filename1 = str(userID) + "_" + str(mobilityByUsers[userID]['transport_modes'][routeNumber]) + "_non_interpolated_route_points_" + str(routeNumber)
+            # convert the points to .csv files
+            path_csvs = "C:\Users\Joel\Documents\ArcGIS\\non_interpolated_route_points_csvs\\"
+            with open(path_csvs + filename1 + ".csv", mode='w') as fp:
+                fp.write("latitude, longitude")
+                fp.write("\n")
+                for point in calculated_route:
+                    line = str(point[0]) + "," + str(point[1])
+                    fp.write(line)
+                    fp.write("\n")
 
-                            #convert the points to _non_interpolated_route_points_.shp
-                            directory = glob("DriveLetter:\FolderPath\\*.csv")
+            # convert the shapefile to layer
+            arcpy.MakeXYEventLayer_management(path_csvs + filename1 + ".csv", "longitude", "latitude", filename1 + "_Layer", arcpy.SpatialReference("WGS 1984"))
 
-                            for files in directory:
-                                arcpy.MakeXYEventLayer_management(files, "xcoordField", "ycoordField", "outputName", "spatialReference", "zcoordFieldIfExists")
-                                arcpy.FeatureClassToFeatureClass_conversion("outputNameFromMakeXY", "YourDesiredOutputLocation", "NameofYourOutputFeatureClassorShapefile", "expressionIfEvenNeeded")
-
-
-                            # Execute PointsToLine
-                            inFeatures = "C:/Users/Joel/Documents/ArcGIS/non_interpolated_route_points/" + str(userID) + "_" + str(mobilityByUsers[userID]['transport_modes'][routeNumber]) + "_non_interpolated_route_points_" + str(routeNumber) + ".shp"
-                            outFeatures = "C:/Users/Joel/Documents/ArcGIS/route_lines/" + str(userID) + "_" + str(mobilityByUsers[userID]['transport_modes'][routeNumber]) + "_route_line_" + str(routeNumber)
-                            arcpy.PointsToLine_management(inFeatures, outFeatures)
+            #convert the points to shapefile
+            path_shapefile1 = "C:/Users/Joel/Documents/ArcGIS/non_interpolated_route_points_shapefiles/"
+            arcpy.FeatureClassToFeatureClass_conversion(filename1 + "_Layer", path_shapefile1, filename1)
 
 
-                            # interpolate the points
-                            in_features = outFeatures + ".shp"
-                            outFeatures = "C:/Users/Joel/Documents/ArcGIS/interpolated_route_points/" + str(userID) + "_" + str(mobilityByUsers[userID]['transport_modes'][routeNumber]) + "interpolated_route_points_" + str(routeNumber)
-                            arcpy.GeneratePointsAlongLines_management(in_features, outFeatures, 'PERCENTAGE', Percentage=10, Include_End_Points='END_POINTS')
+            # Execute PointsToLine
+            filename2 = str(userID) + "_" + str(mobilityByUsers[userID]['transport_modes'][routeNumber]) + "_route_line_" + str(routeNumber)
+            path_shapefile2 = "C:/Users/Joel/Documents/ArcGIS/route_lines_shapefiles/"
+            arcpy.PointsToLine_management(path_shapefile1 + filename1 + ".shp", path_shapefile2 + filename2)
 
-                            # convert the shapefile to interpolated_route_list
-                            interpolated_route =
 
-                            #guardar route no mobilityByUsers[userID]
-                            mobilityByUsers[userID]['routes'].append(interpolated_route)
+            # interpolate the points
+            filename3 = str(userID) + "_" + str(mobilityByUsers[userID]['transport_modes'][routeNumber]) + "_interpolated_route_points_" + str(routeNumber)
+            path_shapefile3 = "C:/Users/Joel/Documents/ArcGIS/interpolated_route_points_shapefiles/"
+            arcpy.GeneratePointsAlongLines_management(path_shapefile2 + filename2 + ".shp", path_shapefile3 + filename3 + ".shp", 'PERCENTAGE', Percentage=2, Include_End_Points='END_POINTS')
 
-                            routeNumber += 1
+            # convert the shapefile to layer
+            layer = arcpy.MakeFeatureLayer_management(path_shapefile3 + filename3 + ".shp", filename3)
+
+            #convert layer to points
+            fld_list = arcpy.ListFields(layer)
+            fld_names = [fld.name for fld in fld_list]
+            cursor = arcpy.da.SearchCursor(layer, fld_names)
+
+            interpolated_route = []
+            for row in cursor:
+                interpolated_route.append((row[1][1], row[1][0]))
+
+            #guardar route no mobilityByUsers[userID]
+            mobilityByUsers[userID]['routes'].append(interpolated_route)
+
+
 
             #CREATE TABLE mobilityByUsers
 
+            for user in interpolated_route:
+                query = "INSERT INTO " + city + " (userID, H_W, routeNumber, duration, transportMode, latitude, longitude) VALUES (" userID, H_W, ")"
+                cur.execute(query)
 
 
+            routeNumber += 1
 
 
 
