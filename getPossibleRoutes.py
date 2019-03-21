@@ -1,11 +1,14 @@
 """
 Exploratory Analysis Tools for CDR Dataset
-January 2019
+March 2019
 Joel Pires
 """
+
 import time
 import os
-import urllib.request, json
+import urllib, json
+from glob import glob
+import csv
 
 __author__ = 'Joel Pires'
 __date__ = 'January 2019'
@@ -17,6 +20,7 @@ import numpy as np
 import scipy.stats as st
 import polyline
 from collections import defaultdict
+import arcpy
 
 
 """ function that will parser the database.ini """
@@ -222,7 +226,8 @@ def connect():
 
         #DIRECTIONS API
         for i in range(len(fetchedODPorto_users)):
-            if (countRequestsDirections >= 30000):
+            routeNumber = 0
+            if (countRequestsDirections >= 59000):
                 return
 
             userID = str(fetchedODPorto_users[i][0])
@@ -235,8 +240,9 @@ def connect():
             mobilityByUsers[userID]['routes'] = list()
 
 
-            travel_modes = ["DRIVING"] #, "BICYCLING", "WALKING", "TRANSIT", "MULTIMODE
+            travel_modes = ["DRIVING","BICYCLING", "WALKING", "TRANSIT", "MULTIMODE"]
             multimode = False
+
             """
             for mode in travel_modes:
                 if(mode == "MULTIMODE"):
@@ -246,7 +252,7 @@ def connect():
                     request = directionsAPIendpoint + 'origin={}&destination={}&mode={}&alternatives=true&key={}'.format(home_location, work_location, mode, chosenkey)
 
 
-                response = json.loads(urllib.request.urlopen(request).read())
+                response = json.loads(urllib.urlopen(request).read())
                 countRequestsDirections += 1
 
                 #pode nao ter resposta
@@ -254,19 +260,54 @@ def connect():
                     for route in response['routes']:
                         calculated_route = analyzeLegs(mode, route, mobilityByUsers, userID, multimode)
                         if calculated_route:
-                            mobilityByUsers[userID]['routes'].append(calculated_route)
-            """
-            calculated_route = [(41.15641, -8.64247), (41.15635, -8.64219), (41.15626, -8.64171), (41.15626, -8.64171), (41.15411, -8.64243), (41.15411, -8.64243), (41.15452, -8.6438), (41.15454, -8.6439), (41.15454, -8.64402), (41.15434, -8.64586), (41.15436, -8.64593), (41.15436, -8.64599), (41.15431, -8.64661), (41.1543, -8.64688), (41.1543, -8.64721), (41.15429, -8.64752), (41.15429, -8.6478), (41.15427, -8.64828), (41.15427, -8.64828), (41.15442, -8.64818), (41.15472, -8.64795), (41.15472, -8.64795), (41.15495, -8.648), (41.15535, -8.6482)]
-            #for calculated_route in mobilityByUsers[userID]['routes']:
-            print(calculated_route)
+                            
 
-            calculated_route = str(calculated_route).replace("[", "")
-            calculated_route = calculated_route.replace("]", "")
-            calculated_route = calculated_route.replace("), ", "\n")
-            calculated_route = calculated_route.replace("(", "")
-            calculated_route = calculated_route.replace(")", "")
-            calculated_route = calculated_route.replace(" ", "")
-            print(calculated_route)
+            """
+                            calculated_route = [(41.15641, -8.64247), (41.15635, -8.64219), (41.15626, -8.64171), (41.15626, -8.64171),
+                                (41.15411, -8.64243), (41.15411, -8.64243), (41.15452, -8.6438), (41.15454, -8.6439),
+                                (41.15454, -8.64402), (41.15434, -8.64586), (41.15436, -8.64593), (41.15436, -8.64599),
+                                (41.15431, -8.64661), (41.1543, -8.64688), (41.1543, -8.64721), (41.15429, -8.64752),
+                                (41.15429, -8.6478), (41.15427, -8.64828), (41.15427, -8.64828), (41.15442, -8.64818),
+                                (41.15472, -8.64795), (41.15472, -8.64795), (41.15495, -8.648), (41.15535, -8.6482)]
+
+                            calculated_route = str(calculated_route).replace("[", "")
+                            calculated_route = calculated_route.replace("]", "")
+                            calculated_route = calculated_route.replace("), ", "\n")
+                            calculated_route = calculated_route.replace("(", "")
+                            calculated_route = calculated_route.replace(")", "")
+                            calculated_route = calculated_route.replace(" ", "")
+
+                            # convert the points to .csv files
+
+                            #convert the points to _non_interpolated_route_points_.shp
+                            directory = glob("DriveLetter:\FolderPath\\*.csv")
+
+                            for files in directory:
+                                arcpy.MakeXYEventLayer_management(files, "xcoordField", "ycoordField", "outputName", "spatialReference", "zcoordFieldIfExists")
+                                arcpy.FeatureClassToFeatureClass_conversion("outputNameFromMakeXY", "YourDesiredOutputLocation", "NameofYourOutputFeatureClassorShapefile", "expressionIfEvenNeeded")
+
+
+                            # Execute PointsToLine
+                            inFeatures = "C:/Users/Joel/Documents/ArcGIS/non_interpolated_route_points/" + str(userID) + "_" + str(mobilityByUsers[userID]['transport_modes'][routeNumber]) + "_non_interpolated_route_points_" + str(routeNumber) + ".shp"
+                            outFeatures = "C:/Users/Joel/Documents/ArcGIS/route_lines/" + str(userID) + "_" + str(mobilityByUsers[userID]['transport_modes'][routeNumber]) + "_route_line_" + str(routeNumber)
+                            arcpy.PointsToLine_management(inFeatures, outFeatures)
+
+
+                            # interpolate the points
+                            in_features = outFeatures + ".shp"
+                            outFeatures = "C:/Users/Joel/Documents/ArcGIS/interpolated_route_points/" + str(userID) + "_" + str(mobilityByUsers[userID]['transport_modes'][routeNumber]) + "interpolated_route_points_" + str(routeNumber)
+                            arcpy.GeneratePointsAlongLines_management(in_features, outFeatures, 'PERCENTAGE', Percentage=10, Include_End_Points='END_POINTS')
+
+                            # convert the shapefile to interpolated_route_list
+                            interpolated_route =
+
+                            #guardar route no mobilityByUsers[userID]
+                            mobilityByUsers[userID]['routes'].append(interpolated_route)
+
+                            routeNumber += 1
+
+            #CREATE TABLE mobilityByUsers
+
 
 
 
