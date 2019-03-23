@@ -20,11 +20,25 @@ import polyline
 from collections import defaultdict
 import arcpy
 
-
-countRequests = 0
 cur = None
-atualAPILimit = 59500
+conn = None
+countRequests = 0
+geralAPILIMIT = 58500
+apiKeys = [os.environ.get('MAPSAPIKEYJO'),
+           os.environ.get('MAPSAPIMA'),
+           os.environ.get('MAPSAPILA')]
+"""
+           os.environ.get('MAPSAPIOC'),
+           os.environ.get('MAPSAPIBS'),
 
+           os.environ.get('MAPSAPIAP'),
+           os.environ.get('MAPSAPIMC')
+           #telefone da mae
+           ]  # aproximately a total of 351000 requests can be made
+"""
+
+atualAPILimit = 58500 #decide the limit of request of the initial api
+keyNumber = initialNumber = 0 #decide which api key the program should start use
 
 """ function that will parser the database.ini """
 def config(filename='database.ini', section='postgresql'):
@@ -44,36 +58,26 @@ def config(filename='database.ini', section='postgresql'):
     return db
 
 
-"""  
-Receives a List resulted from a DB Query
-Returns a list with the content parsed
-"""
-def parseDBColumns(listToParse, collumn, _constructor):
-    constructor = _constructor
-    collumnList = []
-    for i in range(0, len(listToParse)):
-        collumnList.append(constructor(listToParse[i][collumn]))
-
-    return collumnList
-
-
 def calculate_routes(origin, destination, city, userID, commutingtype):
     global countRequests
     global cur
+    global atualAPILimit
+    global keyNumber
+    global apiKeys
+    global geralAPILIMIT
 
     routeNumber = 0
 
-    key1 = os.environ.get('MAPSAPIKEYJO')
-    key2 = os.environ.get('MAPSAPIMA')
-    chosenkey = key1
+    chosenkey = apiKeys[initialNumber]
 
     directionsAPIendpoint = 'https://maps.googleapis.com/maps/api/directions/json?'
 
-    travel_modes = ["DRIVING","BICYCLING", "WALKING", "TRANSIT", "MULTIMODE"]
+    travel_modes = ["MULTIMODE","BICYCLING", "WALKING", "TRANSIT", "MULTIMODE"]
     multimode = False
     for mode in travel_modes:
-        if (countRequests >= 59000):  #budget limit for each google account
-            return
+        if (countRequests >= atualAPILimit or countRequests >= geralAPILIMIT):  #budget limit for each google account
+            keyNumber += 1
+            chosenkey = apiKeys[keyNumber]
 
         mobilityUser = {}
         mobilityUser['routeNumber'] = routeNumber
@@ -83,9 +87,10 @@ def calculate_routes(origin, destination, city, userID, commutingtype):
             multimode = True
         else:
             request = directionsAPIendpoint + 'origin={}&destination={}&mode={}&alternatives=true&key={}'.format(origin, destination, mode, chosenkey)
-
+        resquest = "https://maps.googleapis.com/maps/api/directions/json?&mode=transit&origin=frontera+el+hierro&destination=la+restinga+el+hierro&alternatives=true&key=AIzaSyD1uL38USx9YBdzVKxw5GuCeOqY-2Xhj3Q"
         response = json.loads(urllib.urlopen(request).read())
         countRequests += 1
+
 
         # pode nao ter resposta
         if response['status'] == 'OK':
@@ -96,14 +101,15 @@ def calculate_routes(origin, destination, city, userID, commutingtype):
                     mobilityUser['route'] = interpolate(mobilityUser, city, userID, commutingtype)
 
                     for point in mobilityUser['route']:
-                        query = "INSERT INTO " + city + "_possible_routes (userID, commutingtype, routeNumber, duration, transportMode, latitude, longitude) VALUES ("+ userID + "," + commutingtype + "," + mobilityUser['routeNumber'] + "," + mobilityUser['duration'] + "," + mobilityUser['transport_modes'] + "," + point[0] + "," + point[1] + ")"
+                        query = "INSERT INTO public." + city + "_possible_routes (userID, commutingtype, routeNumber, duration, transportModes, latitude, longitude) VALUES (" + str(userID) + ", \'" + commutingtype + "\'," + str(mobilityUser['routeNumber']) + "," + str(mobilityUser['duration']) + ", ROW(" + str(mobilityUser['transport_modes'])[2:] + "," + str(point[0]) + "," + str(point[1]) + ")"
                         cur.execute(query)
+                        conn.commit()
 
-                        routeNumber += 1
-
+                    routeNumber += 1
+        return
 
 def analyzeLegs(mode, route, mobilityUser, multimode):
-    differentModes = []
+    differentModes = ()
     routePoints = []
 
     for leg in route['legs']:
@@ -128,7 +134,7 @@ def analyzeLegs(mode, route, mobilityUser, multimode):
                 for j in polyline.decode(step['polyline']['points']):
                     routePoints.append(j)
 
-            differentModes.append(previousMode)
+            differentModes = differentModes + (previousMode,)
 
 
             if mode == "TRANSIT" and step['travel_mode'] == "TRANSIT":
@@ -137,12 +143,17 @@ def analyzeLegs(mode, route, mobilityUser, multimode):
                 previousMode = step['travel_mode']
 
         if (multimode is True and differentModes[1:] != differentModes[:-1]):
-            mobilityUser['transport_modes'] = set(differentModes)
+            mobilityUser['transport_modes'] = tuple(set(differentModes))
+            while(len(mobilityUser['transport_modes']) != 4):
+                mobilityUser['transport_modes'] = mobilityUser['transport_modes'] + ("",)
             mobilityUser['route'] = routePoints
             return mobilityUser
 
         elif (multimode is False and differentModes[1:] == differentModes[:-1]):
-            mobilityUser['transport_modes'] = previousMode
+            mobilityUser['transport_modes'] = (previousMode,)
+            while (len(mobilityUser['transport_modes']) != 4):
+                mobilityUser['transport_modes'] = mobilityUser['transport_modes'] + ("",)
+
             mobilityUser['route'] = routePoints
             return mobilityUser
 
@@ -153,8 +164,12 @@ def analyzeLegs(mode, route, mobilityUser, multimode):
 
 def interpolate(mobilityUser, city, userID, commutingtype):
     # convert the points to .csv files
-    filename1 = city + "_" + commutingtype + "_" + str(userID) + "_" + str(mobilityUser['transport_modes']) + "_non_interpolated_route_points_" + str(mobilityUser['routeNumber'])
-    path_csvs = "C:\Users\Joel\Documents\ArcGIS\\non_interpolated_route_points_csvs\\"
+    transport_modes = ""
+    for word in mobilityUser['transport_modes']:
+        transport_modes = transport_modes + word
+
+    filename1 = city + "_" + commutingtype + "_" + str(userID) + "_" + transport_modes + "_non_interpolated_route_points_" + str(mobilityUser['routeNumber'])
+    path_csvs = "C:\Users\Joel\Documents\ArcGIS\\" + city + "\\" + commutingtype + "\\non_interpolated_route_points_csvs\\"
     with open(path_csvs + filename1 + ".csv", mode='w') as fp:
         fp.write("latitude, longitude")
         fp.write("\n")
@@ -171,24 +186,24 @@ def interpolate(mobilityUser, city, userID, commutingtype):
                                       arcpy.SpatialReference("WGS 1984"))
 
     # convert the points to shapefile
-    path_shapefile1 = "C:/Users/Joel/Documents/ArcGIS/non_interpolated_route_points_shapefiles/"
+    path_shapefile1 = "C:/Users/Joel/Documents/ArcGIS/" + city + "/" + commutingtype + "/non_interpolated_route_points_shapefiles/"
     arcpy.FeatureClassToFeatureClass_conversion(filename1 + "_Layer",
                                                 path_shapefile1,
                                                 filename1)
 
     # Execute PointsToLine
-    filename2 = city + "_" + commutingtype + "_" + str(userID) + "_" + str(mobilityUser['transport_modes']) + "_route_line_" + str(mobilityUser['routeNumber'])
-    path_shapefile2 = "C:/Users/Joel/Documents/ArcGIS/route_lines_shapefiles/"
+    filename2 = city + "_" + commutingtype + "_" + str(userID) + "_" + transport_modes + "_route_line_" + str(mobilityUser['routeNumber'])
+    path_shapefile2 = "C:/Users/Joel/Documents/ArcGIS/" + city + "/" + commutingtype + "/route_lines_shapefiles/"
     arcpy.PointsToLine_management(path_shapefile1 + filename1 + ".shp",
                                   path_shapefile2 + filename2)
 
     # interpolate the points
-    filename3 = city + "_" + commutingtype + "_" + str(userID) + "_" + str(mobilityUser['transport_modes']) + "_interpolated_route_points_" + str(mobilityUser['routeNumber'])
-    path_shapefile3 = "C:/Users/Joel/Documents/ArcGIS/interpolated_route_points_shapefiles/"
+    filename3 = city + "_" + commutingtype + "_" + str(userID) + "_" + transport_modes + "_interpolated_route_points_" + str(mobilityUser['routeNumber'])
+    path_shapefile3 = "C:/Users/Joel/Documents/ArcGIS/" + city + "/" + commutingtype + "/interpolated_route_points_shapefiles/"
     arcpy.GeneratePointsAlongLines_management(path_shapefile2 + filename2 + ".shp",
                                               path_shapefile3 + filename3 + ".shp",
-                                              'PERCENTAGE',
-                                              Percentage=2,
+                                              'DISTANCE',
+                                              Distance='10 meters',
                                               Include_End_Points='END_POINTS')
 
     # convert the shapefile to layer
@@ -211,21 +226,22 @@ def interpolate(mobilityUser, city, userID, commutingtype):
 def connect():
     global countRequests
     global cur
+    global keyNumber
+    global initialNumber
+    global conn
 
     start_time = time.time()
-    conn = None
 
     try:
         # read connection parameters
         params = config()
 
         # connect to the PostgreSQL server
-        print('Connecting to the PostgreSQL database...')
+        print('CONNECTION TO THE POSTGRESQL DATABASE...')
         conn = psycopg2.connect(**params)
 
         # create a cursor
         cur = conn.cursor()
-
 
         cities = ["porto"]#, "lisbon", "coimbra"]
 
@@ -237,7 +253,6 @@ def connect():
 
             #DIRECTIONS API
             for i in range(len(fetched_users)):
-                H_W = W_H = 1
 
                 userID = str(fetched_users[i][0])
                 home_location = str(fetched_users[i][12]) + "," + str(fetched_users[i][13])
@@ -247,15 +262,15 @@ def connect():
 
                 if (min_traveltime_h_w != "None"):
                     calculate_routes(home_location, work_location, city, userID, "H_W")
-
+                    return
                 if (min_traveltime_w_h != "None"):
                     calculate_routes(work_location, home_location, city, userID, "W_H")
 
 
-        print("NUMBER OF REQUESTS TO DIRECTIONS API: " + str(countRequests))
+        print("A TOTAL OF " + str(countRequests) + " REQUESTS WERE MADE TO DIRECTIONS API, USING " + str(keyNumber-initialNumber+1) + " DIFFERENT API KEYS")
 
         elapsed_time = time.time() - start_time
-        print(str(elapsed_time/60) + " minutes")
+        print("EXECUTION TIME: " + str(elapsed_time/60) + " MINUTES")
 
         # close the communication with the PostgreSQL
         cur.close()
@@ -264,7 +279,7 @@ def connect():
     finally:
         if conn is not None:
             conn.close()
-            print('Database connection closed.')
+            print('DATABASE CONNECTION CLOSED.')
 
 
 def main():
