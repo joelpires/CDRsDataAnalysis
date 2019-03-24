@@ -9,17 +9,15 @@ __date__ = 'March 2019'
 import time
 import os
 import urllib, json
-from glob import glob
-import csv
 import psycopg2
 import configparser
-import datetime
-import numpy as np
-import scipy.stats as st
 import polyline
-from collections import defaultdict
 import arcpy
+#from orderedset import OrderedSet
 
+exceptions = 0
+usersCounter = 0
+routesCounter = 0
 cur = None
 conn = None
 countRequests = 0
@@ -59,13 +57,14 @@ def config(filename='database.ini', section='postgresql'):
 
 
 def calculate_routes(origin, destination, city, userID, commutingtype):
-    print("CHEGUEI0")
+
     global countRequests
     global cur
     global atualAPILimit
     global keyNumber
     global apiKeys
     global geralAPILIMIT
+    global routesCounter
 
     routeNumber = 0
 
@@ -73,7 +72,7 @@ def calculate_routes(origin, destination, city, userID, commutingtype):
 
     directionsAPIendpoint = 'https://maps.googleapis.com/maps/api/directions/json?'
 
-    travel_modes = ["MULTIMODE","BICYCLING", "WALKING", "TRANSIT", "MULTIMODE"]
+    travel_modes = ["DRIVING","BICYCLING", "WALKING", "TRANSIT", "MULTIMODE"]
     multimode = False
     for mode in travel_modes:
         if (countRequests >= atualAPILimit or countRequests >= geralAPILIMIT):  #budget limit for each google account
@@ -84,11 +83,9 @@ def calculate_routes(origin, destination, city, userID, commutingtype):
         mobilityUser['routeNumber'] = routeNumber
 
         if (mode == "MULTIMODE"):
-            print("CHEGUEI1")
             request = directionsAPIendpoint + 'origin={}&destination={}&alternatives=true&key={}'.format(origin,destination,chosenkey)
             multimode = True
         else:
-            print("cona")
             request = directionsAPIendpoint + 'origin={}&destination={}&mode={}&alternatives=true&key={}'.format(origin, destination, mode, chosenkey)
 
         request = "https://maps.googleapis.com/maps/api/directions/json?&mode=transit&origin=frontera+el+hierro&destination=la+restinga+el+hierro&alternatives=true&key=AIzaSyD1uL38USx9YBdzVKxw5GuCeOqY-2Xhj3Q"
@@ -99,27 +96,28 @@ def calculate_routes(origin, destination, city, userID, commutingtype):
         # pode nao ter resposta
         if response['status'] == 'OK':
             for route in response['routes']:
-                print("CHEGUEI2")
                 mobilityUser = analyzeLegs(mode, route, mobilityUser, multimode)
-                print(mobilityUser['route'])
-                if mobilityUser['route']:
-                    print("CHEGUEI4")
+                if 'route' in mobilityUser.keys():
                     mobilityUser['route'] = interpolate(mobilityUser, city, userID, commutingtype)
-                    print("CHEGUEI6")
+                    sequenceNumber = 0
                     for point in mobilityUser['route']:
-                        print(str(mobilityUser['transport_modes']))
-                        query = "INSERT INTO public." + city + "_possible_routes (userID, commutingtype, routeNumber, duration, transportModes, latitude, longitude) VALUES (" + str(userID) + ", \'" + commutingtype + "\'," + str(mobilityUser['routeNumber']) + "," + str(mobilityUser['duration']) + ", ROW" + str(mobilityUser['transport_modes']) + "," + str(point[0]) + "," + str(point[1]) + ")"
+                        query = "INSERT INTO public." + city + "_possible_routes (userID, commutingtype, routeNumber, duration, transportModes, latitude, longitude, sequenceNumber) VALUES (" + str(userID) + ", \'" + commutingtype + "\'," + str(mobilityUser['routeNumber']) + "," + str(mobilityUser['duration']) + ", ROW" + str(mobilityUser['transport_modes']) + "," + str(point[0]) + "," + str(point[1]) + "," + str(sequenceNumber) + ")"
                         print(query)
                         cur.execute(query)
                         conn.commit()
-
+                        sequenceNumber += 1
+                    print("\n=== Route number " + str(routeNumber) + " of user " + str(userID) + " was processed ===\n")
                     routeNumber += 1
-        return
+                    routesCounter += 1
+
 
 
 def analyzeLegs(mode, route, mobilityUser, multimode):
+    global exceptions
+
     differentModes = ()
     routePoints = []
+    mobilityUser['route'] = []
 
     for leg in route['legs']:
 
@@ -139,10 +137,20 @@ def analyzeLegs(mode, route, mobilityUser, multimode):
 
 
             if (previousMode != atualMode or step['travel_mode'] != mode) and multimode is False:
-                return []
+                return {}
             else:
                 for j in polyline.decode(step['polyline']['points']):
                     routePoints.append(j)
+                if('steps' in step.keys()):
+                    for substep in step['steps']:
+                        for j in polyline.decode(substep['polyline']['points']):
+                            routePoints.append(j)
+
+                        modeTravel = str(substep['travel_mode']).encode("UTF-8")
+                        if modeTravel != previousMode:
+                            print("LOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOL")
+                            exceptions += 1
+                            differentModes = differentModes + (previousMode,)
 
             differentModes = differentModes + (previousMode,)
 
@@ -152,19 +160,17 @@ def analyzeLegs(mode, route, mobilityUser, multimode):
 
 
         if (multimode is True and differentModes[1:] != differentModes[:-1]):
-            print("ENTRi?")
             mobilityUser['transport_modes'] = tuple(set(differentModes))
             while(len(mobilityUser['transport_modes']) != 4):
                 mobilityUser['transport_modes'] = mobilityUser['transport_modes'] + ("",)
-            mobilityUser['route'] = routePoints
+            mobilityUser['route'] = routePoints #list(OrderedSet(routePoints))
             return mobilityUser
 
         elif (multimode is False and differentModes[1:] == differentModes[:-1]):
             mobilityUser['transport_modes'] = (previousMode,)
             while (len(mobilityUser['transport_modes']) != 4):
                 mobilityUser['transport_modes'] = mobilityUser['transport_modes'] + ("",)
-
-            mobilityUser['route'] = routePoints
+            mobilityUser['route'] = routePoints #list(OrderedSet(routePoints))
             return mobilityUser
 
         else:
@@ -181,19 +187,22 @@ def interpolate(mobilityUser, city, userID, commutingtype):
     filename1 = city + "_" + commutingtype + "_" + str(userID) + "_" + transport_modes + "_non_interpolated_route_points_" + str(mobilityUser['routeNumber'])
     path_csvs = "C:\Users\Joel\Documents\ArcGIS\\" + city + "\\" + commutingtype + "\\non_interpolated_route_points_csvs\\"
     with open(path_csvs + filename1 + ".csv", mode='w') as fp:
-        fp.write("latitude, longitude")
+        fp.write("latitude, longitude, sequence")
         fp.write("\n")
+        sequence = 0
         for point in mobilityUser['route']:
-            line = str(point[0]) + "," + str(point[1])
+            line = str(point[0]) + "," + str(point[1]) + "," + str(sequence)
             fp.write(line)
             fp.write("\n")
+            sequence += 1
 
     # convert the shapefile to layer
     arcpy.MakeXYEventLayer_management(path_csvs + filename1 + ".csv",
                                       "longitude",
                                       "latitude",
                                       filename1 + "_Layer",
-                                      arcpy.SpatialReference("WGS 1984"))
+                                      arcpy.SpatialReference("WGS 1984"),
+                                      "sequence")
 
     # convert the points to shapefile
     path_shapefile1 = "C:/Users/Joel/Documents/ArcGIS/" + city + "/" + commutingtype + "/non_interpolated_route_points_shapefiles/"
@@ -205,7 +214,9 @@ def interpolate(mobilityUser, city, userID, commutingtype):
     filename2 = city + "_" + commutingtype + "_" + str(userID) + "_" + transport_modes + "_route_line_" + str(mobilityUser['routeNumber'])
     path_shapefile2 = "C:/Users/Joel/Documents/ArcGIS/" + city + "/" + commutingtype + "/route_lines_shapefiles/"
     arcpy.PointsToLine_management(path_shapefile1 + filename1 + ".shp",
-                                  path_shapefile2 + filename2)
+                                  path_shapefile2 + filename2,
+                                  "",
+                                  "sequence")
 
     # interpolate the points
     filename3 = city + "_" + commutingtype + "_" + str(userID) + "_" + transport_modes + "_interpolated_route_points_" + str(mobilityUser['routeNumber'])
@@ -239,6 +250,7 @@ def connect():
     global keyNumber
     global initialNumber
     global conn
+    global usersCounter
 
     start_time = time.time()
 
@@ -257,7 +269,7 @@ def connect():
         countCity = 0
         for city in cities:
             countUsers = 0
-            query = "SELECT * FROM public.OD" + city + "_users_characterization LIMIT 1"
+            query = "SELECT * FROM public.OD" + city + "_users_characterization LIMIT 3"
             cur.execute(query)
 
             fetched_users = cur.fetchall()
@@ -273,20 +285,23 @@ def connect():
 
                 if (min_traveltime_h_w != "None"):
                     calculate_routes(home_location, work_location, city, userID, "H_W")
-                    return
+
                 if (min_traveltime_w_h != "None"):
                     calculate_routes(work_location, home_location, city, userID, "W_H")
 
+                countUsers += 1
+                usersCounter += 1
+                print("\n==================== User number " + str(countUsers + 1) + " of " + city + " was processed =====================\n")
 
-                print("==================== User number " + str(countCity + 1) + " of " + city + " was processed =====================")
-                countUsers +=1
 
-            print("==================== The city  of " + city + " was processed =====================")
             countCity += 1
-
+            print("\n==================== The city  of " + city + " was processed =====================\n")
 
 
         print("A TOTAL OF " + str(countCity) + " cities were processed.")
+        print("A TOTAL OF " + str(routesCounter) + " routes were processed.")
+        print("A TOTAL OF " + str(usersCounter) + " users were processed.")
+        print("A TOTAL OF " + str(exceptions) + " were encountered")
         print("A TOTAL OF " + str(countRequests) + " REQUESTS WERE MADE TO DIRECTIONS API, USING " + str(keyNumber-initialNumber+1) + " DIFFERENT API KEYS")
 
         elapsed_time = time.time() - start_time
