@@ -59,6 +59,7 @@ def config(filename='database.ini', section='postgresql'):
 
 
 def calculate_routes(origin, destination, city, userID, commutingtype):
+    print("CHEGUEI0")
     global countRequests
     global cur
     global atualAPILimit
@@ -83,11 +84,14 @@ def calculate_routes(origin, destination, city, userID, commutingtype):
         mobilityUser['routeNumber'] = routeNumber
 
         if (mode == "MULTIMODE"):
+            print("CHEGUEI1")
             request = directionsAPIendpoint + 'origin={}&destination={}&alternatives=true&key={}'.format(origin,destination,chosenkey)
             multimode = True
         else:
+            print("cona")
             request = directionsAPIendpoint + 'origin={}&destination={}&mode={}&alternatives=true&key={}'.format(origin, destination, mode, chosenkey)
-        resquest = "https://maps.googleapis.com/maps/api/directions/json?&mode=transit&origin=frontera+el+hierro&destination=la+restinga+el+hierro&alternatives=true&key=AIzaSyD1uL38USx9YBdzVKxw5GuCeOqY-2Xhj3Q"
+
+        request = "https://maps.googleapis.com/maps/api/directions/json?&mode=transit&origin=frontera+el+hierro&destination=la+restinga+el+hierro&alternatives=true&key=AIzaSyD1uL38USx9YBdzVKxw5GuCeOqY-2Xhj3Q"
         response = json.loads(urllib.urlopen(request).read())
         countRequests += 1
 
@@ -95,18 +99,23 @@ def calculate_routes(origin, destination, city, userID, commutingtype):
         # pode nao ter resposta
         if response['status'] == 'OK':
             for route in response['routes']:
+                print("CHEGUEI2")
                 mobilityUser = analyzeLegs(mode, route, mobilityUser, multimode)
-
+                print(mobilityUser['route'])
                 if mobilityUser['route']:
+                    print("CHEGUEI4")
                     mobilityUser['route'] = interpolate(mobilityUser, city, userID, commutingtype)
-
+                    print("CHEGUEI6")
                     for point in mobilityUser['route']:
-                        query = "INSERT INTO public." + city + "_possible_routes (userID, commutingtype, routeNumber, duration, transportModes, latitude, longitude) VALUES (" + str(userID) + ", \'" + commutingtype + "\'," + str(mobilityUser['routeNumber']) + "," + str(mobilityUser['duration']) + ", ROW(" + str(mobilityUser['transport_modes'])[2:] + "," + str(point[0]) + "," + str(point[1]) + ")"
+                        print(str(mobilityUser['transport_modes']))
+                        query = "INSERT INTO public." + city + "_possible_routes (userID, commutingtype, routeNumber, duration, transportModes, latitude, longitude) VALUES (" + str(userID) + ", \'" + commutingtype + "\'," + str(mobilityUser['routeNumber']) + "," + str(mobilityUser['duration']) + ", ROW" + str(mobilityUser['transport_modes']) + "," + str(point[0]) + "," + str(point[1]) + ")"
+                        print(query)
                         cur.execute(query)
                         conn.commit()
 
                     routeNumber += 1
         return
+
 
 def analyzeLegs(mode, route, mobilityUser, multimode):
     differentModes = ()
@@ -116,17 +125,18 @@ def analyzeLegs(mode, route, mobilityUser, multimode):
 
         mobilityUser['duration'] = leg['duration']['value']
 
-        previousMode = route['legs'][0]['steps'][0]['travel_mode']
+        previousMode = str(route['legs'][0]['steps'][0]['travel_mode']).encode("UTF-8")
 
-        if mode == "TRANSIT" and previousMode == "TRANSIT":
-            previousMode = route['legs'][0]['steps'][0]['transit_details']['line']['vehicles']['type']
+
+        if previousMode == "TRANSIT":
+            previousMode = str(route['legs'][0]['steps'][0]['transit_details']['line']['vehicle']['type']).encode("UTF-8")
 
         for step in leg['steps']:
 
-            if mode == "TRANSIT" and step['travel_mode'] == "TRANSIT":
-                atualMode = step['transit_details']['line']['vehicles']['type']
-            else:
-                atualMode = step['travel_mode']
+            atualMode = str(step['travel_mode']).encode("UTF-8")
+            if atualMode == "TRANSIT":
+                atualMode = str(step['transit_details']['line']['vehicle']['type']).encode("UTF-8")
+
 
             if (previousMode != atualMode or step['travel_mode'] != mode) and multimode is False:
                 return []
@@ -136,13 +146,13 @@ def analyzeLegs(mode, route, mobilityUser, multimode):
 
             differentModes = differentModes + (previousMode,)
 
+            previousMode = str(step['travel_mode']).encode("UTF-8")
+            if previousMode == "TRANSIT":
+                previousMode = str(step['transit_details']['line']['vehicle']['type']).encode("UTF-8")
 
-            if mode == "TRANSIT" and step['travel_mode'] == "TRANSIT":
-                previousMode = step['transit_details']['line']['vehicles']['type']
-            else:
-                previousMode = step['travel_mode']
 
         if (multimode is True and differentModes[1:] != differentModes[:-1]):
+            print("ENTRi?")
             mobilityUser['transport_modes'] = tuple(set(differentModes))
             while(len(mobilityUser['transport_modes']) != 4):
                 mobilityUser['transport_modes'] = mobilityUser['transport_modes'] + ("",)
@@ -158,7 +168,7 @@ def analyzeLegs(mode, route, mobilityUser, multimode):
             return mobilityUser
 
         else:
-            return []
+            return {}
 
 
 
@@ -244,8 +254,9 @@ def connect():
         cur = conn.cursor()
 
         cities = ["porto"]#, "lisbon", "coimbra"]
-
+        countCity = 0
         for city in cities:
+            countUsers = 0
             query = "SELECT * FROM public.OD" + city + "_users_characterization LIMIT 1"
             cur.execute(query)
 
@@ -267,6 +278,15 @@ def connect():
                     calculate_routes(work_location, home_location, city, userID, "W_H")
 
 
+                print("==================== User number " + str(countCity + 1) + " of " + city + " was processed =====================")
+                countUsers +=1
+
+            print("==================== The city  of " + city + " was processed =====================")
+            countCity += 1
+
+
+
+        print("A TOTAL OF " + str(countCity) + " cities were processed.")
         print("A TOTAL OF " + str(countRequests) + " REQUESTS WERE MADE TO DIRECTIONS API, USING " + str(keyNumber-initialNumber+1) + " DIFFERENT API KEYS")
 
         elapsed_time = time.time() - start_time
