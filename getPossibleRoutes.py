@@ -66,21 +66,19 @@ def calculate_routes(origin, destination, city, userID, commutingtype):
     global geralAPILIMIT
     global routesCounter
 
-    routeNumber = 0
+    mobilityUser = {}
+    mobilityUser['routeNumber'] = 0
 
     chosenkey = apiKeys[initialNumber]
 
     directionsAPIendpoint = 'https://maps.googleapis.com/maps/api/directions/json?'
 
-    travel_modes = ["DRIVING","BICYCLING", "WALKING", "TRANSIT", "MULTIMODE"]
+    travel_modes = [ "MULTIMODE", "DRIVING", "WALKING", "BICYCLING", "TRANSIT"]
     multimode = False
     for mode in travel_modes:
         if (countRequests >= atualAPILimit or countRequests >= geralAPILIMIT):  #budget limit for each google account
             keyNumber += 1
             chosenkey = apiKeys[keyNumber]
-
-        mobilityUser = {}
-        mobilityUser['routeNumber'] = routeNumber
 
         if (mode == "MULTIMODE"):
             request = directionsAPIendpoint + 'origin={}&destination={}&alternatives=true&key={}'.format(origin,destination,chosenkey)
@@ -88,11 +86,10 @@ def calculate_routes(origin, destination, city, userID, commutingtype):
         else:
             request = directionsAPIendpoint + 'origin={}&destination={}&mode={}&alternatives=true&key={}'.format(origin, destination, mode, chosenkey)
 
-        request = "https://maps.googleapis.com/maps/api/directions/json?&mode=transit&origin=frontera+el+hierro&destination=la+restinga+el+hierro&alternatives=true&key=AIzaSyD1uL38USx9YBdzVKxw5GuCeOqY-2Xhj3Q"
         response = json.loads(urllib.urlopen(request).read())
         countRequests += 1
 
-
+        print("\n=== Analyzing routes using the " + mode + " travel mode ===\n")
         # pode nao ter resposta
         if response['status'] == 'OK':
             for route in response['routes']:
@@ -106,8 +103,8 @@ def calculate_routes(origin, destination, city, userID, commutingtype):
                         cur.execute(query)
                         conn.commit()
                         sequenceNumber += 1
-                    print("\n=== Route number " + str(routeNumber) + " of user " + str(userID) + " was processed ===\n")
-                    routeNumber += 1
+                    print("\n=== Route number " + str(mobilityUser['routeNumber']) + " of user " + str(userID) + " was processed ===\n")
+                    mobilityUser['routeNumber'] += 1
                     routesCounter += 1
 
 
@@ -147,10 +144,11 @@ def analyzeLegs(mode, route, mobilityUser, multimode):
                             routePoints.append(j)
 
                         modeTravel = str(substep['travel_mode']).encode("UTF-8")
-                        if modeTravel != previousMode:
-                            print("LOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOL")
+                        if modeTravel != atualMode:
+                            print(modeTravel)
+                            print(atualMode)
                             exceptions += 1
-                            differentModes = differentModes + (previousMode,)
+                            differentModes = differentModes + (modeTravel,)
 
             differentModes = differentModes + (previousMode,)
 
@@ -180,6 +178,7 @@ def analyzeLegs(mode, route, mobilityUser, multimode):
 
 def interpolate(mobilityUser, city, userID, commutingtype):
     # convert the points to .csv files
+    print("Saving the Google Maps API points to CSV file...")
     transport_modes = ""
     for word in mobilityUser['transport_modes']:
         transport_modes = transport_modes + word
@@ -196,7 +195,8 @@ def interpolate(mobilityUser, city, userID, commutingtype):
             fp.write("\n")
             sequence += 1
 
-    # convert the shapefile to layer
+    # creating GIS Layer
+    print("Creating a GIS Layer from the CSV file...")
     arcpy.MakeXYEventLayer_management(path_csvs + filename1 + ".csv",
                                       "longitude",
                                       "latitude",
@@ -205,12 +205,14 @@ def interpolate(mobilityUser, city, userID, commutingtype):
                                       "sequence")
 
     # convert the points to shapefile
+    print("Creating a shapefile of the route points...")
     path_shapefile1 = "C:/Users/Joel/Documents/ArcGIS/" + city + "/" + commutingtype + "/non_interpolated_route_points_shapefiles/"
     arcpy.FeatureClassToFeatureClass_conversion(filename1 + "_Layer",
                                                 path_shapefile1,
                                                 filename1)
 
     # Execute PointsToLine
+    print("Rendering the route line...")
     filename2 = city + "_" + commutingtype + "_" + str(userID) + "_" + transport_modes + "_route_line_" + str(mobilityUser['routeNumber'])
     path_shapefile2 = "C:/Users/Joel/Documents/ArcGIS/" + city + "/" + commutingtype + "/route_lines_shapefiles/"
     arcpy.PointsToLine_management(path_shapefile1 + filename1 + ".shp",
@@ -219,6 +221,7 @@ def interpolate(mobilityUser, city, userID, commutingtype):
                                   "sequence")
 
     # interpolate the points
+    print("Creating a shapefile with the interpolated route points...")
     filename3 = city + "_" + commutingtype + "_" + str(userID) + "_" + transport_modes + "_interpolated_route_points_" + str(mobilityUser['routeNumber'])
     path_shapefile3 = "C:/Users/Joel/Documents/ArcGIS/" + city + "/" + commutingtype + "/interpolated_route_points_shapefiles/"
     arcpy.GeneratePointsAlongLines_management(path_shapefile2 + filename2 + ".shp",
@@ -228,10 +231,12 @@ def interpolate(mobilityUser, city, userID, commutingtype):
                                               Include_End_Points='END_POINTS')
 
     # convert the shapefile to layer
+    print("Converting the shapefile to a layer...")
     layer = arcpy.MakeFeatureLayer_management(path_shapefile3 + filename3 + ".shp",
                                               filename3)
 
     # convert layer to points
+    print("Obtaining the interpolated points from the layer...")
     fld_list = arcpy.ListFields(layer)
     fld_names = [fld.name for fld in fld_list]
     cursor = arcpy.da.SearchCursor(layer, fld_names)
@@ -265,11 +270,11 @@ def connect():
         # create a cursor
         cur = conn.cursor()
 
-        cities = ["porto"]#, "lisbon", "coimbra"]
+        cities = ["porto", "lisbon", "coimbra"]
         countCity = 0
         for city in cities:
             countUsers = 0
-            query = "SELECT * FROM public.OD" + city + "_users_characterization LIMIT 3"
+            query = "SELECT * FROM public.OD" + city + "_users_characterization LIMIT 1"
             cur.execute(query)
 
             fetched_users = cur.fetchall()
@@ -301,7 +306,7 @@ def connect():
         print("A TOTAL OF " + str(countCity) + " cities were processed.")
         print("A TOTAL OF " + str(routesCounter) + " routes were processed.")
         print("A TOTAL OF " + str(usersCounter) + " users were processed.")
-        print("A TOTAL OF " + str(exceptions) + " were encountered")
+        print("A TOTAL OF " + str(exceptions) + " exceptions were encountered")
         print("A TOTAL OF " + str(countRequests) + " REQUESTS WERE MADE TO DIRECTIONS API, USING " + str(keyNumber-initialNumber+1) + " DIFFERENT API KEYS")
 
         elapsed_time = time.time() - start_time
