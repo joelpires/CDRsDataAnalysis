@@ -70,22 +70,24 @@ def calculate_routes(origin, destination, city, userID, commutingtype):
 
     directionsAPIendpoint = 'https://maps.googleapis.com/maps/api/directions/json?'
 
-    travel_modes = [ "MULTIMODE", "DRIVING", "WALKING", "BICYCLING", "TRANSIT"]
+    travel_modes = [ "DRIVING", "MULTIMODE", "WALKING", "BICYCLING", "TRANSIT"]
 
     for mode in travel_modes:
         if (countRequests >= atualAPILimit or countRequests >= geralAPILIMIT):  #budget limit for each google account
             keyNumber += 1
             chosenkey = apiKeys[keyNumber]
 
+
         if (mode == "MULTIMODE"):
-            request = directionsAPIendpoint + 'origin={}&destination={}&alternatives=true&key={}'.format(origin,destination,chosenkey)
+            request = directionsAPIendpoint + 'origin={}&destination={}&alternatives=true&key={}'.format(str(origin)[1:-1].replace(" ", ""), str(destination)[1:-1].replace(" ", ""),chosenkey)
             multimode = True
         else:
-            request = directionsAPIendpoint + 'origin={}&destination={}&mode={}&alternatives=true&key={}'.format(origin, destination, mode, chosenkey)
+            request = directionsAPIendpoint + 'origin={}&destination={}&mode={}&alternatives=true&key={}'.format(str(origin)[1:-1].replace(" ", ""), str(destination)[1:-1].replace(" ", ""), mode, chosenkey)
             multimode = False
 
         response = json.loads(urllib.urlopen(request).read())
         countRequests += 1
+
 
         print("\n=== Analyzing routes using the " + mode + " travel mode ===\n")
         # pode nao ter resposta
@@ -94,7 +96,7 @@ def calculate_routes(origin, destination, city, userID, commutingtype):
             for route in response['routes']:
                 mobilityUser = {}
                 mobilityUser['routeNumber'] = 0
-                mobilityUser = analyzeLegs(mode, route, mobilityUser, multimode)
+                mobilityUser = analyzeLegs(mode, route, mobilityUser, multimode, origin, destination)
                 if 'route' in mobilityUser.keys():
                     mobilityUser['route'] = interpolate(mobilityUser, city, userID, commutingtype)
                     sequenceNumber = 0
@@ -110,7 +112,7 @@ def calculate_routes(origin, destination, city, userID, commutingtype):
 
 
 
-def analyzeLegs(mode, route, mobilityUser, multimode):
+def analyzeLegs(mode, route, mobilityUser, multimode, origin, destination):
     global exceptions
 
     differentModes = ()
@@ -127,6 +129,7 @@ def analyzeLegs(mode, route, mobilityUser, multimode):
         if previousMode == "TRANSIT":
             previousMode = str(route['legs'][0]['steps'][0]['transit_details']['line']['vehicle']['type']).encode("UTF-8")
 
+        routePoints.append(origin)
         for step in leg['steps']:
 
             atualMode = str(step['travel_mode']).encode("UTF-8")
@@ -137,17 +140,18 @@ def analyzeLegs(mode, route, mobilityUser, multimode):
             if (previousMode != atualMode or step['travel_mode'] != mode) and multimode is False:
                 return {}
             else:
+
                 for j in polyline.decode(step['polyline']['points']):
-                    routePoints.append(j)
+                    routePoints.append(tuple(j))
                 if('steps' in step.keys()):
                     for substep in step['steps']:
                         for j in polyline.decode(substep['polyline']['points']):
-                            routePoints.append(j)
+                            routePoints.append(tuple(j))
 
                         modeTravel = str(substep['travel_mode']).encode("UTF-8")
                         if modeTravel != atualMode:
-                            print(modeTravel)
-                            print(atualMode)
+                            print("MODE TRAVEL: " + modeTravel)
+                            print("ATUAL TRAVEL: " + atualMode)
                             exceptions += 1
                             differentModes = differentModes + (modeTravel,)
 
@@ -157,6 +161,7 @@ def analyzeLegs(mode, route, mobilityUser, multimode):
             if previousMode == "TRANSIT":
                 previousMode = str(step['transit_details']['line']['vehicle']['type']).encode("UTF-8")
 
+        routePoints.append(destination)
 
         if (multimode is True and differentModes[1:] != differentModes[:-1]):
             mobilityUser['transport_modes'] = tuple(set(differentModes))
@@ -228,7 +233,7 @@ def interpolate(mobilityUser, city, userID, commutingtype):
     arcpy.GeneratePointsAlongLines_management(path_shapefile2 + filename2 + ".shp",
                                               path_shapefile3 + filename3 + ".shp",
                                               'DISTANCE',
-                                              Distance='10 meters',
+                                              Distance='20 meters',
                                               Include_End_Points='END_POINTS')
 
     # convert the shapefile to layer
@@ -275,7 +280,7 @@ def connect():
         countCity = 0
         for city in cities:
             countUsers = 0
-            query = "SELECT * FROM public.OD" + city + "_users_characterization LIMIT 1"
+            query = "SELECT * FROM public.OD" + city + "_users_characterization LIMIT 3"
             cur.execute(query)
 
 
@@ -286,10 +291,11 @@ def connect():
             for i in range(len(fetched_users)):
 
                 userID = str(fetched_users[i][0])
-                home_location = str(fetched_users[i][12]) + "," + str(fetched_users[i][13])
-                work_location = str(fetched_users[i][15]) + "," + str(fetched_users[i][16])
+                home_location = (float(fetched_users[i][12]), float(fetched_users[i][13]))
+                work_location = (float(fetched_users[i][15]), float(fetched_users[i][16]))
                 min_traveltime_h_w = str(fetched_users[i][19])
                 min_traveltime_w_h = str(fetched_users[i][25])
+
 
                 if (min_traveltime_h_w != "None"):
                     calculate_routes(home_location, work_location, city, userID, "H_W")
