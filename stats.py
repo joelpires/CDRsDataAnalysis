@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """
 Exploratory Analysis Tools for CDR Dataset
 January 2019
