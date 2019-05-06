@@ -730,7 +730,6 @@ DELETE
 FROM users_characterization
 WHERE workplace_id IN (SELECT cell_id FROM call_dim WHERE region = 2);
 
-DROP TABLE infomunicipals_and_cells;
 CREATE TEMPORARY TABLE infomunicipals_and_cells AS (
   SELECT f.name_2, averagekm2percell AS "Tower Density (Km2 per Cell)", g.cell_id
   FROM cell_idsbyregions g

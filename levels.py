@@ -41,6 +41,20 @@ def config(filename='database.ini', section='postgresql'):
 
     return db
 
+
+def stats(data):
+    alldata = data
+    statistics = {}
+    statistics["min"] = np.amin(data)
+    statistics["max"] = np.amax(data)
+    statistics["mean"]= np.mean(data)
+    statistics["median"] = np.median(data)
+    statistics["mode"] = st.mode(data)
+    statistics["std"] = np.std(data)
+
+    return statistics
+
+
 """  
 Receives a List resulted from a DB Query
 Returns a list with the content parsed
@@ -313,7 +327,7 @@ def connect():
 
         plt.show()
         """
-
+        """
 
         #EXPERIMENT 3 --------------------------------------------------------
         cur.execute('SELECT * FROM public.experiment_3_1')
@@ -386,8 +400,39 @@ def connect():
 
         plt.grid(True)
         plt.show()
+        
 
+        stats1 = stats(numberDays_racioWeekdays)
+        stats2 = stats(numberDays_racioHome_Workplace)
+        stats3 = stats(numberDays_racioHome_Workplace_Morning)
+        stats4 = stats(numberDays_racioHome_Workplace_Evening)
+        stats5 = stats(numberDays_racioH_W_or_W_H)
+        stats6 = stats(numberDays_racioH_W_and_W_H)
 
+        res1 = next(x for x, val in enumerate(numberDays_racioWeekdays)
+                   if val > stats1["mean"])
+        res2 = next(x for x, val in enumerate(numberDays_racioHome_Workplace)
+                   if val > stats2["mean"])
+        res3 = next(x for x, val in enumerate(numberDays_racioHome_Workplace_Morning)
+                   if val > stats3["mean"])
+        res4 = next(x for x, val in enumerate(numberDays_racioHome_Workplace_Evening)
+                   if val > stats4["mean"])
+        res5 = next(x for x, val in enumerate(numberDays_racioH_W_or_W_H)
+                   if val > stats5["mean"])
+        res6 = next(x for x, val in enumerate(numberDays_racioH_W_and_W_H)
+                   if val > stats6["mean"])
+
+        print(numberDays[res1])
+        print(numberDays[res2])
+        print(numberDays[res3])
+        print(numberDays[res4])
+        print(numberDays[res5])
+        print(stats5["mean"])
+        print(numberDays[res6])
+        print(stats6["mean"])
+        print(numberDays)
+
+        """
         """
         #EXPERIMENT 2 --------------------------------------------------------
         cur.execute('SELECT * FROM public.experiment_2_1')
@@ -432,7 +477,7 @@ def connect():
 
         regularity_questao5 = [5] * len(regularity)
         regularity_racioWeekdays = parseDBColumns(fetched, 1, float)
-
+        
         fig = plt.figure(figsize=(14,10))
         ax = plt.axes()
 
@@ -460,7 +505,38 @@ def connect():
 
         plt.grid(True)
         plt.show()
-        """
+        
+       
+        stats1 = stats(regularity_racioWeekdays[:-42])
+        stats2 = stats(regularity_racioHome_Workplace[:-42])
+        stats3 = stats(regularity_racioHome_Workplace_Morning[:-42])
+        stats4 = stats(regularity_racioHome_Workplace_Evening[:-42])
+        stats5 = stats(regularity_racioH_W_or_W_H[:-42])
+        stats6 = stats(regularity_racioH_W_and_W_H[:-42])
+
+        res1 = next(x for x, val in enumerate(regularity_racioWeekdays[:-42])
+                   if val < stats1["mean"])
+        res2 = next(x for x, val in enumerate(regularity_racioHome_Workplace[:-42])
+                   if val < stats2["mean"])
+        res3 = next(x for x, val in enumerate(regularity_racioHome_Workplace_Morning[:-42])
+                   if val < stats3["mean"])
+        res4 = next(x for x, val in enumerate(regularity_racioHome_Workplace_Evening[:-42])
+                   if val < stats4["mean"])
+        res5 = next(x for x, val in enumerate(regularity_racioH_W_or_W_H[:-42])
+                   if val < stats5["mean"])
+        res6 = next(x for x, val in enumerate(regularity_racioH_W_and_W_H[:-42])
+                   if val < stats6["mean"])
+
+        print(regularity[res1])
+        print(regularity[res2])
+        print(regularity[res3])
+        print(regularity[res4])
+        print(regularity[res5])
+        print(stats5["mean"])
+        print(regularity[res6])
+        print(stats6["mean"])
+        print(regularity)
+         """
         """
         #EXPERIMENT 1 --------------------------------------------------------
         cur.execute('SELECT * FROM public.experiment_1_1')
@@ -500,10 +576,10 @@ def connect():
         fetched = cur.fetchall()
 
         averageCalls_racioWeekdays = parseDBColumns(fetched, 1, float)
-
+        
         fig = plt.figure(figsize=(12,8))
         ax = plt.axes()
-
+    
         plt.xlabel("Average Number of CallsMade/Received Per Day", fontsize=18)
         plt.ylabel("Percentage of Users", fontsize=18)
         ax.set_xlim(-1, 42)
@@ -524,6 +600,36 @@ def connect():
 
         plt.grid(True)
         plt.show()
+        
+        stats1 = stats(averageCalls_racioWeekdays[:400])
+        stats2 = stats(averageCalls_racioHome_Workplace[:400])
+        stats3 = stats(averageCalls_racioHome_Workplace_Morning[:400])
+        stats4 = stats(averageCalls_racioHome_Workplace_Evening[:400])
+        stats5 = stats(averageCalls_racioH_W_or_W_H[:400])
+        stats6 = stats(averageCalls_racioH_W_and_W_H[:400])
+
+        res1 = next(x for x, val in enumerate(averageCalls_racioWeekdays[:400])
+                   if val > stats1["mean"])
+        res2 = next(x for x, val in enumerate(averageCalls_racioHome_Workplace[:400])
+                   if val > stats2["mean"])
+        res3 = next(x for x, val in enumerate(averageCalls_racioHome_Workplace_Morning[:400])
+                   if val > stats3["mean"])
+        res4 = next(x for x, val in enumerate(averageCalls_racioHome_Workplace_Evening[:400])
+                   if val > stats4["mean"])
+        res5 = next(x for x, val in enumerate(averageCalls_racioH_W_or_W_H[:400])
+                   if val > stats5["mean"])
+        res6 = next(x for x, val in enumerate(averageCalls_racioH_W_and_W_H[:400])
+                   if val > stats6["mean"])
+
+        print(averageCalls[res1])
+        print(averageCalls[res2])
+        print(averageCalls[res3])
+        print(averageCalls[res4])
+        print(averageCalls[res5])
+        print(stats5["mean"])
+        print(averageCalls[res6])
+        print(stats6["mean"])
+
         """
         """
         #EXPERIMENT 5 --------------------------------------------------------------------------------------------------------------------
@@ -574,32 +680,44 @@ def connect():
         towerdensities = parseDBColumns(fetched, 0, float)
         percentages = parseDBColumns(fetched, 1, float)
 
+        """
+        stats6 = stats(percentages)
+        res6 = next(x for x, val in enumerate(percentages)
+                   if val < stats6["mean"])
+        print(stats6["mean"])
 
-        print(towerdensities)
-
+        print(towerdensities[res6])
+        print(stats6["std"])
+        """
         fig = plt.figure(figsize=(12,8))
         ax = plt.axes()
 
         plt.xlabel("Tower Density (Km2 per cell)", fontsize=18)
         plt.ylabel("Percentage of Users", fontsize=18)
-        #ax.set_xlim(-1, 50)
-        #ax.set_ylim(-1, 100)
-        plt.xticks(np.arange(0, 607, 25), fontsize=14)
-        plt.yticks(np.arange(0, 100, 2.5), fontsize=14)
-        ax.plot(towerdensities, percentages, label="Percentage of Users with Distinct Home and Workplace")
+        ax.set_xlim(0, 550)
+        ax.set_ylim(-0.5, 45)
+        plt.xticks(np.arange(0, 550, 25), fontsize=14)
+        plt.yticks(np.arange(-0.5, 45, 2.5), fontsize=14)
+        ax.plot(towerdensities, percentages, "yo", label="Percentage of Users with Distinct Home and Workplace")
+
+        fit = np.polyfit(towerdensities[:550], percentages[:550], 4)
+        fit_fn = np.poly1d(fit)
+
+        plt.plot(towerdensities[:550], percentages[:550], 'yo')
+        plt.plot(towerdensities[:570], fit_fn(towerdensities[:570]), 'b',linewidth=3, label="Fitting curve: 2.416e-09x^4 - 3.065e-06x^3 + 0.001344x^2 - 0.2657x + 25.22")
 
         f = lambda x, y, z: proj3d.proj_transform(x, y, z, ax.get_proj())[:2]
         ax.legend(loc="upper right",
                   bbox_transform=ax.transData,
                   prop={'size': 14})
-
         plt.grid(True)
         plt.show()
 
 
+        """
         # EXPERIMENT 4_2
 
-        """
+
         cur.execute('SELECT * FROM public.experiment_4_2')
         fetched = cur.fetchall()
 
@@ -608,8 +726,8 @@ def connect():
         racioW_H = parseDBColumns(fetched, 3, float)
         racioH_W_or_W_H = parseDBColumns(fetched, 4, float)
         racioH_W_and_W_H = parseDBColumns(fetched, 5, float)
-        """
-        """
+
+
         fig = plt.figure(figsize=(12,8))
         ax = plt.axes()
 
@@ -631,7 +749,7 @@ def connect():
 
         plt.grid(True)
         plt.show()
-        """
+
 
 
         fig = plt.figure(figsize=(16,12))
@@ -664,7 +782,7 @@ def connect():
                   prop={'size': 13})
 
         plt.show()
-
+        """
 
         elapsed_time = time.time() - start_time
         print("EXECUTION TIME: " + str(elapsed_time/60) + " MINUTES")
