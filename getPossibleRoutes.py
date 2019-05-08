@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+# encoding: utf-8
 """
 Exploratory Analysis Tools for CDR Dataset
 March 2019
@@ -15,6 +16,9 @@ import configparser
 import polyline
 import arcpy
 #from orderedset import OrderedSet
+import matplotlib.pyplot as plt
+import unidecode
+import numpy as np
 
 exceptions = 0
 usersCounter = 0
@@ -299,6 +303,51 @@ def connect():
         # create a cursor
         cur = conn.cursor()
 
+        query = "SELECT * FROM public.eligibleUsers_byMunicipal"
+        cur.execute(query)
+
+        fetched = cur.fetchall()
+        number = parseDBColumns(fetched, 0, float)
+        municipals = parseDBColumns(fetched, 1, str)
+        density = parseDBColumns(fetched, 2, float)
+
+        municipals = [unidecode.unidecode(line.decode('utf-8').strip()) for line in municipals]
+        municipals[2] = "Braga\ne\n Guimaraes"
+        municipals[3] = "Vila Nova\nde\n Gaia"
+
+        array = np.arange(0, len(municipals), 1)
+        array2 = [x - 0.3 for x in array]
+
+        fig = plt.figure(figsize=(16, 12))
+        ax = plt.axes()
+        ax.set_xlim(-1, 13)
+        ax.set_ylim(-1, 10000)
+        plt.yticks(np.arange(0, 10000, 250), fontsize=14)
+
+        rects1 = ax.bar(array2[:13], number[:13], width=0.3, color='b', align='center')
+        rects2 = ax.bar(array[:13], density[:13], width=0.3, color='g', align='center')
+        ax.legend((rects1[0], rects2[0]), ("Number of Users with Commuting Patterns", "Average coverage area per cell (in squared hectometers)"))
+        plt.xticks(array[:13], municipals[:13])
+
+        rects = ax.patches
+        for rect in rects:
+            height = rect.get_height()
+            ax.text(rect.get_x() + rect.get_width() / 1.9, 1.01 * height,
+                    '%d' % int(height),
+                    ha='center', va='bottom')
+
+
+
+        plt.xlabel("Municipal", fontsize=20)
+        plt.grid(True)
+        plt.show()
+
+
+
+
+
+
+        """
         cities = ["porto", "lisbon", "coimbra"]
         countCity = 0
         for city in cities:
@@ -345,27 +394,38 @@ def connect():
         logfile.write("A TOTAL OF " + str(usersCounter) + " users were processed.")
         logfile.write("A TOTAL OF " + str(exceptions) + " exceptions were encountered")
         logfile.write("A TOTAL OF " + str(countRequests) + " REQUESTS WERE MADE TO DIRECTIONS API, USING " + str(keyNumber-initialNumber+1) + " DIFFERENT API KEYS")
-
+        """
         elapsed_time = time.time() - start_time
         print("EXECUTION TIME: " + str(elapsed_time/60) + " MINUTES")
-        logfile.write("EXECUTION TIME: " + str(elapsed_time/60) + " MINUTES")
+        #logfile.write("EXECUTION TIME: " + str(elapsed_time/60) + " MINUTES")
 
         # close the communication with the PostgreSQL
         cur.close()
-        logfile.close()
+        #logfile.close()
     except (Exception, psycopg2.DatabaseError) as error:
         print(error)
-        logfile.write(error)
-        logfile.close()
+        #logfile.write(error)
+        #logfile.close()
     finally:
         if conn is not None:
             conn.close()
             print('DATABASE CONNECTION CLOSED.')
-            logfile.write('DATABASE CONNECTION CLOSED.')
-            logfile.close()
+            #logfile.write('DATABASE CONNECTION CLOSED.')
+            #logfile.close()
+
+
+
+def parseDBColumns(listToParse, collumn, _constructor):
+    constructor = _constructor
+    collumnList = []
+    for i in range(0, len(listToParse)):
+        collumnList.append(constructor(listToParse[i][collumn]))
+
+    return collumnList
 
 
 def main():
+
     connect()
 
 
