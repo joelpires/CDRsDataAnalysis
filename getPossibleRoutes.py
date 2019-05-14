@@ -99,7 +99,6 @@ def calculate_routes(origin, destination, city, userID, commutingtype):
         countRequests += 1
 
 
-        print("\n=== Analyzing routes using the " + mode + " travel mode ===\n")
         logfile.write("\n=== Analyzing routes using the " + mode + " travel mode ===\n")
 
         # pode nao ter resposta
@@ -114,12 +113,10 @@ def calculate_routes(origin, destination, city, userID, commutingtype):
                     sequenceNumber = 0
                     for point in mobilityUser['route']:
                         query = "INSERT INTO public." + city + "_possible_routes (userID, commutingtype, routeNumber, duration, transportModes, latitude, longitude, sequenceNumber) VALUES (" + str(userID) + ", \'" + commutingtype + "\'," + str(mobilityUser['routeNumber']) + "," + str(mobilityUser['duration']) + ", ROW" + str(mobilityUser['transport_modes']) + "," + str(point[0]) + "," + str(point[1]) + "," + str(sequenceNumber) + ")"
-                        print(query)
-                        logfile.write(query + "\n")
                         cur.execute(query)
                         conn.commit()
                         sequenceNumber += 1
-                    print("\n=== Route number " + str(mobilityUser['routeNumber']) + " of user " + str(userID) + " in commuting " + commutingtype + " was processed ===\n")
+
                     logfile.write("\n=== Route number " + str(mobilityUser['routeNumber']) + " of user " + str(userID) + " in commuting " + commutingtype + " was processed ===\n")
                     mobilityUser['routeNumber'] += 1
                     routesCounter += 1
@@ -165,9 +162,7 @@ def analyzeLegs(mode, route, mobilityUser, multimode, origin, destination):
 
                         modeTravel = str(substep['travel_mode']).encode("UTF-8")
                         if modeTravel != atualMode:
-                            print("MODE TRAVEL: " + modeTravel)
                             logfile.write("MODE TRAVEL: " + modeTravel)
-                            print("ATUAL TRAVEL: " + atualMode)
                             logfile.write("ATUAL TRAVEL: " + atualMode)
                             exceptions += 1
                             differentModes = differentModes + (modeTravel,)
@@ -203,8 +198,7 @@ def interpolate(mobilityUser, city, userID, commutingtype):
     global logfile
 
     # convert the points to .csv files
-    print("Saving the Google Maps API points to CSV file...")
-    logfile.write("Saving the Google Maps API points to CSV file...")
+    #logfile.write("Saving the Google Maps API points to CSV file...")
     transport_modes = ""
     for word in mobilityUser['transport_modes']:
         transport_modes = transport_modes + word
@@ -223,8 +217,7 @@ def interpolate(mobilityUser, city, userID, commutingtype):
     fp.close()
 
     # creating GIS Layer
-    print("Creating a GIS Layer from the CSV file...")
-    logfile.write("Creating a GIS Layer from the CSV file...")
+    #logfile.write("Creating a GIS Layer from the CSV file...")
     arcpy.MakeXYEventLayer_management(path_csvs + filename1 + ".csv",
                                       "longitude",
                                       "latitude",
@@ -233,16 +226,14 @@ def interpolate(mobilityUser, city, userID, commutingtype):
                                       "sequence")
 
     # convert the points to shapefile
-    print("Creating a shapefile of the route points...")
-    logfile.write("Creating a shapefile of the route points...")
+    #logfile.write("Creating a shapefile of the route points...")
     path_shapefile1 = "C:/Users/Joel/Documents/ArcGIS/ODPaths/" + city + "/" + commutingtype + "/non_interpolated_route_points_shapefiles/"
     arcpy.FeatureClassToFeatureClass_conversion(filename1 + "_Layer",
                                                 path_shapefile1,
                                                 filename1)
 
     # Execute PointsToLine
-    print("Rendering the route line...")
-    logfile.write("Rendering the route line...")
+    #logfile.write("Rendering the route line...")
     filename2 = city + "_" + commutingtype + "_" + str(userID) + "_" + transport_modes + "_route_line_" + str(mobilityUser['routeNumber'])
     path_shapefile2 = "C:/Users/Joel/Documents/ArcGIS/ODPaths/" + city + "/" + commutingtype + "/route_lines_shapefiles/"
     arcpy.PointsToLine_management(path_shapefile1 + filename1 + ".shp",
@@ -251,8 +242,7 @@ def interpolate(mobilityUser, city, userID, commutingtype):
                                   "sequence")
 
     # interpolate the points
-    print("Creating a shapefile with the interpolated route points...")
-    logfile.write("Creating a shapefile with the interpolated route points...")
+    #logfile.write("Creating a shapefile with the interpolated route points...")
     filename3 = city + "_" + commutingtype + "_" + str(userID) + "_" + transport_modes + "_interpolated_route_points_" + str(mobilityUser['routeNumber'])
     path_shapefile3 = "C:/Users/Joel/Documents/ArcGIS/ODPaths/" + city + "/" + commutingtype + "/interpolated_route_points_shapefiles/"
     arcpy.GeneratePointsAlongLines_management(path_shapefile2 + filename2 + ".shp",
@@ -316,10 +306,10 @@ def connect():
         density = parseDBColumns(fetched, 4, float)
 
         municipals = [unidecode.unidecode(line.decode('utf-8').strip()) for line in municipals]
-
+        """
         for index, elem in enumerate(municipals):
             municipals[index] = elem.replace(" ", "\n")
-
+    
         array = np.arange(0, len(municipals), 1)
         array0 = [x - 0.4 for x in array]
         array2 = [x - 0.2 for x in array]
@@ -336,7 +326,7 @@ def connect():
         rects3 = ax.bar(array0[:12], population[:12], width=0.2, color='r', align='center')
         rects4 = ax.bar(array2[:12], datasetUsers[:12], width=0.2, color='k', align='center')
 
-        #ax.legend((rects1[0], rects2[0], rects3[0], rects4[0]), ("Number of Users to Infer Commuting Patterns", "Tower Density - Number of Towers per 20 Km2", "Number of Inhabitants", "Number of Users in the Dataset"))
+        ax.legend((rects1[0], rects2[0], rects3[0], rects4[0]), ("Number of Users to Infer Commuting Patterns", "Tower Density - Number of Towers per 20 Km2", "Number of Inhabitants", "Number of Users in the Dataset"))
         plt.xticks(array[:12], municipals[:12])
 
         rects = ax.patches
@@ -353,6 +343,7 @@ def connect():
         plt.show()
 
         """
+
         if os.path.exists('C:/Users/Joel/Documents/ArcGIS/ODPaths') and os.path.isdir('C:/Users/Joel/Documents/ArcGIS/ODPaths'):
             shutil.rmtree('C:/Users/Joel/Documents/ArcGIS/ODPaths')
         os.mkdir("C:/Users/Joel/Documents/ArcGIS/ODPaths", 0777)
@@ -398,7 +389,7 @@ def connect():
             cur.execute(query3)
             conn.commit()
             fetched_users = cur.fetchall()
-
+            """
             #DIRECTIONS API
             for i in range(len(fetched_users)):
 
@@ -417,7 +408,7 @@ def connect():
 
                 countUsers += 1
                 usersCounter += 1
-                print("\n==================== User number " + str(countUsers) + " of " + city + " was processed =====================\n")
+            
                 logfile.write("\n==================== User number " + str(countUsers) + " of " + city + " was processed =====================\n")
 
             countCity += 1
@@ -425,15 +416,9 @@ def connect():
             query1 = "DROP TABLE IF EXISTS OD" + city + "_users_characterization"
             cur.execute(query1)
             conn.commit()
-            
-            print("\n==================== The city  of " + city + " was processed =====================\n")
+                
             logfile.write("\n==================== The city  of " + city + " was processed =====================\n")
 
-        print("A TOTAL OF " + str(countCity) + " cities were processed.")
-        print("A TOTAL OF " + str(routesCounter) + " routes were processed.")
-        print("A TOTAL OF " + str(usersCounter) + " users were processed.")
-        print("A TOTAL OF " + str(exceptions) + " exceptions were encountered")
-        print("A TOTAL OF " + str(countRequests) + " REQUESTS WERE MADE TO DIRECTIONS API, USING " + str(keyNumber-initialNumber+1) + " DIFFERENT API KEYS")
         logfile.write("A TOTAL OF " + str(countCity) + " cities were processed.")
         logfile.write("A TOTAL OF " + str(routesCounter) + " routes were processed.")
         logfile.write("A TOTAL OF " + str(usersCounter) + " users were processed.")
@@ -442,21 +427,19 @@ def connect():
         """
         elapsed_time = time.time() - start_time
         print("EXECUTION TIME: " + str(elapsed_time/60) + " MINUTES")
-        #logfile.write("EXECUTION TIME: " + str(elapsed_time/60) + " MINUTES")
+
 
         # close the communication with the PostgreSQL
         cur.close()
-        #logfile.close()
+        logfile.close()
     except (Exception, psycopg2.DatabaseError) as error:
         print(error)
-        #logfile.write(error)
-        #logfile.close()
+        logfile.close()
     finally:
         if conn is not None:
             conn.close()
             print('DATABASE CONNECTION CLOSED.')
-            #logfile.write('DATABASE CONNECTION CLOSED.')
-            #logfile.close()
+            logfile.close()
 
 
 
