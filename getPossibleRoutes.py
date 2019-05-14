@@ -19,6 +19,8 @@ import arcpy
 import matplotlib.pyplot as plt
 import unidecode
 import numpy as np
+import os, sys
+import shutil
 
 exceptions = 0
 usersCounter = 0
@@ -233,7 +235,7 @@ def interpolate(mobilityUser, city, userID, commutingtype):
     # convert the points to shapefile
     print("Creating a shapefile of the route points...")
     logfile.write("Creating a shapefile of the route points...")
-    path_shapefile1 = "C:/Users/Joel/Documents/ArcGIS/" + city + "/" + commutingtype + "/non_interpolated_route_points_shapefiles/"
+    path_shapefile1 = "C:/Users/Joel/Documents/ArcGIS/ODPaths/" + city + "/" + commutingtype + "/non_interpolated_route_points_shapefiles/"
     arcpy.FeatureClassToFeatureClass_conversion(filename1 + "_Layer",
                                                 path_shapefile1,
                                                 filename1)
@@ -242,7 +244,7 @@ def interpolate(mobilityUser, city, userID, commutingtype):
     print("Rendering the route line...")
     logfile.write("Rendering the route line...")
     filename2 = city + "_" + commutingtype + "_" + str(userID) + "_" + transport_modes + "_route_line_" + str(mobilityUser['routeNumber'])
-    path_shapefile2 = "C:/Users/Joel/Documents/ArcGIS/" + city + "/" + commutingtype + "/route_lines_shapefiles/"
+    path_shapefile2 = "C:/Users/Joel/Documents/ArcGIS/ODPaths/" + city + "/" + commutingtype + "/route_lines_shapefiles/"
     arcpy.PointsToLine_management(path_shapefile1 + filename1 + ".shp",
                                   path_shapefile2 + filename2,
                                   "",
@@ -252,7 +254,7 @@ def interpolate(mobilityUser, city, userID, commutingtype):
     print("Creating a shapefile with the interpolated route points...")
     logfile.write("Creating a shapefile with the interpolated route points...")
     filename3 = city + "_" + commutingtype + "_" + str(userID) + "_" + transport_modes + "_interpolated_route_points_" + str(mobilityUser['routeNumber'])
-    path_shapefile3 = "C:/Users/Joel/Documents/ArcGIS/" + city + "/" + commutingtype + "/interpolated_route_points_shapefiles/"
+    path_shapefile3 = "C:/Users/Joel/Documents/ArcGIS/ODPaths/" + city + "/" + commutingtype + "/interpolated_route_points_shapefiles/"
     arcpy.GeneratePointsAlongLines_management(path_shapefile2 + filename2 + ".shp",
                                               path_shapefile3 + filename3 + ".shp",
                                               'DISTANCE',
@@ -307,57 +309,95 @@ def connect():
         cur.execute(query)
 
         fetched = cur.fetchall()
-        number = parseDBColumns(fetched, 0, float)
-        municipals = parseDBColumns(fetched, 1, str)
-        density = parseDBColumns(fetched, 2, float)
+        municipals = parseDBColumns(fetched, 0, str)
+        population = parseDBColumns(fetched, 1, float)
+        datasetUsers = parseDBColumns(fetched, 2, float)
+        number = parseDBColumns(fetched, 3, float)
+        density = parseDBColumns(fetched, 4, float)
 
         municipals = [unidecode.unidecode(line.decode('utf-8').strip()) for line in municipals]
-        municipals[2] = "Braga\ne\n Guimaraes"
-        municipals[3] = "Vila Nova\nde\n Gaia"
+
+        for index, elem in enumerate(municipals):
+            municipals[index] = elem.replace(" ", "\n")
 
         array = np.arange(0, len(municipals), 1)
-        array2 = [x - 0.3 for x in array]
+        array0 = [x - 0.4 for x in array]
+        array2 = [x - 0.2 for x in array]
+        array3 = [x + 0.2 for x in array]
 
         fig = plt.figure(figsize=(16, 12))
         ax = plt.axes()
-        ax.set_xlim(-1, 13)
-        ax.set_ylim(-1, 10000)
-        plt.yticks(np.arange(0, 10000, 250), fontsize=14)
+        ax.set_xlim(-1, 12)
+        ax.set_ylim(1, 1000000)
+        #plt.yticks(np.arange(0, 560000, 50000), fontsize=14)
+        plt.yscale("log")
+        rects1 = ax.bar(array[:12], number[:12], width=0.2, color='b', align='center')
+        rects2 = ax.bar(array3[:12], density[:12], width=0.2, color='g', align='center')
+        rects3 = ax.bar(array0[:12], population[:12], width=0.2, color='r', align='center')
+        rects4 = ax.bar(array2[:12], datasetUsers[:12], width=0.2, color='k', align='center')
 
-        rects1 = ax.bar(array2[:13], number[:13], width=0.3, color='b', align='center')
-        rects2 = ax.bar(array[:13], density[:13], width=0.3, color='g', align='center')
-        ax.legend((rects1[0], rects2[0]), ("Number of Users with Commuting Patterns", "Average coverage area per cell (in squared hectometers)"))
-        plt.xticks(array[:13], municipals[:13])
+        #ax.legend((rects1[0], rects2[0], rects3[0], rects4[0]), ("Number of Users to Infer Commuting Patterns", "Tower Density - Number of Towers per 20 Km2", "Number of Inhabitants", "Number of Users in the Dataset"))
+        plt.xticks(array[:12], municipals[:12])
 
         rects = ax.patches
         for rect in rects:
             height = rect.get_height()
-            ax.text(rect.get_x() + rect.get_width() / 1.9, 1.01 * height,
+            ax.text(rect.get_x() + rect.get_width() / 1, 1.01 * height,
                     '%d' % int(height),
                     ha='center', va='bottom')
-
+        
 
 
         plt.xlabel("Municipal", fontsize=20)
         plt.grid(True)
         plt.show()
 
-
-
-
-
-
         """
-        cities = ["porto", "lisbon", "coimbra"]
+        if os.path.exists('C:/Users/Joel/Documents/ArcGIS/ODPaths') and os.path.isdir('C:/Users/Joel/Documents/ArcGIS/ODPaths'):
+            shutil.rmtree('C:/Users/Joel/Documents/ArcGIS/ODPaths')
+        os.mkdir("C:/Users/Joel/Documents/ArcGIS/ODPaths", 0777)
+
         countCity = 0
-        for city in cities:
+        for city in municipals:
             countUsers = 0
-            query = "SELECT * FROM public.OD" + city + "_users_characterization"
-            cur.execute(query)
+            city = city.replace(" ", "_")
+            city = city.replace("-", "_")
+
+            os.mkdir("C:/Users/Joel/Documents/ArcGIS/ODPaths/" + city, 0777)
+            os.mkdir("C:/Users/Joel/Documents/ArcGIS/ODPaths/" + city + "/H_W", 0777)
+            os.mkdir("C:/Users/Joel/Documents/ArcGIS/ODPaths/" + city + "/H_W/interpolated_route_points_shapefiles", 0777)
+            os.mkdir("C:/Users/Joel/Documents/ArcGIS/ODPaths/" + city + "/H_W/non_interpolated_route_points_csvs", 0777)
+            os.mkdir("C:/Users/Joel/Documents/ArcGIS/ODPaths/" + city + "/H_W/non_interpolated_route_points_shapefiles", 0777)
+            os.mkdir("C:/Users/Joel/Documents/ArcGIS/ODPaths/" + city + "/H_W/route_lines_shapefiles", 0777)
+            os.mkdir("C:/Users/Joel/Documents/ArcGIS/ODPaths/" + city + "/W_H", 0777)
+            os.mkdir("C:/Users/Joel/Documents/ArcGIS/ODPaths/" + city + "/W_H/interpolated_route_points_shapefiles", 0777)
+            os.mkdir("C:/Users/Joel/Documents/ArcGIS/ODPaths/" + city + "/W_H/non_interpolated_route_points_csvs", 0777)
+            os.mkdir("C:/Users/Joel/Documents/ArcGIS/ODPaths/" + city + "/W_H/non_interpolated_route_points_shapefiles", 0777)
+            os.mkdir("C:/Users/Joel/Documents/ArcGIS/ODPaths/" + city + "/W_H/route_lines_shapefiles", 0777)
 
 
+            query11 = "DROP TABLE IF EXISTS public." + city + "_possible_routes"
+            cur.execute(query11)
+            conn.commit()
+
+            #Type "MODES" needs to be previously created
+
+            query13 = "CREATE TABLE public." + city + "_possible_routes (userID INTEGER, commutingType TEXT, routeNumber INTEGER, duration INTEGER, transportModes MODES, latitude NUMERIC, longitude NUMERIC, sequenceNumber INTEGER)"
+            cur.execute(query13)
+            conn.commit()
+
+            query1 = "DROP TABLE IF EXISTS OD" + city + "_users_characterization"
+            cur.execute(query1)
+            conn.commit()
+
+            query2 = "CREATE TEMPORARY TABLE OD" + city + "_users_characterization AS (SELECT * FROM users_characterization_final WHERE user_id IN (SELECT user_id FROM eligibleUsers WHERE municipal = '" + city + "'))"
+            cur.execute(query2)
+            conn.commit()
+
+            query3 = "SELECT * FROM OD" + city + "_users_characterization"
+            cur.execute(query3)
+            conn.commit()
             fetched_users = cur.fetchall()
-
 
             #DIRECTIONS API
             for i in range(len(fetched_users)):
@@ -368,7 +408,7 @@ def connect():
                 min_traveltime_h_w = str(fetched_users[i][19])
                 min_traveltime_w_h = str(fetched_users[i][25])
 
-
+             
                 if (min_traveltime_h_w != "None"):
                     calculate_routes(home_location, work_location, city, userID, "H_W")
 
@@ -381,6 +421,11 @@ def connect():
                 logfile.write("\n==================== User number " + str(countUsers) + " of " + city + " was processed =====================\n")
 
             countCity += 1
+            
+            query1 = "DROP TABLE IF EXISTS OD" + city + "_users_characterization"
+            cur.execute(query1)
+            conn.commit()
+            
             print("\n==================== The city  of " + city + " was processed =====================\n")
             logfile.write("\n==================== The city  of " + city + " was processed =====================\n")
 
