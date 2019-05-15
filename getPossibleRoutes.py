@@ -282,6 +282,18 @@ def calculatingExactRoutes(city):
     cur.execute(query2)
     conn.commit()
 
+    query3 = "CREATE TABLE public.frequencies_intermediateTowers_H_W_" + city + " AS ( " \
+             "SELECT intermediatetowers_h_wid, tower, latitude, longitude, count(*) AS frequencia " \
+             "FROM intermediateTowers_H_W_u " \
+             "INNER JOIN (SELECT user_id FROM public.OD" + city + "_users_characterization) y " \
+             "ON intermediatetowers_h_wid = user_id " \
+             "GROUP BY intermediatetowers_h_wid, tower, latitude, longitude)"
+    cur.execute(query3)
+    conn.commit()
+    print("ganda lol")
+    print(city)
+
+    return
     query3 = "CREATE TEMPORARY TABLE distancesWeighted AS (" \
              "SELECT f.*, cellID, frequencia, st_distance(ST_Transform(geom_point_orig, 3857),ST_Transform(geom_point_dest, 3857)) * CAST(1 AS FLOAT)/frequencia AS distanceWeighted " \
              "FROM porto_possible_routes f " \
@@ -299,7 +311,20 @@ def calculatingExactRoutes(city):
     print(query3)
     cur.execute(query3)
 
-    print("ganda lol")
+
+
+
+
+
+
+
+
+
+
+
+    
+
+
 
 """ Connect to the PostgreSQL database server """
 def connect():
@@ -415,8 +440,8 @@ def connect():
             query2 = "CREATE TABLE public.OD" + city + "_users_characterization AS (SELECT * FROM users_characterization_final WHERE user_id IN (SELECT id FROM eligibleUsers WHERE municipal = \'" + city + "\'))"
             cur.execute(query2)
             conn.commit()
-
-            query3 = "SELECT * FROM OD" + city + "_users_characterization"
+            print(query2)
+            query3 = "SELECT * FROM public.OD" + city + "_users_characterization"
             cur.execute(query3)
             fetched_users = cur.fetchall()
 
@@ -444,11 +469,11 @@ def connect():
             """
             countCity += 1
 
+            calculatingExactRoutes(city)
+
             query1 = "DROP TABLE IF EXISTS public.OD" + city + "_users_characterization"
             cur.execute(query1)
             conn.commit()
-
-            calculatingExactRoutes(city)
 
             logfile.write("\n==================== The city  of " + city + " was processed =====================\n")
 
