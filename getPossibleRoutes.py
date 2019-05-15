@@ -271,6 +271,36 @@ def interpolate(mobilityUser, city, userID, commutingtype):
     return interpolated_route
 
 
+def calculatingExactRoutes(city):
+
+    query1 = "ALTER TABLE public." + city + "_possible_routes ADD COLUMN geom_point_orig GEOMETRY(Point, 4326)"
+    query2 = "UPDATE public." + city + "_possible_routes SET geom_point_orig=st_SetSrid(st_MakePoint(longitude, latitude), 4326)"
+
+    cur.execute(query1)
+    conn.commit()
+
+    cur.execute(query2)
+    conn.commit()
+
+    query3 = "CREATE TEMPORARY TABLE distancesWeighted AS (" \
+             "SELECT f.*, cellID, frequencia, st_distance(ST_Transform(geom_point_orig, 3857),ST_Transform(geom_point_dest, 3857)) * CAST(1 AS FLOAT)/frequencia AS distanceWeighted " \
+             "FROM porto_possible_routes f " \
+             "INNER JOIN (SELECT id, cell_id AS cellID, frequencia, geom_point_dest FROM frequencies_intermediateTowers_H_W) g " \
+             "ON g.id = userid " \
+             "AND commutingtype = 'H_W' " \
+             "" \
+             "UNION ALL " \
+             "" \
+             "SELECT f.*, cellID, frequencia, st_distance(ST_Transform(geom_point_orig, 3857),ST_Transform(geom_point_dest, 3857)) * CAST(1 AS FLOAT)/frequencia AS distanceWeighted " \
+             "FROM porto_possible_routes f " \
+             "INNER JOIN (SELECT id, cell_id AS cellID, frequencia, geom_point_dest FROM frequencies_intermediateTowers_W_H) g " \
+             "ON g.id = userid " \
+             "AND commutingtype = 'W_H')"
+    print(query3)
+    cur.execute(query3)
+
+    print("ganda lol")
+
 """ Connect to the PostgreSQL database server """
 def connect():
     global countRequests
@@ -289,7 +319,6 @@ def connect():
 
         # connect to the PostgreSQL server
         print('CONNECTION TO THE POSTGRESQL DATABASE...')
-        logfile.write('CONNECTION TO THE POSTGRESQL DATABASE...')
         conn = psycopg2.connect(**params)
 
         # create a cursor
@@ -346,10 +375,12 @@ def connect():
 
         if os.path.exists('C:/Users/Joel/Documents/ArcGIS/ODPaths') and os.path.isdir('C:/Users/Joel/Documents/ArcGIS/ODPaths'):
             shutil.rmtree('C:/Users/Joel/Documents/ArcGIS/ODPaths')
+
         os.mkdir("C:/Users/Joel/Documents/ArcGIS/ODPaths", 0777)
 
         countCity = 0
         for city in municipals:
+
             countUsers = 0
             city = city.replace(" ", "_")
             city = city.replace("-", "_")
@@ -366,7 +397,6 @@ def connect():
             os.mkdir("C:/Users/Joel/Documents/ArcGIS/ODPaths/" + city + "/W_H/non_interpolated_route_points_shapefiles", 0777)
             os.mkdir("C:/Users/Joel/Documents/ArcGIS/ODPaths/" + city + "/W_H/route_lines_shapefiles", 0777)
 
-
             query11 = "DROP TABLE IF EXISTS public." + city + "_possible_routes"
             cur.execute(query11)
             conn.commit()
@@ -377,18 +407,19 @@ def connect():
             cur.execute(query13)
             conn.commit()
 
+
             query1 = "DROP TABLE IF EXISTS OD" + city + "_users_characterization"
             cur.execute(query1)
             conn.commit()
 
-            query2 = "CREATE TEMPORARY TABLE OD" + city + "_users_characterization AS (SELECT * FROM users_characterization_final WHERE user_id IN (SELECT user_id FROM eligibleUsers WHERE municipal = '" + city + "'))"
+            query2 = "CREATE TABLE public.OD" + city + "_users_characterization AS (SELECT * FROM users_characterization_final WHERE user_id IN (SELECT id FROM eligibleUsers WHERE municipal = \'" + city + "\'))"
             cur.execute(query2)
             conn.commit()
 
             query3 = "SELECT * FROM OD" + city + "_users_characterization"
             cur.execute(query3)
-            conn.commit()
             fetched_users = cur.fetchall()
+
             """
             #DIRECTIONS API
             for i in range(len(fetched_users)):
@@ -410,13 +441,15 @@ def connect():
                 usersCounter += 1
             
                 logfile.write("\n==================== User number " + str(countUsers) + " of " + city + " was processed =====================\n")
-
+            """
             countCity += 1
-            
-            query1 = "DROP TABLE IF EXISTS OD" + city + "_users_characterization"
+
+            query1 = "DROP TABLE IF EXISTS public.OD" + city + "_users_characterization"
             cur.execute(query1)
             conn.commit()
-                
+
+            calculatingExactRoutes(city)
+
             logfile.write("\n==================== The city  of " + city + " was processed =====================\n")
 
         logfile.write("A TOTAL OF " + str(countCity) + " cities were processed.")
@@ -424,7 +457,7 @@ def connect():
         logfile.write("A TOTAL OF " + str(usersCounter) + " users were processed.")
         logfile.write("A TOTAL OF " + str(exceptions) + " exceptions were encountered")
         logfile.write("A TOTAL OF " + str(countRequests) + " REQUESTS WERE MADE TO DIRECTIONS API, USING " + str(keyNumber-initialNumber+1) + " DIFFERENT API KEYS")
-        """
+
         elapsed_time = time.time() - start_time
         print("EXECUTION TIME: " + str(elapsed_time/60) + " MINUTES")
 
