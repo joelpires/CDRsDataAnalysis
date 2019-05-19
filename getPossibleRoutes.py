@@ -2,7 +2,7 @@
 # encoding: utf-8
 """
 Exploratory Analysis Tools for CDR Dataset
-March 2019
+May 2019
 Joel Pires
 """
 __author__ = 'Joel Pires'
@@ -79,8 +79,8 @@ def calculate_routes(origin, destination, city, userID, commutingtype):
     chosenkey = apiKeys[initialNumber]
 
     directionsAPIendpoint = 'https://maps.googleapis.com/maps/api/directions/json?'
-
-    travel_modes = [ "DRIVING", "MULTIMODE", "WALKING", "BICYCLING", "TRANSIT"]
+    #debug
+    travel_modes = [ "DRIVING", "MULTIMODE", "WALKING"]#, "BICYCLING", "TRANSIT"]
 
     for mode in travel_modes:
         if (countRequests >= atualAPILimit or countRequests >= geralAPILIMIT):  #budget limit for each google account
@@ -94,6 +94,9 @@ def calculate_routes(origin, destination, city, userID, commutingtype):
         else:
             request = directionsAPIendpoint + 'origin={}&destination={}&mode={}&alternatives=true&key={}'.format(str(origin)[1:-1].replace(" ", ""), str(destination)[1:-1].replace(" ", ""), mode, chosenkey)
             multimode = False
+
+        #debug
+        logfile.write("REQUEST: " + str(request) + "\n")
 
         response = json.loads(urllib.urlopen(request).read())
         countRequests += 1
@@ -162,8 +165,8 @@ def analyzeLegs(mode, route, mobilityUser, multimode, origin, destination):
 
                         modeTravel = str(substep['travel_mode']).encode("UTF-8")
                         if modeTravel != atualMode:
-                            logfile.write("MODE TRAVEL: " + modeTravel)
-                            logfile.write("ATUAL TRAVEL: " + atualMode)
+                            logfile.write("MODE TRAVEL: " + modeTravel + "\n")
+                            logfile.write("ATUAL TRAVEL: " + atualMode + "\n")
                             exceptions += 1
                             differentModes = differentModes + (modeTravel,)
 
@@ -198,13 +201,13 @@ def interpolate(mobilityUser, city, userID, commutingtype):
     global logfile
 
     # convert the points to .csv files
-    #logfile.write("Saving the Google Maps API points to CSV file...")
+    #logfile.write("Saving the Google Maps API points to CSV file...\n")
     transport_modes = ""
     for word in mobilityUser['transport_modes']:
         transport_modes = transport_modes + word
 
     filename1 = city + "_" + commutingtype + "_" + str(userID) + "_" + transport_modes + "_non_interpolated_route_points_" + str(mobilityUser['routeNumber'])
-    path_csvs = "C:\Users\Joel\Documents\ArcGIS\\" + city + "\\" + commutingtype + "\\non_interpolated_route_points_csvs\\"
+    path_csvs = "C:\Users\Joel\Documents\ArcGIS\\ODPaths\\" + city + "\\" + commutingtype + "\\non_interpolated_route_points_csvs\\"
     with open(path_csvs + filename1 + ".csv", mode='w') as fp:
         fp.write("latitude, longitude, sequence")
         fp.write("\n")
@@ -217,7 +220,7 @@ def interpolate(mobilityUser, city, userID, commutingtype):
     fp.close()
 
     # creating GIS Layer
-    #logfile.write("Creating a GIS Layer from the CSV file...")
+    #logfile.write("Creating a GIS Layer from the CSV file...\n")
     arcpy.MakeXYEventLayer_management(path_csvs + filename1 + ".csv",
                                       "longitude",
                                       "latitude",
@@ -226,14 +229,14 @@ def interpolate(mobilityUser, city, userID, commutingtype):
                                       "sequence")
 
     # convert the points to shapefile
-    #logfile.write("Creating a shapefile of the route points...")
+    #logfile.write("Creating a shapefile of the route points...\n")
     path_shapefile1 = "C:/Users/Joel/Documents/ArcGIS/ODPaths/" + city + "/" + commutingtype + "/non_interpolated_route_points_shapefiles/"
     arcpy.FeatureClassToFeatureClass_conversion(filename1 + "_Layer",
                                                 path_shapefile1,
                                                 filename1)
 
     # Execute PointsToLine
-    #logfile.write("Rendering the route line...")
+    #logfile.write("Rendering the route line...\n")
     filename2 = city + "_" + commutingtype + "_" + str(userID) + "_" + transport_modes + "_route_line_" + str(mobilityUser['routeNumber'])
     path_shapefile2 = "C:/Users/Joel/Documents/ArcGIS/ODPaths/" + city + "/" + commutingtype + "/route_lines_shapefiles/"
     arcpy.PointsToLine_management(path_shapefile1 + filename1 + ".shp",
@@ -242,7 +245,7 @@ def interpolate(mobilityUser, city, userID, commutingtype):
                                   "sequence")
 
     # interpolate the points
-    #logfile.write("Creating a shapefile with the interpolated route points...")
+    #logfile.write("Creating a shapefile with the interpolated route points...\n")
     filename3 = city + "_" + commutingtype + "_" + str(userID) + "_" + transport_modes + "_interpolated_route_points_" + str(mobilityUser['routeNumber'])
     path_shapefile3 = "C:/Users/Joel/Documents/ArcGIS/ODPaths/" + city + "/" + commutingtype + "/interpolated_route_points_shapefiles/"
     arcpy.GeneratePointsAlongLines_management(path_shapefile2 + filename2 + ".shp",
@@ -253,7 +256,7 @@ def interpolate(mobilityUser, city, userID, commutingtype):
 
     # convert the shapefile to layer
     print("Converting the shapefile to a layer...")
-    logfile.write("Converting the shapefile to a layer...")
+    logfile.write("Converting the shapefile to a layer...\n")
     layer = arcpy.MakeFeatureLayer_management(path_shapefile3 + filename3 + ".shp",
                                               filename3)
 
@@ -415,6 +418,80 @@ def calculatingExactRoutes(city):
     conn.commit()
 
 
+    #debug
+    logfile.write("\n================= POSSIBLE ROUTES: =================\n")
+    query1 = "SELECT * FROM public." + city + "_possible_routes WHERE userid = 23646673"
+    cur.execute(query1)
+    fetched = cur.fetchall()
+    for i in fetched:
+        logfile.write(str(i) + "\n")
+
+    #debug
+    logfile.write("\n================= frequencies_intermediateTowers_H_W: =================\n")
+    query1 = "SELECT * FROM public.frequencies_intermediateTowers_H_W_" + city + " WHERE userid = 23646673"
+    cur.execute(query1)
+    fetched = cur.fetchall()
+    for i in fetched:
+        logfile.write(str(i) + "\n")
+
+    #debug
+    logfile.write("\n================= frequencies_intermediateTowers_W_H: ==================\n")
+    query1 = "SELECT * FROM public.frequencies_intermediateTowers_W_H_" + city + " WHERE userid = 23646673"
+    cur.execute(query1)
+    fetched = cur.fetchall()
+    for i in fetched:
+        logfile.write(str(i) + "\n")
+
+    # debug
+    logfile.write("\n================= distancesWeighted_: ==================\n")
+    query1 = "SELECT * FROM public.distancesWeighted_" + city + " WHERE userid = 23646673"
+    cur.execute(query1)
+    fetched = cur.fetchall()
+    for i in fetched:
+        logfile.write(str(i) + "\n")
+
+    # debug
+    logfile.write("\n================= distanceScores_: ==================\n")
+    query1 = "SELECT * FROM public.distanceScores_" + city + " WHERE userid = 23646673"
+    cur.execute(query1)
+    fetched = cur.fetchall()
+    for i in fetched:
+        logfile.write(str(i) + "\n")
+
+    # debug
+    logfile.write("\n================= traveltimes_and_durations_: ==================\n")
+    query1 = "SELECT * FROM public.traveltimes_and_durations_" + city + " WHERE userid = 23646673"
+    cur.execute(query1)
+    fetched = cur.fetchall()
+    for i in fetched:
+        logfile.write(str(i) + "\n")
+
+    # debug
+    logfile.write("\n================= durationsScores_: ==================\n")
+    query1 = "SELECT * FROM public.durationsScores_" + city + " WHERE userid = 23646673"
+    cur.execute(query1)
+    fetched = cur.fetchall()
+    for i in fetched:
+        logfile.write(str(i) + "\n")
+
+    # debug
+    logfile.write("\n================= exactRoutes_: ==================\n")
+    query1 = "SELECT * FROM public.exactRoutes_" + city + " WHERE userid = 23646673"
+    cur.execute(query1)
+    fetched = cur.fetchall()
+    for i in fetched:
+        logfile.write(str(i) + "\n")
+
+    # debug
+    logfile.write("\n================= finalScores_: ==================\n")
+    query1 = "SELECT * FROM public.finalScores_" + city + " WHERE userid = 23646673"
+    cur.execute(query1)
+    fetched = cur.fetchall()
+    for i in fetched:
+        logfile.write(str(i) + "\n")
+
+
+
     query11 = "DROP TABLE IF EXISTS public.frequencies_intermediateTowers_H_W_" + city
     cur.execute(query11)
     conn.commit()
@@ -448,56 +525,51 @@ def calculatingExactRoutes(city):
     cur.execute(query11)
     conn.commit()
 
-    print("ganda lol")
-    print(city)
 
 
 def renderFinalRoutes(city):
 
     #logfile.write("Saving the final route points into csvs...")
-    query1 = "SELECT * FROM public." + city + "_possible_routes SET geom_point_orig=st_SetSrid(st_MakePoint(longitude, latitude), 4326)"
+
+    query1 = "SELECT DISTINCT (userID, commutingType) FROM public.finalRoutes_" + city
 
     cur.execute(query1)
-    conn.commit()
+    differentRoutes = cur.fetchall()
 
 
-    filename1 = city + "_" + commutingtype + "_" + str(userID) + "_" + transport_modes + "_non_interpolated_route_points_" + str(mobilityUser['routeNumber'])
-    path_csvs = "C:\Users\Joel\Documents\ArcGIS\\" + city + "\\" + commutingtype + "\\non_interpolated_route_points_csvs\\"
-    with open(path_csvs + filename1 + ".csv", mode='w') as fp:
-        fp.write("latitude, longitude, sequence")
-        fp.write("\n")
-        sequence = 0
-        for point in mobilityUser['route']:
-            line = str(point[0]) + "," + str(point[1]) + "," + str(sequence)
-            fp.write(line)
+    for route in differentRoutes:
+
+        query2 = "SELECT * FROM public.finalRoutes_" + city + "WHERE userID = " + differentRoutes[0] + " AND commutingType = " + differentRoutes[1] + " ORDER BY sequencenumber ASC"
+
+        cur.execute(query2)
+        fetched = cur.fetchall()
+
+        filename1 = city + "_" + route[1] + "_" + str(route[0]) + "_" + route[4] + "_final_routes_points_" + route[2]
+        path_csvs = "C:\Users\Joel\Documents\ArcGIS\\ODPaths\\" + city + "\\" + route[1] + "\\final_routes_csvs\\"
+        with open(path_csvs + filename1 + ".csv", mode='w') as fp:
+            fp.write("latitude, longitude, sequence")
             fp.write("\n")
-            sequence += 1
-    fp.close()
+            for record in fetched:
+                line = str(record[5]) + "," + str(record[6]) + "," + str(record[7])
+                fp.write(line)
+                fp.write("\n")
+        fp.close()
 
-    # creating GIS Layer
-    #logfile.write("Creating a GIS Layer of the final route from the CSV file...")
-    arcpy.MakeXYEventLayer_management(path_csvs + filename1 + ".csv",
-                                      "longitude",
-                                      "latitude",
-                                      filename1 + "_Layer",
-                                      arcpy.SpatialReference("WGS 1984"),
-                                      "sequence")
+        # creating GIS Layer
+        #logfile.write("Creating a GIS Layer of the final route from the CSV file...")
+        arcpy.MakeXYEventLayer_management(path_csvs + filename1 + ".csv",
+                                          "longitude",
+                                          "latitude",
+                                          filename1 + "_Layer",
+                                          arcpy.SpatialReference("WGS 1984"),
+                                          "sequence")
 
-    # convert the points to shapefile
-    #logfile.write("Creating a shapefile of the final route...")
-    path_shapefile1 = "C:/Users/Joel/Documents/ArcGIS/ODPaths/" + city + "/" + commutingtype + "/non_interpolated_route_points_shapefiles/"
-    arcpy.FeatureClassToFeatureClass_conversion(filename1 + "_Layer",
-                                                path_shapefile1,
-                                                filename1)
-
-
-
-
-
-
-
-
-
+        # convert the points to shapefile
+        #logfile.write("Creating a shapefile of the final route...")
+        path_shapefile1 = "C:/Users/Joel/Documents/ArcGIS/ODPaths/" + city + "/" + route[1] + "/final_routes_shapefiles/"
+        arcpy.FeatureClassToFeatureClass_conversion(filename1 + "_Layer",
+                                                    path_shapefile1,
+                                                    filename1)
 
 
 
@@ -579,6 +651,9 @@ def connect():
         os.mkdir("C:/Users/Joel/Documents/ArcGIS/ODPaths", 0777)
 
         countCity = 0
+
+        #debug
+        municipals = ['Lisboa']
         for city in municipals:
 
             countUsers = 0
@@ -621,14 +696,18 @@ def connect():
             cur.execute(query2)
             conn.commit()
 
-
-            query3 = "SELECT * FROM public.OD" + city + "_users_characterization"
+            #debug
+            query3 = "SELECT * FROM public.OD" + city + "_users_characterization LIMIT 1"
             cur.execute(query3)
             fetched_users = cur.fetchall()
 
-            """
+
             #DIRECTIONS API
             for i in range(len(fetched_users)):
+                #debug
+                logfile.write("================== USER CHARACTERIZATION: ================== \n")
+                logfile.write("user_id: " + str(fetched_users[i][0]) + ", Total Amount of Talk: " + str(fetched_users[i][1]) + ", Average Calls Per Day: " + str(fetched_users[i][2]) + ", Call Every x Days (on Average): " + str(fetched_users[i][3]) + ", Active Days / Period of the Study (%): " + str(fetched_users[i][4]) + ", Nº Calls (Made/Received): " + str(fetched_users[i][5]) + ", Nº Active Days: " + str(fetched_users[i][6]) + ", Different Places Visited: " + str(fetched_users[i][7]) + ", Average Talk Per Day: " + str(fetched_users[i][8]) + ", Average Amount of Talk Per Call: " + str(fetched_users[i][9]) + ", home_id: " + str(fetched_users[i][10]) + ", home_latitude: " + str(fetched_users[i][11]) + ", home_longitude: " + str(fetched_users[i][12]) + ", workplace_id: " + str(fetched_users[i][13]) + ", work_latitude: " + str(fetched_users[i][14]) + ", work_longitude: " + str(fetched_users[i][15]) + ", Distance_H_W (kms): " + str(fetched_users[i][16]) + ", averagetraveltime_h_w: " + str(fetched_users[i][17]) + ", mintraveltime_h_w: " + str(fetched_users[i][18]) + ", date_h_w: " + str(fetched_users[i][19]) + ", startdate_h_w: " + str(fetched_users[i][20]) + ", finishdate_h_w: " + str(fetched_users[i][21]) + ", travelspeed_h_w: " + str(fetched_users[i][22]) + ", averagetraveltime_w_h: " + str(fetched_users[i][23]) + ", mintraveltime_w_h: " + str(fetched_users[i][24]) + ", date_w_h: " + str(fetched_users[i][25]) + ", startdate_w_h: " + str(fetched_users[i][26]) + ", finishdate_w_h: " + str(fetched_users[i][27]) + ", travelspeed_w_h: " + str(fetched_users[i][28]) + ", number_intermediatetowers_h_w: " + str(fetched_users[i][29]) + ", number_intermediatetowers_W_h: " + str(fetched_users[i][30]) + ", Number of Calls Made/Received During the Weekdays: " + str(fetched_users[i][31]) + ", Number of Calls Made/Received During the Non-Working Hours: " + str(fetched_users[i][32]) + ", Number of Calls Made/Received During the Working Hours: " + str(fetched_users[i][33]) + ", Number of Calls Made/Received During the Morning: " + str(fetched_users[i][34]) + ", Number of Calls Made/Received During the Evening: " + str(fetched_users[i][35]) + ", Number of Calls Made/Received at Home During the Morning: " + str(fetched_users[i][36]) + ", Number of Calls Made/Received in the Workplace During the Morning: " + str(fetched_users[i][37]) + ", Number of Calls Made/Received at Home During the Evening: " + str(fetched_users[i][38]) + ", Number of Calls Made/Received in the Workplace During the Evening: " + str(fetched_users[i][39]) + "\n\n")
+
 
                 userID = str(fetched_users[i][0])
                 home_location = (float(fetched_users[i][12]), float(fetched_users[i][13]))
@@ -647,10 +726,10 @@ def connect():
                 usersCounter += 1
             
                 logfile.write("\n==================== User number " + str(countUsers) + " of " + city + " was processed =====================\n")
-            """
+
             countCity += 1
 
-            #logfile.write("Calculating the exact pendular routes...")
+            #logfile.write("Calculating the exact pendular routes...\n")
             calculatingExactRoutes(city)
 
             query1 = "DROP TABLE IF EXISTS public.OD" + city + "_users_characterization"
@@ -661,11 +740,11 @@ def connect():
 
             logfile.write("\n==================== The city  of " + city + " was processed =====================\n")
 
-        logfile.write("A TOTAL OF " + str(countCity) + " cities were processed.")
-        logfile.write("A TOTAL OF " + str(routesCounter) + " routes were processed.")
-        logfile.write("A TOTAL OF " + str(usersCounter) + " users were processed.")
-        logfile.write("A TOTAL OF " + str(exceptions) + " exceptions were encountered")
-        logfile.write("A TOTAL OF " + str(countRequests) + " REQUESTS WERE MADE TO DIRECTIONS API, USING " + str(keyNumber-initialNumber+1) + " DIFFERENT API KEYS")
+        logfile.write("A TOTAL OF " + str(countCity) + " cities were processed.\n")
+        logfile.write("A TOTAL OF " + str(routesCounter) + " routes were processed.\n")
+        logfile.write("A TOTAL OF " + str(usersCounter) + " users were processed.\n")
+        logfile.write("A TOTAL OF " + str(exceptions) + " exceptions were encountered.\n")
+        logfile.write("A TOTAL OF " + str(countRequests) + " REQUESTS WERE MADE TO DIRECTIONS API, USING " + str(keyNumber-initialNumber+1) + " DIFFERENT API KEYS\n")
 
         elapsed_time = time.time() - start_time
         print("EXECUTION TIME: " + str(elapsed_time/60) + " MINUTES")
