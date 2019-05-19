@@ -290,26 +290,205 @@ def calculatingExactRoutes(city):
              "GROUP BY intermediatetowers_h_wid, tower, latitude, longitude)"
     cur.execute(query3)
     conn.commit()
-    print("ganda lol")
-    print(city)
 
-    return
-    query3 = "CREATE TEMPORARY TABLE distancesWeighted AS (" \
+
+    query4 = "CREATE TABLE public.frequencies_intermediateTowers_W_H_" + city + " AS ( " \
+             "SELECT intermediatetowers_w_hid, tower, latitude, longitude, count(*) AS frequencia " \
+             "FROM intermediateTowers_W_H_u " \
+             "INNER JOIN (SELECT user_id FROM public.OD" + city + "_users_characterization) y " \
+             "ON intermediatetowers_w_hid = user_id " \
+             "GROUP BY intermediatetowers_w_hid, tower, latitude, longitude)"
+    cur.execute(query4)
+    conn.commit()
+
+
+    query5 = "ALTER TABLE public.frequencies_intermediateTowers_H_W_" + city + " ADD COLUMN geom_point_dest GEOMETRY(Point, 4326)"
+    cur.execute(query5)
+    conn.commit()
+    query5 = "UPDATE public.frequencies_intermediateTowers_H_W_" + city + " SET geom_point_dest=st_SetSrid(st_MakePoint(longitude, latitude), 4326)"
+    cur.execute(query5)
+    conn.commit()
+
+
+    query6 = "ALTER TABLE public.frequencies_intermediateTowers_W_H_" + city + " ADD COLUMN geom_point_dest GEOMETRY(Point, 4326)"
+    cur.execute(query6)
+    conn.commit()
+    query6 = "UPDATE public.frequencies_intermediateTowers_W_H_" + city + " SET geom_point_dest=st_SetSrid(st_MakePoint(longitude, latitude), 4326)"
+    cur.execute(query6)
+    conn.commit()
+
+    query7 = "CREATE TABLE public.distancesWeighted_" + city + " AS (" \
              "SELECT f.*, cellID, frequencia, st_distance(ST_Transform(geom_point_orig, 3857),ST_Transform(geom_point_dest, 3857)) * CAST(1 AS FLOAT)/frequencia AS distanceWeighted " \
-             "FROM porto_possible_routes f " \
-             "INNER JOIN (SELECT id, cell_id AS cellID, frequencia, geom_point_dest FROM frequencies_intermediateTowers_H_W) g " \
-             "ON g.id = userid " \
+             "FROM public." + city + "_possible_routes f " \
+             "INNER JOIN (SELECT intermediatetowers_h_wid, tower AS cellID, frequencia, geom_point_dest FROM public.frequencies_intermediateTowers_H_W_" + city + ") g " \
+             "ON g.intermediatetowers_h_wid = userid " \
              "AND commutingtype = 'H_W' " \
              "" \
              "UNION ALL " \
              "" \
              "SELECT f.*, cellID, frequencia, st_distance(ST_Transform(geom_point_orig, 3857),ST_Transform(geom_point_dest, 3857)) * CAST(1 AS FLOAT)/frequencia AS distanceWeighted " \
-             "FROM porto_possible_routes f " \
-             "INNER JOIN (SELECT id, cell_id AS cellID, frequencia, geom_point_dest FROM frequencies_intermediateTowers_W_H) g " \
-             "ON g.id = userid " \
+             "FROM public." + city + "_possible_routes f " \
+             "INNER JOIN (SELECT intermediatetowers_w_hid, tower AS cellID, frequencia, geom_point_dest FROM public.frequencies_intermediateTowers_W_H_" + city + ") g " \
+             "ON g.intermediatetowers_w_hid = userid " \
              "AND commutingtype = 'W_H')"
-    print(query3)
-    cur.execute(query3)
+
+    cur.execute(query7)
+    conn.commit()
+
+    query8 = "CREATE TABLE public.distanceScores_" + city + " AS( " \
+             "SELECT userid, commutingtype, routenumber, avg(averageToIntermediateTowers) AS distanceScore, transportmodes, duration " \
+             "FROM( " \
+                 "SELECT userid, commutingtype, routenumber, duration, transportmodes, latitude, longitude,avg(distanceWeighted) AS averageToIntermediateTowers " \
+                 "FROM public.distancesWeighted_" + city + " " \
+                 "GROUP BY userid, commutingtype, routenumber, duration, transportmodes, latitude, longitude " \
+             ") h " \
+             "GROUP BY userID, commutingType, routenumber, transportmodes, duration " \
+             ")"
+
+    cur.execute(query8)
+    conn.commit()
+
+    query9 = "CREATE TABLE public.traveltimes_and_durations_" + city + " AS ( " \
+             "SELECT userID, commutingType, routenumber, transportmodes, duration, travelTime " \
+             "FROM public." + city + "_possible_routes f " \
+             "INNER JOIN (SELECT hwid, minTravelTime_H_W AS travelTime FROM new_traveltimes_h_w_u) g " \
+             "ON hwid = userid " \
+             "AND commutingtype = 'H_W' " \
+             "GROUP BY userID, commutingType, routenumber, transportmodes, duration,travelTime " \
+             "" \
+             "UNION ALL " \
+             "SELECT userID, commutingType, routenumber, transportmodes, duration,travelTime " \
+             "FROM public." + city + "_possible_routes f " \
+             "INNER JOIN (SELECT whid, minTravelTime_W_H AS travelTime FROM new_traveltimes_w_h_u) g " \
+             "ON whid = userid " \
+             "AND commutingtype = 'W_H' " \
+             "GROUP BY userID, commutingType, routenumber, transportmodes, duration, travelTime)"
+
+    cur.execute(query9)
+    conn.commit()
+
+
+    query10 = "CREATE TABLE public.durationsScores_" + city + " AS ( " \
+              "SELECT *, " \
+              "CASE " \
+              "WHEN (traveltime-duration) < 0 THEN traveltime-duration " \
+              "ELSE 0 " \
+              "END AS durationscore " \
+              "FROM public.traveltimes_and_durations_" + city + ")"
+
+    cur.execute(query10)
+    conn.commit()
+
+    query11 = "CREATE TABLE public.finalScores_" + city + " AS ( " \
+              "SELECT j.userid, j.commutingtype, j.routenumber, j.transportmodes, j.duration, (CAST(0.7 AS FLOAT)*distanceScore + CAST(0.3 AS FLOAT)*durationscore) AS finalscore " \
+              "FROM public.distanceScores_" + city + " j " \
+              "INNER JOIN public.durationsScores_" + city + " l " \
+              "ON     j.userID = l.userID " \
+              "AND    j.commutingType = l.commutingType " \
+              "AND    j.routenumber = l.routenumber " \
+              "AND    j.transportmodes = l.transportmodes " \
+              "AND    j.duration = l.duration) "
+
+    cur.execute(query11)
+    conn.commit()
+
+    query12 = "CREATE TABLE public.exactRoutes_" + city + " AS ( " \
+              "SELECT userid, commutingtype, routenumber, transportmodes, duration, finalscore AS score " \
+              "FROM public.finalScores_" + city + " " \
+              "WHERE (userid, commutingType, finalscore) IN ( " \
+                  "SELECT userid, commutingType, max(finalscore) " \
+                  "FROM public.finalScores_" + city + " " \
+                  "GROUP BY userID, commutingType))"
+
+    cur.execute(query12)
+    conn.commit()
+
+
+    query13 = "CREATE TABLE public.finalRoutes_" + city + " AS ( " \
+              "SELECT g.* " \
+              "FROM public." + city + "_possible_routes g, public.exactRoutes_" + city + " f " \
+              "WHERE f.userid = g.userid " \
+              "AND f.commutingtype = g.commutingtype " \
+              "AND f.routenumber = g.routenumber)"
+
+    cur.execute(query13)
+    conn.commit()
+
+
+    query11 = "DROP TABLE IF EXISTS public.frequencies_intermediateTowers_H_W_" + city
+    cur.execute(query11)
+    conn.commit()
+
+
+    query11 = "DROP TABLE IF EXISTS public.frequencies_intermediateTowers_W_H_" + city
+    cur.execute(query11)
+    conn.commit()
+
+    query11 = "DROP TABLE IF EXISTS public.distancesWeighted_" + city
+    cur.execute(query11)
+    conn.commit()
+
+    query11 = "DROP TABLE IF EXISTS public.distanceScores_" + city
+    cur.execute(query11)
+    conn.commit()
+
+    query11 = "DROP TABLE IF EXISTS public.traveltimes_and_durations_" + city
+    cur.execute(query11)
+    conn.commit()
+
+    query11 = "DROP TABLE IF EXISTS public.durationsScores_" + city
+    cur.execute(query11)
+    conn.commit()
+
+    query11 = "DROP TABLE IF EXISTS public.exactRoutes_" + city
+    cur.execute(query11)
+    conn.commit()
+
+    query11 = "DROP TABLE IF EXISTS public.finalScores_" + city
+    cur.execute(query11)
+    conn.commit()
+
+    print("ganda lol")
+    print(city)
+
+
+def renderFinalRoutes(city):
+
+    #logfile.write("Saving the final route points into csvs...")
+    query1 = "SELECT * FROM public." + city + "_possible_routes SET geom_point_orig=st_SetSrid(st_MakePoint(longitude, latitude), 4326)"
+
+    cur.execute(query1)
+    conn.commit()
+
+
+    filename1 = city + "_" + commutingtype + "_" + str(userID) + "_" + transport_modes + "_non_interpolated_route_points_" + str(mobilityUser['routeNumber'])
+    path_csvs = "C:\Users\Joel\Documents\ArcGIS\\" + city + "\\" + commutingtype + "\\non_interpolated_route_points_csvs\\"
+    with open(path_csvs + filename1 + ".csv", mode='w') as fp:
+        fp.write("latitude, longitude, sequence")
+        fp.write("\n")
+        sequence = 0
+        for point in mobilityUser['route']:
+            line = str(point[0]) + "," + str(point[1]) + "," + str(sequence)
+            fp.write(line)
+            fp.write("\n")
+            sequence += 1
+    fp.close()
+
+    # creating GIS Layer
+    #logfile.write("Creating a GIS Layer of the final route from the CSV file...")
+    arcpy.MakeXYEventLayer_management(path_csvs + filename1 + ".csv",
+                                      "longitude",
+                                      "latitude",
+                                      filename1 + "_Layer",
+                                      arcpy.SpatialReference("WGS 1984"),
+                                      "sequence")
+
+    # convert the points to shapefile
+    #logfile.write("Creating a shapefile of the final route...")
+    path_shapefile1 = "C:/Users/Joel/Documents/ArcGIS/ODPaths/" + city + "/" + commutingtype + "/non_interpolated_route_points_shapefiles/"
+    arcpy.FeatureClassToFeatureClass_conversion(filename1 + "_Layer",
+                                                path_shapefile1,
+                                                filename1)
 
 
 
@@ -319,10 +498,6 @@ def calculatingExactRoutes(city):
 
 
 
-
-
-
-    
 
 
 
@@ -416,11 +591,15 @@ def connect():
             os.mkdir("C:/Users/Joel/Documents/ArcGIS/ODPaths/" + city + "/H_W/non_interpolated_route_points_csvs", 0777)
             os.mkdir("C:/Users/Joel/Documents/ArcGIS/ODPaths/" + city + "/H_W/non_interpolated_route_points_shapefiles", 0777)
             os.mkdir("C:/Users/Joel/Documents/ArcGIS/ODPaths/" + city + "/H_W/route_lines_shapefiles", 0777)
+            os.mkdir("C:/Users/Joel/Documents/ArcGIS/ODPaths/" + city + "/H_W/final_routes_csvs", 0777)
+            os.mkdir("C:/Users/Joel/Documents/ArcGIS/ODPaths/" + city + "/H_W/final_routes_shapefiles", 0777)
             os.mkdir("C:/Users/Joel/Documents/ArcGIS/ODPaths/" + city + "/W_H", 0777)
             os.mkdir("C:/Users/Joel/Documents/ArcGIS/ODPaths/" + city + "/W_H/interpolated_route_points_shapefiles", 0777)
             os.mkdir("C:/Users/Joel/Documents/ArcGIS/ODPaths/" + city + "/W_H/non_interpolated_route_points_csvs", 0777)
             os.mkdir("C:/Users/Joel/Documents/ArcGIS/ODPaths/" + city + "/W_H/non_interpolated_route_points_shapefiles", 0777)
             os.mkdir("C:/Users/Joel/Documents/ArcGIS/ODPaths/" + city + "/W_H/route_lines_shapefiles", 0777)
+            os.mkdir("C:/Users/Joel/Documents/ArcGIS/ODPaths/" + city + "/W_H/final_routes_csvs", 0777)
+            os.mkdir("C:/Users/Joel/Documents/ArcGIS/ODPaths/" + city + "/W_H/final_routes_shapefiles", 0777)
 
             query11 = "DROP TABLE IF EXISTS public." + city + "_possible_routes"
             cur.execute(query11)
@@ -437,10 +616,12 @@ def connect():
             cur.execute(query1)
             conn.commit()
 
+
             query2 = "CREATE TABLE public.OD" + city + "_users_characterization AS (SELECT * FROM users_characterization_final WHERE user_id IN (SELECT id FROM eligibleUsers WHERE municipal = \'" + city + "\'))"
             cur.execute(query2)
             conn.commit()
-            print(query2)
+
+
             query3 = "SELECT * FROM public.OD" + city + "_users_characterization"
             cur.execute(query3)
             fetched_users = cur.fetchall()
@@ -469,11 +650,14 @@ def connect():
             """
             countCity += 1
 
+            #logfile.write("Calculating the exact pendular routes...")
             calculatingExactRoutes(city)
 
             query1 = "DROP TABLE IF EXISTS public.OD" + city + "_users_characterization"
             cur.execute(query1)
             conn.commit()
+
+            renderFinalRoutes(city)
 
             logfile.write("\n==================== The city  of " + city + " was processed =====================\n")
 
