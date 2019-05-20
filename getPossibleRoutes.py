@@ -80,7 +80,7 @@ def calculate_routes(origin, destination, city, userID, commutingtype):
 
     directionsAPIendpoint = 'https://maps.googleapis.com/maps/api/directions/json?'
 
-    travel_modes = [ "driving", "walking", "bicycling", "transit"]
+    travel_modes = [ "transit", "driving", "walking", "bicycling"]
 
     for mode in travel_modes:
         if (countRequests >= atualAPILimit or countRequests >= geralAPILIMIT):  #budget limit for each google account
@@ -96,6 +96,8 @@ def calculate_routes(origin, destination, city, userID, commutingtype):
         response = json.loads(urllib.urlopen(request).read())
         countRequests += 1
 
+        #debug
+        print("REQUEST: " + str(request))
 
         logfile.write("\n=== Analyzing routes using the " + mode + " travel mode ===\n")
         # pode nao ter resposta
@@ -117,7 +119,6 @@ def calculate_routes(origin, destination, city, userID, commutingtype):
                         conn.commit()
                         sequenceNumber += 1
 
-                    logfile.write("\nRoute number " + str(mobilityUser['routeNumber']) + " of user " + str(userID) + " in commuting " + commutingtype + " was processed\n")
                     mobilityUser['routeNumber'] += 1
                     routesCounter += 1
 
@@ -151,9 +152,6 @@ def analyzeLegs(mode, route, mobilityUser, multimode, origin, destination):
             if (previousMode != atualMode or (step['travel_mode']).lower() != mode) and multimode is False:
                 return {}
             else:
-
-                for j in polyline.decode(step['polyline']['points']):
-                    routePoints.append(tuple(j))
                 if('steps' in step.keys()):
                     for substep in step['steps']:
                         for j in polyline.decode(substep['polyline']['points']):
@@ -168,6 +166,9 @@ def analyzeLegs(mode, route, mobilityUser, multimode, origin, destination):
                             logfile.write("ATUAL TRAVEL: " + atualMode + "\n")
                             exceptions += 1
                             differentModes = differentModes + (modeTravel,)
+                else:
+                    for j in polyline.decode(step['polyline']['points']):
+                        routePoints.append(tuple(j))
 
             differentModes = differentModes + (previousMode,)
 
@@ -203,7 +204,7 @@ def interpolate(mobilityUser, city, userID, commutingtype):
     #logfile.write("Saving the Google Maps API points to CSV file...\n")
     transport_modes = ""
     for word in mobilityUser['transport_modes']:
-        transport_modes = transport_modes + word
+        transport_modes = transport_modes + "_" + word
 
     filename1 = city + "_" + commutingtype + "_" + str(userID) + "_" + transport_modes + "_non_interpolated_route_points_" + str(mobilityUser['routeNumber'])
     path_csvs = "C:\Users\Joel\Documents\ArcGIS\\ODPaths\\" + city + "\\" + commutingtype + "\\non_interpolated_route_points_csvs\\"
@@ -380,7 +381,7 @@ def calculatingExactRoutes(city):
     conn.commit()
 
     query11 = "CREATE TABLE public.finalScores_" + city + " AS ( " \
-              "SELECT j.userid, j.commutingtype, j.routenumber, j.transportmodes, j.duration, ((CAST(0.7 AS FLOAT)*distanceScore)/durationscore) AS finalscore " \
+              "SELECT j.userid, j.commutingtype, j.routenumber, j.transportmodes, j.duration, (distanceScore*durationscore) AS finalscore " \
               "FROM public.distanceScores_" + city + " j " \
               "INNER JOIN public.durationsScores_" + city + " l " \
               "ON     j.userID = l.userID " \
@@ -396,7 +397,7 @@ def calculatingExactRoutes(city):
               "SELECT userid, commutingtype, routenumber, transportmodes, duration, finalscore AS score " \
               "FROM public.finalScores_" + city + " " \
               "WHERE (userid, commutingType, finalscore) IN ( " \
-                  "SELECT userid, commutingType, max(finalscore) " \
+                  "SELECT userid, commutingType, min(finalscore) " \
                   "FROM public.finalScores_" + city + " " \
                   "GROUP BY userID, commutingType))"
 
@@ -413,81 +414,6 @@ def calculatingExactRoutes(city):
 
     cur.execute(query13)
     conn.commit()
-
-    """
-    #debug
-    logfile.write("\n================= POSSIBLE ROUTES: =================\n")
-    query1 = "SELECT * FROM public." + city + "_possible_routes WHERE userid = 23646673"
-    cur.execute(query1)
-    fetched = cur.fetchall()
-    for i in fetched:
-        logfile.write(str(i) + "\n")
-
-    #debug
-    logfile.write("\n================= frequencies_intermediateTowers_H_W: =================\n")
-    query1 = "SELECT * FROM public.frequencies_intermediateTowers_H_W_" + city + " WHERE intermediatetowers_h_wid = 23646673"
-    cur.execute(query1)
-    fetched = cur.fetchall()
-    for i in fetched:
-        logfile.write(str(i) + "\n")
-
-    #debug
-    logfile.write("\n================= frequencies_intermediateTowers_W_H: ==================\n")
-    query1 = "SELECT * FROM public.frequencies_intermediateTowers_W_H_" + city + " WHERE intermediatetowers_w_hid = 23646673"
-    cur.execute(query1)
-    fetched = cur.fetchall()
-    for i in fetched:
-        logfile.write(str(i) + "\n")
-
-    # debug
-    logfile.write("\n================= distancesWeighted_: ==================\n")
-    query1 = "SELECT * FROM public.distancesWeighted_" + city + " WHERE userid = 23646673"
-    cur.execute(query1)
-    fetched = cur.fetchall()
-    for i in fetched:
-        logfile.write(str(i) + "\n")
-
-    # debug
-    logfile.write("\n================= distanceScores_: ==================\n")
-    query1 = "SELECT * FROM public.distanceScores_" + city + " WHERE userid = 23646673"
-    cur.execute(query1)
-    fetched = cur.fetchall()
-    for i in fetched:
-        logfile.write(str(i) + "\n")
-
-    # debug
-    logfile.write("\n================= traveltimes_and_durations_: ==================\n")
-    query1 = "SELECT * FROM public.traveltimes_and_durations_" + city + " WHERE userid = 23646673"
-    cur.execute(query1)
-    fetched = cur.fetchall()
-    for i in fetched:
-        logfile.write(str(i) + "\n")
-
-    # debug
-    logfile.write("\n================= durationsScores_: ==================\n")
-    query1 = "SELECT * FROM public.durationsScores_" + city + " WHERE userid = 23646673"
-    cur.execute(query1)
-    fetched = cur.fetchall()
-    for i in fetched:
-        logfile.write(str(i) + "\n")
-    """
-    # debug
-    logfile.write("\n================= exactRoutes_: ==================\n")
-    query1 = "SELECT * FROM public.exactRoutes_" + city + " WHERE userid = 23646673"
-    cur.execute(query1)
-    fetched = cur.fetchall()
-    for i in fetched:
-        logfile.write(str(i) + "\n")
-
-    # debug
-    logfile.write("\n================= finalScores_: ==================\n")
-    query1 = "SELECT * FROM public.finalScores_" + city + " WHERE userid = 23646673"
-    cur.execute(query1)
-    fetched = cur.fetchall()
-    for i in fetched:
-        logfile.write(str(i) + "\n")
-
-
 
     query11 = "DROP TABLE IF EXISTS public.frequencies_intermediateTowers_H_W_" + city
     cur.execute(query11)
@@ -689,7 +615,7 @@ def connect():
         countCity = 0
 
         #debug
-        municipals = ['Lisboa']
+        municipals = ['Porto']
         for city in municipals:
             # debug
             debug(city)
@@ -737,17 +663,12 @@ def connect():
             conn.commit()
 
             #debug
-            query3 = "SELECT * FROM public.OD" + city + "_users_characterization LIMIT 3 ORDER BY number_intermediatetowers_w_h DESC"
+            query3 = "SELECT * FROM public.OD" + city + "_users_characterization LIMIT 1500"
             cur.execute(query3)
             fetched_users = cur.fetchall()
 
-
             #DIRECTIONS API
             for i in range(len(fetched_users)):
-                #debug
-                logfile.write("================== USER CHARACTERIZATION: ================== \n")
-                logfile.write("user_id: " + str(fetched_users[i][0]) + ", Total Amount of Talk: " + str(fetched_users[i][1]) + ", Average Calls Per Day: " + str(fetched_users[i][2]) + ", Call Every x Days (on Average): " + str(fetched_users[i][3]) + ", Active Days / Period of the Study (%): " + str(fetched_users[i][4]) + ", Nº Calls (Made/Received): " + str(fetched_users[i][5]) + ", Nº Active Days: " + str(fetched_users[i][6]) + ", Different Places Visited: " + str(fetched_users[i][7]) + ", Average Talk Per Day: " + str(fetched_users[i][8]) + ", Average Amount of Talk Per Call: " + str(fetched_users[i][9]) + ", home_id: " + str(fetched_users[i][10]) + ", home_latitude: " + str(fetched_users[i][11]) + ", home_longitude: " + str(fetched_users[i][12]) + ", workplace_id: " + str(fetched_users[i][13]) + ", work_latitude: " + str(fetched_users[i][14]) + ", work_longitude: " + str(fetched_users[i][15]) + ", Distance_H_W (kms): " + str(fetched_users[i][16]) + ", averagetraveltime_h_w: " + str(fetched_users[i][17]) + ", mintraveltime_h_w: " + str(fetched_users[i][18]) + ", date_h_w: " + str(fetched_users[i][19]) + ", startdate_h_w: " + str(fetched_users[i][20]) + ", finishdate_h_w: " + str(fetched_users[i][21]) + ", travelspeed_h_w: " + str(fetched_users[i][22]) + ", averagetraveltime_w_h: " + str(fetched_users[i][23]) + ", mintraveltime_w_h: " + str(fetched_users[i][24]) + ", date_w_h: " + str(fetched_users[i][25]) + ", startdate_w_h: " + str(fetched_users[i][26]) + ", finishdate_w_h: " + str(fetched_users[i][27]) + ", travelspeed_w_h: " + str(fetched_users[i][28]) + ", number_intermediatetowers_h_w: " + str(fetched_users[i][29]) + ", number_intermediatetowers_W_h: " + str(fetched_users[i][30]) + ", Number of Calls Made/Received During the Weekdays: " + str(fetched_users[i][31]) + ", Number of Calls Made/Received During the Non-Working Hours: " + str(fetched_users[i][32]) + ", Number of Calls Made/Received During the Working Hours: " + str(fetched_users[i][33]) + ", Number of Calls Made/Received During the Morning: " + str(fetched_users[i][34]) + ", Number of Calls Made/Received During the Evening: " + str(fetched_users[i][35]) + ", Number of Calls Made/Received at Home During the Morning: " + str(fetched_users[i][36]) + ", Number of Calls Made/Received in the Workplace During the Morning: " + str(fetched_users[i][37]) + ", Number of Calls Made/Received at Home During the Evening: " + str(fetched_users[i][38]) + ", Number of Calls Made/Received in the Workplace During the Evening: " + str(fetched_users[i][39]) + "\n\n")
-
 
                 userID = str(fetched_users[i][0])
                 home_location = (float(fetched_users[i][11]), float(fetched_users[i][12]))
@@ -767,7 +688,10 @@ def connect():
                 countUsers += 1
                 usersCounter += 1
 
-                logfile.write("\n==================== User " + str(userID) + " of " + city + " was processed =====================\n")
+                logfile.write("\n==================== User " + str(usersCounter) + "/88474 (id: " + str(userID) + ") of " + city + " was processed =====================\n")
+
+                elapsed_time = time.time() - start_time
+                logfile.write("\n\n ============== EXECUTION TIME: " + str(elapsed_time / 60) + " MINUTES ============== \n")
 
             countCity += 1
 
@@ -775,15 +699,12 @@ def connect():
             #logfile.write("Calculating the exact pendular routes...\n")
             calculatingExactRoutes(city)
 
-            query1 = "DROP TABLE IF EXISTS public.OD" + city + "_users_characterization"
-            cur.execute(query1)
-            conn.commit()
-
             print("[CALCULATING FINAL ROUTES]")
             renderFinalRoutes(city)
 
             print("[CITY OF " + str(city) + " PROCESSED]")
-            logfile.write("\n==================== The city  of " + city + " was processed =====================\n")
+            logfile.write("\n==================== The city " + str(countCity) + "/274 (name:" + city + ") was processed =====================\n")
+
 
         logfile.write("A TOTAL OF " + str(countCity) + " cities were processed.\n")
         logfile.write("A TOTAL OF " + str(routesCounter) + " routes were processed.\n")
@@ -792,7 +713,7 @@ def connect():
         logfile.write("A TOTAL OF " + str(countRequests) + " REQUESTS WERE MADE TO DIRECTIONS API, USING " + str(keyNumber-initialNumber+1) + " DIFFERENT API KEYS\n")
 
         elapsed_time = time.time() - start_time
-        print("EXECUTION TIME: " + str(elapsed_time/60) + " MINUTES")
+        logfile.write("===== FINAL EXECUTION TIME: " + str(elapsed_time/60) + " MINUTES =====")
 
 
         # close the communication with the PostgreSQL
