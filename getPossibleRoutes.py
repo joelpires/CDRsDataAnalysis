@@ -79,47 +79,45 @@ def calculate_routes(origin, destination, city, userID, commutingtype):
     chosenkey = apiKeys[initialNumber]
 
     directionsAPIendpoint = 'https://maps.googleapis.com/maps/api/directions/json?'
-    #debug
-    travel_modes = [ "DRIVING", "MULTIMODE", "WALKING"]#, "BICYCLING", "TRANSIT"]
+
+    travel_modes = [ "driving", "walking", "bicycling", "transit"]
 
     for mode in travel_modes:
         if (countRequests >= atualAPILimit or countRequests >= geralAPILIMIT):  #budget limit for each google account
             keyNumber += 1
             chosenkey = apiKeys[keyNumber]
 
-        if (mode == "MULTIMODE"):
-            request = directionsAPIendpoint + 'origin={}&destination={}&alternatives=true&key={}'.format(str(origin)[1:-1].replace(" ", ""), str(destination)[1:-1].replace(" ", ""),chosenkey)
+        if (mode == "transit"):
             multimode = True
         else:
-            request = directionsAPIendpoint + 'origin={}&destination={}&mode={}&alternatives=true&key={}'.format(str(origin)[1:-1].replace(" ", ""), str(destination)[1:-1].replace(" ", ""), mode, chosenkey)
             multimode = False
 
-        #debug
-
-
+        request = directionsAPIendpoint + 'origin={}&destination={}&mode={}&alternatives=true&key={}'.format(str(origin)[1:-1].replace(" ", ""), str(destination)[1:-1].replace(" ", ""), mode, chosenkey)
         response = json.loads(urllib.urlopen(request).read())
         countRequests += 1
 
 
         logfile.write("\n=== Analyzing routes using the " + mode + " travel mode ===\n")
-        logfile.write("REQUEST: " + str(request) + "\n")
         # pode nao ter resposta
 
         if response['status'] == 'OK':
             mobilityUser = {}
             mobilityUser['routeNumber'] = 0
             for route in response['routes']:
+
                 mobilityUser = analyzeLegs(mode, route, mobilityUser, multimode, origin, destination)
                 if 'route' in mobilityUser.keys():
+
                     mobilityUser['route'] = interpolate(mobilityUser, city, userID, commutingtype)
                     sequenceNumber = 0
                     for point in mobilityUser['route']:
+
                         query = "INSERT INTO public." + city + "_possible_routes (userID, commutingtype, routeNumber, duration, transportModes, latitude, longitude, sequenceNumber) VALUES (" + str(userID) + ", \'" + commutingtype + "\'," + str(mobilityUser['routeNumber']) + "," + str(mobilityUser['duration']) + ", ROW" + str(mobilityUser['transport_modes']) + "," + str(point[0]) + "," + str(point[1]) + "," + str(sequenceNumber) + ")"
                         cur.execute(query)
                         conn.commit()
                         sequenceNumber += 1
 
-                    logfile.write("\n=== Route number " + str(mobilityUser['routeNumber']) + " of user " + str(userID) + " in commuting " + commutingtype + " was processed ===\n")
+                    logfile.write("\nRoute number " + str(mobilityUser['routeNumber']) + " of user " + str(userID) + " in commuting " + commutingtype + " was processed\n")
                     mobilityUser['routeNumber'] += 1
                     routesCounter += 1
 
@@ -139,7 +137,6 @@ def analyzeLegs(mode, route, mobilityUser, multimode, origin, destination):
 
         previousMode = str(route['legs'][0]['steps'][0]['travel_mode']).encode("UTF-8")
 
-
         if previousMode == "TRANSIT":
             previousMode = str(route['legs'][0]['steps'][0]['transit_details']['line']['vehicle']['type']).encode("UTF-8")
 
@@ -151,7 +148,7 @@ def analyzeLegs(mode, route, mobilityUser, multimode, origin, destination):
                 atualMode = str(step['transit_details']['line']['vehicle']['type']).encode("UTF-8")
 
 
-            if (previousMode != atualMode or step['travel_mode'] != mode) and multimode is False:
+            if (previousMode != atualMode or (step['travel_mode']).lower() != mode) and multimode is False:
                 return {}
             else:
 
@@ -163,6 +160,9 @@ def analyzeLegs(mode, route, mobilityUser, multimode, origin, destination):
                             routePoints.append(tuple(j))
 
                         modeTravel = str(substep['travel_mode']).encode("UTF-8")
+                        if modeTravel == "TRANSIT":
+                            modeTravel = str(substep['transit_details']['line']['vehicle']['type']).encode("UTF-8")
+
                         if modeTravel != atualMode:
                             logfile.write("MODE TRAVEL: " + modeTravel + "\n")
                             logfile.write("ATUAL TRAVEL: " + atualMode + "\n")
@@ -177,7 +177,7 @@ def analyzeLegs(mode, route, mobilityUser, multimode, origin, destination):
 
         routePoints.append(destination)
 
-        if (multimode is True and differentModes[1:] != differentModes[:-1]):
+        if (multimode is True):
             mobilityUser['transport_modes'] = tuple(set(differentModes))
             while(len(mobilityUser['transport_modes']) != 4):
                 mobilityUser['transport_modes'] = mobilityUser['transport_modes'] + ("",)
@@ -254,14 +254,12 @@ def interpolate(mobilityUser, city, userID, commutingtype):
                                               Include_End_Points='END_POINTS')
 
     # convert the shapefile to layer
-    print("Converting the shapefile to a layer...")
-    logfile.write("Converting the shapefile to a layer...\n")
+    #logfile.write("Converting the shapefile to a layer...\n")
     layer = arcpy.MakeFeatureLayer_management(path_shapefile3 + filename3 + ".shp",
                                               filename3)
 
     # convert layer to points
-    print("Obtaining the interpolated points from the layer...\n")
-    logfile.write("Obtaining the interpolated points from the layer...\n")
+    #logfile.write("Obtaining the interpolated points from the layer...\n")
     fld_list = arcpy.ListFields(layer)
     fld_names = [fld.name for fld in fld_list]
     cursor = arcpy.da.SearchCursor(layer, fld_names)
@@ -373,8 +371,8 @@ def calculatingExactRoutes(city):
     query10 = "CREATE TABLE public.durationsScores_" + city + " AS ( " \
               "SELECT *, " \
               "CASE " \
-              "WHEN (traveltime-duration) < 0 THEN traveltime-duration " \
-              "ELSE 0 " \
+              "WHEN (traveltime-duration) < 0 THEN abs(traveltime-duration) " \
+              "ELSE 1 " \
               "END AS durationscore " \
               "FROM public.traveltimes_and_durations_" + city + ")"
 
@@ -382,7 +380,7 @@ def calculatingExactRoutes(city):
     conn.commit()
 
     query11 = "CREATE TABLE public.finalScores_" + city + " AS ( " \
-              "SELECT j.userid, j.commutingtype, j.routenumber, j.transportmodes, j.duration, (CAST(0.7 AS FLOAT)*distanceScore + CAST(0.3 AS FLOAT)*durationscore) AS finalscore " \
+              "SELECT j.userid, j.commutingtype, j.routenumber, j.transportmodes, j.duration, ((CAST(0.7 AS FLOAT)*distanceScore)/durationscore) AS finalscore " \
               "FROM public.distanceScores_" + city + " j " \
               "INNER JOIN public.durationsScores_" + city + " l " \
               "ON     j.userID = l.userID " \
@@ -416,7 +414,7 @@ def calculatingExactRoutes(city):
     cur.execute(query13)
     conn.commit()
 
-
+    """
     #debug
     logfile.write("\n================= POSSIBLE ROUTES: =================\n")
     query1 = "SELECT * FROM public." + city + "_possible_routes WHERE userid = 23646673"
@@ -472,7 +470,7 @@ def calculatingExactRoutes(city):
     fetched = cur.fetchall()
     for i in fetched:
         logfile.write(str(i) + "\n")
-
+    """
     # debug
     logfile.write("\n================= exactRoutes_: ==================\n")
     query1 = "SELECT * FROM public.exactRoutes_" + city + " WHERE userid = 23646673"
@@ -520,31 +518,32 @@ def calculatingExactRoutes(city):
     cur.execute(query11)
     conn.commit()
 
-    query11 = "DROP TABLE IF EXISTS public.finalScores_" + city
-    cur.execute(query11)
-    conn.commit()
-
 
 
 def renderFinalRoutes(city):
 
     #logfile.write("Saving the final route points into csvs...")
 
-    query1 = "SELECT DISTINCT (userID, commutingType) FROM public.finalRoutes_" + city
+    query1 = "SELECT DISTINCT ON(userID, commutingType) * FROM public.finalRoutes_" + city
 
     cur.execute(query1)
     differentRoutes = cur.fetchall()
 
-
-    for route in differentRoutes:
-
-        query2 = "SELECT * FROM public.finalRoutes_" + city + "WHERE userID = " + str(differentRoutes[0]) + " AND commutingType = " + str(differentRoutes[1]) + " ORDER BY sequencenumber ASC"
+    for route, value in enumerate(differentRoutes):
+        query2 = "SELECT * FROM public.finalRoutes_" + city + " WHERE userID = " + str(differentRoutes[route][0]) + " AND commutingType = \'" + str(differentRoutes[route][1]) + "\' ORDER BY sequencenumber ASC"
 
         cur.execute(query2)
         fetched = cur.fetchall()
 
-        filename1 = city + "_" + str(route[1]) + "_" + str(route[0]) + "_" + str(route[4]) + "_final_routes_points_" + str(route[2])
-        path_csvs = "C:\Users\Joel\Documents\ArcGIS\\ODPaths\\" + city + "\\" + str(route[1]) + "\\final_routes_csvs\\"
+        transport_modes = (differentRoutes[route][4]).replace(",\"", "")
+        transport_modes = (differentRoutes[route][4]).replace("\"", "")
+        transport_modes = transport_modes.replace("(", "")
+        transport_modes = transport_modes.replace(")", "")
+        transport_modes = transport_modes.replace(",", "_")
+
+        filename1 = city + "_" + str(differentRoutes[route][1]) + "_" + str(differentRoutes[route][0]) + "_" + transport_modes + "_final_routes_points_" + str(differentRoutes[route][2])
+        path_csvs = "C:\Users\Joel\Documents\ArcGIS\\ODPaths\\" + city + "\\" + str(differentRoutes[route][1]) + "\\final_routes_csvs\\"
+
         with open(path_csvs + filename1 + ".csv", mode='w') as fp:
             fp.write("latitude, longitude, sequence")
             fp.write("\n")
@@ -565,7 +564,7 @@ def renderFinalRoutes(city):
 
         # convert the points to shapefile
         #logfile.write("Creating a shapefile of the final route...")
-        path_shapefile1 = "C:/Users/Joel/Documents/ArcGIS/ODPaths/" + city + "/" + route[1] + "/final_routes_shapefiles/"
+        path_shapefile1 = "C:/Users/Joel/Documents/ArcGIS/ODPaths/" + city + "/" + differentRoutes[route][1] + "/final_routes_shapefiles/"
         arcpy.FeatureClassToFeatureClass_conversion(filename1 + "_Layer",
                                                     path_shapefile1,
                                                     filename1)
@@ -576,37 +575,38 @@ def debug(city):
     cur.execute(query11)
     conn.commit()
 
-    query11 = "DROP TABLE IF EXISTS public." + city + "_possible_routes"
+    query11 = "DROP TABLE IF EXISTS public.finalscores_" + city
     cur.execute(query11)
     conn.commit()
 
-    query11 = "DROP TABLE IF EXISTS public." + city + "_possible_routes"
+    query11 = "DROP TABLE IF EXISTS public.exactroutes_" + city
     cur.execute(query11)
     conn.commit()
 
-    query11 = "DROP TABLE IF EXISTS public." + city + "_possible_routes"
+    query11 = "DROP TABLE IF EXISTS public.frequencies_intermediatetowers_h_w_" + city
     cur.execute(query11)
     conn.commit()
 
-    query11 = "DROP TABLE IF EXISTS public." + city + "_possible_routes"
+    query11 = "DROP TABLE IF EXISTS public.frequencies_intermediatetowers_w_h_" + city
     cur.execute(query11)
     conn.commit()
 
-    query11 = "DROP TABLE IF EXISTS public." + city + "_possible_routes"
+    query11 = "DROP TABLE IF EXISTS public.distancesweighted_" + city
     cur.execute(query11)
     conn.commit()
 
-    query11 = "DROP TABLE IF EXISTS public." + city + "_possible_routes"
+    query11 = "DROP TABLE IF EXISTS public.distancescores_" + city
     cur.execute(query11)
     conn.commit()
 
-    query11 = "DROP TABLE IF EXISTS public." + city + "_possible_routes"
+    query11 = "DROP TABLE IF EXISTS public.traveltimes_and_durations_" + city
     cur.execute(query11)
     conn.commit()
 
-    query11 = "DROP TABLE IF EXISTS public." + city + "_possible_routes"
+    query11 = "DROP TABLE IF EXISTS public.durationsscores_" + city
     cur.execute(query11)
     conn.commit()
+
 
 
 """ Connect to the PostgreSQL database server """
@@ -631,8 +631,6 @@ def connect():
 
         # create a cursor
         cur = conn.cursor()
-
-
 
         query = "SELECT * FROM public.eligibleUsers_byMunicipal"
         cur.execute(query)
@@ -687,7 +685,7 @@ def connect():
             shutil.rmtree('C:/Users/Joel/Documents/ArcGIS/ODPaths')
 
         os.mkdir("C:/Users/Joel/Documents/ArcGIS/ODPaths", 0777)
-
+        print("[DIRECTORIES ERASED]")
         countCity = 0
 
         #debug
@@ -716,6 +714,8 @@ def connect():
             os.mkdir("C:/Users/Joel/Documents/ArcGIS/ODPaths/" + city + "/W_H/final_routes_csvs", 0777)
             os.mkdir("C:/Users/Joel/Documents/ArcGIS/ODPaths/" + city + "/W_H/final_routes_shapefiles", 0777)
 
+            print("[DIRECTORIES CREATED]")
+
             query11 = "DROP TABLE IF EXISTS public." + city + "_possible_routes"
             cur.execute(query11)
             conn.commit()
@@ -737,7 +737,7 @@ def connect():
             conn.commit()
 
             #debug
-            query3 = "SELECT * FROM public.OD" + city + "_users_characterization LIMIT 1"
+            query3 = "SELECT * FROM public.OD" + city + "_users_characterization LIMIT 3 ORDER BY number_intermediatetowers_w_h DESC"
             cur.execute(query3)
             fetched_users = cur.fetchall()
 
@@ -755,20 +755,23 @@ def connect():
                 min_traveltime_h_w = str(fetched_users[i][18])
                 min_traveltime_w_h = str(fetched_users[i][24])
 
-             
+
                 if (min_traveltime_h_w != "None"):
+                    print("[CALCULATING POSSIBLE ROUTES HOME TO WORKPLACE OF USER " + str(userID) + "]")
                     calculate_routes(home_location, work_location, city, userID, "H_W")
 
                 if (min_traveltime_w_h != "None"):
+                    print("[CALCULATING POSSIBLE ROUTES WORKPLACE TO HOME OF USER " + str(userID) + "]")
                     calculate_routes(work_location, home_location, city, userID, "W_H")
 
                 countUsers += 1
                 usersCounter += 1
-            
-                logfile.write("\n==================== User number " + str(countUsers) + " of " + city + " was processed =====================\n")
+
+                logfile.write("\n==================== User " + str(userID) + " of " + city + " was processed =====================\n")
 
             countCity += 1
 
+            print("[CALCULATING EXACT ROUTES]")
             #logfile.write("Calculating the exact pendular routes...\n")
             calculatingExactRoutes(city)
 
@@ -776,8 +779,10 @@ def connect():
             cur.execute(query1)
             conn.commit()
 
+            print("[CALCULATING FINAL ROUTES]")
             renderFinalRoutes(city)
 
+            print("[CITY OF " + str(city) + " PROCESSED]")
             logfile.write("\n==================== The city  of " + city + " was processed =====================\n")
 
         logfile.write("A TOTAL OF " + str(countCity) + " cities were processed.\n")
