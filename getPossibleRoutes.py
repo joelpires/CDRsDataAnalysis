@@ -87,7 +87,6 @@ def calculate_routes(origin, destination, city, userID, commutingtype):
             keyNumber += 1
             chosenkey = apiKeys[keyNumber]
 
-
         if (mode == "MULTIMODE"):
             request = directionsAPIendpoint + 'origin={}&destination={}&alternatives=true&key={}'.format(str(origin)[1:-1].replace(" ", ""), str(destination)[1:-1].replace(" ", ""),chosenkey)
             multimode = True
@@ -96,20 +95,20 @@ def calculate_routes(origin, destination, city, userID, commutingtype):
             multimode = False
 
         #debug
-        logfile.write("REQUEST: " + str(request) + "\n")
+
 
         response = json.loads(urllib.urlopen(request).read())
         countRequests += 1
 
 
         logfile.write("\n=== Analyzing routes using the " + mode + " travel mode ===\n")
-
+        logfile.write("REQUEST: " + str(request) + "\n")
         # pode nao ter resposta
 
         if response['status'] == 'OK':
+            mobilityUser = {}
+            mobilityUser['routeNumber'] = 0
             for route in response['routes']:
-                mobilityUser = {}
-                mobilityUser['routeNumber'] = 0
                 mobilityUser = analyzeLegs(mode, route, mobilityUser, multimode, origin, destination)
                 if 'route' in mobilityUser.keys():
                     mobilityUser['route'] = interpolate(mobilityUser, city, userID, commutingtype)
@@ -428,7 +427,7 @@ def calculatingExactRoutes(city):
 
     #debug
     logfile.write("\n================= frequencies_intermediateTowers_H_W: =================\n")
-    query1 = "SELECT * FROM public.frequencies_intermediateTowers_H_W_" + city + " WHERE userid = 23646673"
+    query1 = "SELECT * FROM public.frequencies_intermediateTowers_H_W_" + city + " WHERE intermediatetowers_h_wid = 23646673"
     cur.execute(query1)
     fetched = cur.fetchall()
     for i in fetched:
@@ -436,7 +435,7 @@ def calculatingExactRoutes(city):
 
     #debug
     logfile.write("\n================= frequencies_intermediateTowers_W_H: ==================\n")
-    query1 = "SELECT * FROM public.frequencies_intermediateTowers_W_H_" + city + " WHERE userid = 23646673"
+    query1 = "SELECT * FROM public.frequencies_intermediateTowers_W_H_" + city + " WHERE intermediatetowers_w_hid = 23646673"
     cur.execute(query1)
     fetched = cur.fetchall()
     for i in fetched:
@@ -539,13 +538,13 @@ def renderFinalRoutes(city):
 
     for route in differentRoutes:
 
-        query2 = "SELECT * FROM public.finalRoutes_" + city + "WHERE userID = " + differentRoutes[0] + " AND commutingType = " + differentRoutes[1] + " ORDER BY sequencenumber ASC"
+        query2 = "SELECT * FROM public.finalRoutes_" + city + "WHERE userID = " + str(differentRoutes[0]) + " AND commutingType = " + str(differentRoutes[1]) + " ORDER BY sequencenumber ASC"
 
         cur.execute(query2)
         fetched = cur.fetchall()
 
-        filename1 = city + "_" + route[1] + "_" + str(route[0]) + "_" + route[4] + "_final_routes_points_" + route[2]
-        path_csvs = "C:\Users\Joel\Documents\ArcGIS\\ODPaths\\" + city + "\\" + route[1] + "\\final_routes_csvs\\"
+        filename1 = city + "_" + str(route[1]) + "_" + str(route[0]) + "_" + str(route[4]) + "_final_routes_points_" + str(route[2])
+        path_csvs = "C:\Users\Joel\Documents\ArcGIS\\ODPaths\\" + city + "\\" + str(route[1]) + "\\final_routes_csvs\\"
         with open(path_csvs + filename1 + ".csv", mode='w') as fp:
             fp.write("latitude, longitude, sequence")
             fp.write("\n")
@@ -572,6 +571,43 @@ def renderFinalRoutes(city):
                                                     filename1)
 
 
+def debug(city):
+    query11 = "DROP TABLE IF EXISTS public.finalRoutes_" + city
+    cur.execute(query11)
+    conn.commit()
+
+    query11 = "DROP TABLE IF EXISTS public." + city + "_possible_routes"
+    cur.execute(query11)
+    conn.commit()
+
+    query11 = "DROP TABLE IF EXISTS public." + city + "_possible_routes"
+    cur.execute(query11)
+    conn.commit()
+
+    query11 = "DROP TABLE IF EXISTS public." + city + "_possible_routes"
+    cur.execute(query11)
+    conn.commit()
+
+    query11 = "DROP TABLE IF EXISTS public." + city + "_possible_routes"
+    cur.execute(query11)
+    conn.commit()
+
+    query11 = "DROP TABLE IF EXISTS public." + city + "_possible_routes"
+    cur.execute(query11)
+    conn.commit()
+
+    query11 = "DROP TABLE IF EXISTS public." + city + "_possible_routes"
+    cur.execute(query11)
+    conn.commit()
+
+    query11 = "DROP TABLE IF EXISTS public." + city + "_possible_routes"
+    cur.execute(query11)
+    conn.commit()
+
+    query11 = "DROP TABLE IF EXISTS public." + city + "_possible_routes"
+    cur.execute(query11)
+    conn.commit()
+
 
 """ Connect to the PostgreSQL database server """
 def connect():
@@ -595,6 +631,8 @@ def connect():
 
         # create a cursor
         cur = conn.cursor()
+
+
 
         query = "SELECT * FROM public.eligibleUsers_byMunicipal"
         cur.execute(query)
@@ -655,6 +693,8 @@ def connect():
         #debug
         municipals = ['Lisboa']
         for city in municipals:
+            # debug
+            debug(city)
 
             countUsers = 0
             city = city.replace(" ", "_")
@@ -710,10 +750,10 @@ def connect():
 
 
                 userID = str(fetched_users[i][0])
-                home_location = (float(fetched_users[i][12]), float(fetched_users[i][13]))
-                work_location = (float(fetched_users[i][15]), float(fetched_users[i][16]))
-                min_traveltime_h_w = str(fetched_users[i][19])
-                min_traveltime_w_h = str(fetched_users[i][25])
+                home_location = (float(fetched_users[i][11]), float(fetched_users[i][12]))
+                work_location = (float(fetched_users[i][14]), float(fetched_users[i][15]))
+                min_traveltime_h_w = str(fetched_users[i][18])
+                min_traveltime_w_h = str(fetched_users[i][24])
 
              
                 if (min_traveltime_h_w != "None"):
