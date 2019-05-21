@@ -355,7 +355,7 @@ def calculatingExactRoutes(city):
     cur.execute(query)
     conn.commit()
 
-    query = "INSERT INTO public.finalroutes_" + city + " (userID, commutingType, routeNumber, duration, transportModes, latitude, longitude, sequenceNumber) " \
+    query = "INSERT INTO public.finalroutes_" + city + " (userID, commutingType, routeNumber, duration, transportModes, latitude, longitude, sequenceNumber, geom_point_orig) " \
             "(SELECT g.* " \
             "FROM public." + city + "_possible_routes g, public.exactRoutes_" + city + " f " \
             "WHERE f.userid = g.userid " \
@@ -565,7 +565,7 @@ def archivesCity(city):
     cur.execute(query12)
     conn.commit()
 
-    query13 = "CREATE TABLE public.finalRoutes_" + city + " (userID INTEGER, commutingType TEXT, routeNumber INTEGER, duration INTEGER, transportModes MODES, latitude NUMERIC, longitude NUMERIC, sequenceNumber INTEGER)"
+    query13 = "CREATE TABLE public.finalRoutes_" + city + " (userID INTEGER, commutingType TEXT, routeNumber INTEGER, duration INTEGER, transportModes MODES, latitude NUMERIC, longitude NUMERIC, sequenceNumber INTEGER, geom_point_orig GEOMETRY(Point, 4326))"
     cur.execute(query13)
     conn.commit()
 
