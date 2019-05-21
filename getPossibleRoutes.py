@@ -79,8 +79,8 @@ def calculate_routes(origin, destination, city, userID, commutingtype):
     chosenkey = apiKeys[initialNumber]
 
     directionsAPIendpoint = 'https://maps.googleapis.com/maps/api/directions/json?'
-
-    travel_modes = [ "transit", "driving", "walking", "bicycling"]
+    #debug
+    travel_modes = [ "transit"]#, "driving", "walking", "bicycling"]
 
     for mode in travel_modes:
         if (countRequests >= atualAPILimit or countRequests >= geralAPILIMIT):  #budget limit for each google account
@@ -121,7 +121,6 @@ def calculate_routes(origin, destination, city, userID, commutingtype):
 
                     mobilityUser['routeNumber'] += 1
                     routesCounter += 1
-
 
 
 def analyzeLegs(mode, route, mobilityUser, multimode, origin, destination):
@@ -194,7 +193,6 @@ def analyzeLegs(mode, route, mobilityUser, multimode, origin, destination):
 
         else:
             return {}
-
 
 
 def interpolate(mobilityUser, city, userID, commutingtype):
@@ -272,7 +270,7 @@ def interpolate(mobilityUser, city, userID, commutingtype):
     return interpolated_route
 
 
-def calculatingExactRoutes(city, userID):
+def calculatingExactRoutes(city):
 
     query = "INSERT INTO public.distancesWeighted_" + city + " (userID, commutingType, routeNumber, duration, transportModes, latitude, longitude, sequenceNumber, cellID, frequencia, distanceWeighted) " \
             "(SELECT userID, commutingType, routeNumber, duration, transportModes, latitude, longitude, sequenceNumber, cellID, frequencia, st_distance(ST_Transform(geom_point_orig, 3857),ST_Transform(geom_point_dest, 3857)) * CAST(1 AS FLOAT)/frequencia " \
@@ -303,30 +301,72 @@ def calculatingExactRoutes(city, userID):
     cur.execute(query)
     conn.commit()
 
-    query = "INSERT INTO public.distanceScores_" + city + " (userID, commutingType, routeNumber, distanceScore, transportmodes, duration) " \
+    query = "INSERT INTO public.traveltimes_and_durations_" + city + " (userID, commutingType, routenumber, transportmodes, duration, travelTime) " \
             "(SELECT userID, commutingType, routenumber, transportmodes, duration, travelTime " \
             "FROM public." + city + "_possible_routes f " \
-                                                                                               "INNER JOIN (SELECT hwid, minTravelTime_H_W AS travelTime FROM new_traveltimes_h_w_u) g " \
-                                                                                               "ON hwid = userid " \
-                                                                                               "AND commutingtype = 'H_W' " \
-                                                                                               "GROUP BY userID, commutingType, routenumber, transportmodes, duration,travelTime " \
-                                                                                               "" \
-                                                                                               "UNION ALL " \
-                                                                                               "SELECT userID, commutingType, routenumber, transportmodes, duration,travelTime " \
-                                                                                               "FROM public." + city + "_possible_routes f " \
-                                                                                                                       "INNER JOIN (SELECT whid, minTravelTime_W_H AS travelTime FROM new_traveltimes_w_h_u) g " \
-                                                                                                                       "ON whid = userid " \
-                                                                                                                       "AND commutingtype = 'W_H' " \
-                                                                                                                       "GROUP BY userID, commutingType, routenumber, transportmodes, duration, travelTime)"
+            "INNER JOIN (SELECT hwid, minTravelTime_H_W AS travelTime FROM new_traveltimes_h_w_u) g " \
+            "ON hwid = userid " \
+            "AND commutingtype = 'H_W' " \
+            "GROUP BY userID, commutingType, routenumber, transportmodes, duration,travelTime " \
+            "" \
+            "UNION ALL " \
+            "SELECT userID, commutingType, routenumber, transportmodes, duration,travelTime " \
+            "FROM public." + city + "_possible_routes f " \
+            "INNER JOIN (SELECT whid, minTravelTime_W_H AS travelTime FROM new_traveltimes_w_h_u) g " \
+            "ON whid = userid " \
+            "AND commutingtype = 'W_H' " \
+            "GROUP BY userID, commutingType, routenumber, transportmodes, duration, travelTime)"
+    cur.execute(query)
+    conn.commit()
+
+    query = "INSERT INTO public.durationsScores_" + city + " (userID, commutingType, routenumber, transportmodes, duration, travelTime, durationscore) " \
+            "(SELECT *, " \
+            "CASE " \
+            "WHEN (traveltime-duration) < 0 THEN abs(traveltime-duration) " \
+            "ELSE 1 " \
+            "END " \
+            "FROM public.traveltimes_and_durations_" + city + ")"
+    cur.execute(query)
+    conn.commit()
+
+    query = "INSERT INTO public.finalscores_" + city + " (userID, commutingType, routenumber, transportmodes, duration, finalscore) " \
+            "(SELECT j.userid, j.commutingtype, j.routenumber, j.transportmodes, j.duration, (distanceScore*durationscore) " \
+            "FROM public.distanceScores_" + city + " j " \
+            "INNER JOIN public.durationsScores_" + city + " l " \
+            "ON     j.userID = l.userID " \
+            "AND    j.commutingType = l.commutingType " \
+            "AND    j.routenumber = l.routenumber " \
+            "AND    j.transportmodes = l.transportmodes " \
+            "AND    j.duration = l.duration) "
+
+    cur.execute(query)
+    conn.commit()
+
+    query = "INSERT INTO public.exactroutes_" + city + " (userID, commutingType, routenumber, transportmodes, duration, finalscore) " \
+            "(SELECT userid, commutingtype, routenumber, transportmodes, duration, finalscore " \
+            "FROM public.finalScores_" + city + " " \
+            "WHERE (userid, commutingType, finalscore) IN ( " \
+            "SELECT userid, commutingType, min(finalscore) " \
+            "FROM public.finalScores_" + city + " " \
+            "GROUP BY userID, commutingType)" \
+            ")"
+
+
+    cur.execute(query)
+    conn.commit()
+
+    query = "INSERT INTO public.finalroutes_" + city + " (userID, commutingType, routeNumber, duration, transportModes, latitude, longitude, sequenceNumber) " \
+            "(SELECT g.* " \
+            "FROM public." + city + "_possible_routes g, public.exactRoutes_" + city + " f " \
+            "WHERE f.userid = g.userid " \
+            "AND f.commutingtype = g.commutingtype " \
+            "AND f.routenumber = g.routenumber)"
+
     cur.execute(query)
     conn.commit()
 
 
-
-
-
-
-def renderFinalRoutes(city, userID):
+def renderFinalRoutes(city):
 
     #logfile.write("Saving the final route points into csvs...")
 
@@ -379,21 +419,21 @@ def renderFinalRoutes(city, userID):
 def cleanarchives(city):
 
     #debug
-    query1 = "DROP TABLE IF EXISTS OD" + city + "_possible_routes"
+    query1 = "DROP TABLE IF EXISTS public." + city + "_possible_routes"
     cur.execute(query1)
     conn.commit()
 
     # debug
-    query1 = "DROP TABLE IF EXISTS finalroutes_" + city
+    query1 = "DROP TABLE IF EXISTS public.finalroutes_" + city
     cur.execute(query1)
     conn.commit()
 
     # debug
-    query1 = "DROP TABLE IF EXISTS finalscores_" + city
+    query1 = "DROP TABLE IF EXISTS public.finalscores_" + city
     cur.execute(query1)
     conn.commit()
 
-    query1 = "DROP TABLE IF EXISTS OD" + city + "_users_characterization"
+    query1 = "DROP TABLE IF EXISTS public.OD" + city + "_users_characterization"
     cur.execute(query1)
     conn.commit()
 
@@ -510,71 +550,22 @@ def archivesCity(city):
     conn.commit()
 
     query9 = "CREATE TABLE public.traveltimes_and_durations_" + city + " (userID INTEGER, commutingType TEXT, routeNumber INTEGER, transportmodes MODES, duration INTEGER, travelTime NUMERIC)"
-    cur.execute(query8)
-    conn.commit()
-
-
-    query9 = "CREATE TABLE public.traveltimes_and_durations_" + city + " AS ( " \
-                                                                       "SELECT userID, commutingType, routenumber, transportmodes, duration, travelTime " \
-                                                                       "FROM public." + city + "_possible_routes f " \
-                                                                                               "INNER JOIN (SELECT hwid, minTravelTime_H_W AS travelTime FROM new_traveltimes_h_w_u) g " \
-                                                                                               "ON hwid = userid " \
-                                                                                               "AND commutingtype = 'H_W' " \
-                                                                                               "GROUP BY userID, commutingType, routenumber, transportmodes, duration,travelTime " \
-                                                                                               "" \
-                                                                                               "UNION ALL " \
-                                                                                               "SELECT userID, commutingType, routenumber, transportmodes, duration,travelTime " \
-                                                                                               "FROM public." + city + "_possible_routes f " \
-                                                                                                                       "INNER JOIN (SELECT whid, minTravelTime_W_H AS travelTime FROM new_traveltimes_w_h_u) g " \
-                                                                                                                       "ON whid = userid " \
-                                                                                                                       "AND commutingtype = 'W_H' " \
-                                                                                                                       "GROUP BY userID, commutingType, routenumber, transportmodes, duration, travelTime)"
-
     cur.execute(query9)
     conn.commit()
 
-    query10 = "CREATE TABLE public.durationsScores_" + city + " AS ( " \
-                                                              "SELECT *, " \
-                                                              "CASE " \
-                                                              "WHEN (traveltime-duration) < 0 THEN abs(traveltime-duration) " \
-                                                              "ELSE 1 " \
-                                                              "END AS durationscore " \
-                                                              "FROM public.traveltimes_and_durations_" + city + ")"
-
+    query10 = "CREATE TABLE public.durationsScores_" + city + " (userID INTEGER, commutingType TEXT, routeNumber INTEGER, transportmodes MODES, duration INTEGER, travelTime NUMERIC, durationscore NUMERIC)"
     cur.execute(query10)
     conn.commit()
 
-    query11 = "CREATE TABLE public.finalScores_" + city + " AS ( " \
-                                                          "SELECT j.userid, j.commutingtype, j.routenumber, j.transportmodes, j.duration, (distanceScore*durationscore) AS finalscore " \
-                                                          "FROM public.distanceScores_" + city + " j " \
-                                                                                                 "INNER JOIN public.durationsScores_" + city + " l " \
-                                                                                                                                               "ON     j.userID = l.userID " \
-                                                                                                                                               "AND    j.commutingType = l.commutingType " \
-                                                                                                                                               "AND    j.routenumber = l.routenumber " \
-                                                                                                                                               "AND    j.transportmodes = l.transportmodes " \
-                                                                                                                                               "AND    j.duration = l.duration) "
-
+    query11 = "CREATE TABLE public.finalScores_" + city + " (userID INTEGER, commutingType TEXT, routeNumber INTEGER, transportmodes MODES, duration INTEGER, finalscore NUMERIC)"
     cur.execute(query11)
     conn.commit()
 
-    query12 = "CREATE TABLE public.exactRoutes_" + city + " AS ( " \
-                                                          "SELECT userid, commutingtype, routenumber, transportmodes, duration, finalscore AS score " \
-                                                          "FROM public.finalScores_" + city + " " \
-                                                                                              "WHERE (userid, commutingType, finalscore) IN ( " \
-                                                                                              "SELECT userid, commutingType, min(finalscore) " \
-                                                                                              "FROM public.finalScores_" + city + " " \
-                                                                                                                                  "GROUP BY userID, commutingType))"
-
+    query12 = "CREATE TABLE public.exactRoutes_" + city + " (userID INTEGER, commutingType TEXT, routeNumber INTEGER, transportmodes MODES, duration INTEGER, finalscore NUMERIC)"
     cur.execute(query12)
     conn.commit()
 
-    query13 = "CREATE TABLE public.finalRoutes_" + city + " AS ( " \
-                                                          "SELECT g.* " \
-                                                          "FROM public." + city + "_possible_routes g, public.exactRoutes_" + city + " f " \
-                                                                                                                                     "WHERE f.userid = g.userid " \
-                                                                                                                                     "AND f.commutingtype = g.commutingtype " \
-                                                                                                                                     "AND f.routenumber = g.routenumber)"
-
+    query13 = "CREATE TABLE public.finalRoutes_" + city + " (userID INTEGER, commutingType TEXT, routeNumber INTEGER, duration INTEGER, transportModes MODES, latitude NUMERIC, longitude NUMERIC, sequenceNumber INTEGER)"
     cur.execute(query13)
     conn.commit()
 
@@ -708,11 +699,11 @@ def connect():
                     calculate_routes(work_location, home_location, city, userID, "W_H")
 
                 # logfile.write("Calculating the exact pendular routes...\n")
-                calculatingExactRoutes(city, userID)
+                calculatingExactRoutes(city)
 
-                renderFinalRoutes(city, userID)
+                renderFinalRoutes(city)
 
-                cleanUserData(city, userID)
+                cleanUserData(city)
 
                 countUsers += 1
                 usersCounter += 1
@@ -753,7 +744,7 @@ def connect():
             logfile.close()
 
 
-def cleanUserData():
+def cleanUserData(city):
 
     query11 = "DELETE FROM public.exactroutes_" + city
     cur.execute(query11)
