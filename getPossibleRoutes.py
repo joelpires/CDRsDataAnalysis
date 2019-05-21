@@ -274,8 +274,7 @@ def calculatingExactRoutes(city, userID):
 
     query = "INSERT INTO public.distancesWeighted (userID, commutingType, routeNumber, duration, transportModes, latitude, longitude, sequenceNumber, cellID, frequencia, distanceWeighted) " \
             "(SELECT userID, commutingType, routeNumber, duration, transportModes, latitude, longitude, sequenceNumber, cellID, frequencia, st_distance(ST_Transform(geom_point_orig, 3857),ST_Transform(geom_point_dest, 3857)) * CAST(1 AS FLOAT)/frequencia " \
-            "FROM public." + city + "_possible_routes f " \
-            "WHERE userID = " + str(userID) + " " \
+            "FROM (SELECT * FROM public." + city + "_possible_routes f WHERE userID = " + str(userID) + ") f " \
             "INNER JOIN (SELECT intermediatetowers_h_wid, tower AS cellID, frequencia, geom_point_dest FROM public.frequencies_intermediateTowers_H_W_" + city + ") g " \
             "ON g.intermediatetowers_h_wid = userid " \
             "AND commutingtype = 'H_W' " \
@@ -283,8 +282,7 @@ def calculatingExactRoutes(city, userID):
             "UNION ALL " \
             "" \
             "SELECT userID, commutingType, routeNumber, duration, transportModes, latitude, longitude, sequenceNumber, cellID, frequencia, st_distance(ST_Transform(geom_point_orig, 3857),ST_Transform(geom_point_dest, 3857)) * CAST(1 AS FLOAT)/frequencia " \
-            "FROM public." + city + "_possible_routes f " \
-            "WHERE userID = " + str(userID) + " " \
+            "FROM (SELECT * FROM public." + city + "_possible_routes f WHERE userID = " + str(userID) + ") f " \
             "INNER JOIN (SELECT intermediatetowers_w_hid, tower AS cellID, frequencia, geom_point_dest FROM public.frequencies_intermediateTowers_W_H_" + city + ") g " \
             "ON g.intermediatetowers_w_hid = userid " \
             "AND commutingtype = 'W_H')"
@@ -305,8 +303,7 @@ def calculatingExactRoutes(city, userID):
 
     query = "INSERT INTO public.traveltimes_and_durations_ (userID, commutingType, routenumber, transportmodes, duration, travelTime) " \
             "(SELECT userID, commutingType, routenumber, transportmodes, duration, travelTime " \
-            "FROM public." + city + "_possible_routes f " \
-            "WHERE userID = " + str(userID) + " " \
+            "FROM (SELECT * FROM public." + city + "_possible_routes f WHERE userID = " + str(userID) + ") f " \
             "INNER JOIN (SELECT hwid, minTravelTime_H_W AS travelTime FROM new_traveltimes_h_w_u) g " \
             "ON hwid = userid " \
             "AND commutingtype = 'H_W' " \
@@ -314,8 +311,7 @@ def calculatingExactRoutes(city, userID):
             "" \
             "UNION ALL " \
             "SELECT userID, commutingType, routenumber, transportmodes, duration,travelTime " \
-            "FROM public." + city + "_possible_routes f " \
-            "WHERE userID = " + str(userID) + " " \
+            "FROM (SELECT * FROM public." + city + "_possible_routes f WHERE userID = " + str(userID) + ") f " \
             "INNER JOIN (SELECT whid, minTravelTime_W_H AS travelTime FROM new_traveltimes_w_h_u) g " \
             "ON whid = userid " \
             "AND commutingtype = 'W_H' " \
@@ -348,12 +344,10 @@ def calculatingExactRoutes(city, userID):
 
     query = "INSERT INTO public.exactroutes_ (userID, commutingType, routenumber, transportmodes, duration, finalscore) " \
             "(SELECT userid, commutingtype, routenumber, transportmodes, duration, finalscore " \
-            "FROM public.finalScores_" + city + " " \
-            "WHERE userid = " + str(userID) + " "\
+            "FROM (SELECT * FROM public." + city + "_possible_routes f WHERE userID = " + str(userID) + ") f " \
             "AND (userid, commutingType, finalscore) IN ( " \
             "SELECT userid, commutingType, min(finalscore) " \
-            "FROM public.finalScores_" + city + " " \
-            "WHERE userID = " + str(userID) + " " \
+            "FROM (SELECT * FROM public." + city + "_possible_routes f WHERE userID = " + str(userID) + ") f " \
             "GROUP BY userID, commutingType)" \
             ")"
 
@@ -372,17 +366,17 @@ def calculatingExactRoutes(city, userID):
     conn.commit()
 
 
-def renderFinalRoutes(city):
+def renderFinalRoutes(city, userID):
 
     #logfile.write("Saving the final route points into csvs...")
 
-    query1 = "SELECT DISTINCT ON(userID, commutingType) * FROM public.finalRoutes_" + city
+    query1 = "SELECT DISTINCT ON(userID, commutingType) * FROM public.finalRoutes_" + city + "WHERE userID = " + str(userID)
 
     cur.execute(query1)
     differentRoutes = cur.fetchall()
 
     for route, value in enumerate(differentRoutes):
-        query2 = "SELECT * FROM public.finalRoutes_" + city + " WHERE userID = " + str(differentRoutes[route][0]) + " AND commutingType = \'" + str(differentRoutes[route][1]) + "\' ORDER BY sequencenumber ASC"
+        query2 = "SELECT * FROM public.finalRoutes_" + city + " WHERE userID = " + str(userID) + " AND commutingType = \'" + str(differentRoutes[route][1]) + "\' ORDER BY sequencenumber ASC"
 
         cur.execute(query2)
         fetched = cur.fetchall()
@@ -441,26 +435,6 @@ def cleanarchives(city):
 
     query1 = "DROP TABLE IF EXISTS public.OD" + city + "_users_characterization"
     cur.execute(query1)
-    conn.commit()
-
-    query11 = "DROP TABLE IF EXISTS public.exactroutes_"
-    cur.execute(query11)
-    conn.commit()
-
-    query11 = "DROP TABLE IF EXISTS public.distancesweighted_"
-    cur.execute(query11)
-    conn.commit()
-
-    query11 = "DROP TABLE IF EXISTS public.distancescores_"
-    cur.execute(query11)
-    conn.commit()
-
-    query11 = "DROP TABLE IF EXISTS public.traveltimes_and_durations_"
-    cur.execute(query11)
-    conn.commit()
-
-    query11 = "DROP TABLE IF EXISTS public.durationsscores_"
-    cur.execute(query11)
     conn.commit()
 
     query1 = "DROP TABLE IF EXISTS frequencies_intermediatetowers_h_w_" + city
@@ -546,30 +520,10 @@ def archivesCity(city):
     cur.execute(query6)
     conn.commit()
 
-
-    query7 = "CREATE TABLE public.distancesWeighted_" + city + " (userID INTEGER, commutingType TEXT, routeNumber INTEGER, duration INTEGER, transportModes MODES, latitude NUMERIC, longitude NUMERIC, sequenceNumber INTEGER, cellID INTEGER, frequencia INTEGER, distanceWeighted NUMERIC)"
-    cur.execute(query7)
-    conn.commit()
-
-    query8 = "CREATE TABLE public.distanceScores_" + city + " (userID INTEGER, commutingType TEXT, routeNumber INTEGER, distanceScore NUMERIC, transportmodes MODES, duration INTEGER)"
-    cur.execute(query8)
-    conn.commit()
-
-    query9 = "CREATE TABLE public.traveltimes_and_durations_" + city + " (userID INTEGER, commutingType TEXT, routeNumber INTEGER, transportmodes MODES, duration INTEGER, travelTime NUMERIC)"
-    cur.execute(query9)
-    conn.commit()
-
-    query10 = "CREATE TABLE public.durationsScores_" + city + " (userID INTEGER, commutingType TEXT, routeNumber INTEGER, transportmodes MODES, duration INTEGER, travelTime NUMERIC, durationscore NUMERIC)"
-    cur.execute(query10)
-    conn.commit()
-
     query11 = "CREATE TABLE public.finalScores_" + city + " (userID INTEGER, commutingType TEXT, routeNumber INTEGER, transportmodes MODES, duration INTEGER, finalscore NUMERIC)"
     cur.execute(query11)
     conn.commit()
 
-    query12 = "CREATE TABLE public.exactRoutes_" + city + " (userID INTEGER, commutingType TEXT, routeNumber INTEGER, transportmodes MODES, duration INTEGER, finalscore NUMERIC)"
-    cur.execute(query12)
-    conn.commit()
 
     query13 = "CREATE TABLE public.finalRoutes_" + city + " (userID INTEGER, commutingType TEXT, routeNumber INTEGER, duration INTEGER, transportModes MODES, latitude NUMERIC, longitude NUMERIC, sequenceNumber INTEGER, geom_point_orig GEOMETRY(Point, 4326))"
     cur.execute(query13)
@@ -667,6 +621,11 @@ def connect():
 
         #charts()
 
+        #debug
+        cleanTemporaryTables()
+
+        createTemporaryTables()
+
         countCity = 0
 
         #debug
@@ -705,7 +664,7 @@ def connect():
                     calculate_routes(work_location, home_location, city, userID, "W_H")
 
                 # logfile.write("Calculating the exact pendular routes...\n")
-                calculatingExactRoutes(city)
+                calculatingExactRoutes(city,userID)
 
                 renderFinalRoutes(city, userID)
 
@@ -726,6 +685,7 @@ def connect():
             print("[CITY OF " + str(city) + " PROCESSED]")
             logfile.write("\n==================== The city " + str(countCity) + "/274 (name:" + city + ") was processed =====================\n")
 
+        cleanTemporaryTables()
 
         logfile.write("A TOTAL OF " + str(countCity) + " cities were processed.\n")
         logfile.write("A TOTAL OF " + str(routesCounter) + " routes were processed.\n")
@@ -750,6 +710,48 @@ def connect():
             logfile.close()
 
 
+def cleanTemporaryTables():
+    query11 = "DROP TABLE IF EXISTS public.exactroutes_"
+    cur.execute(query11)
+    conn.commit()
+
+    query11 = "DROP TABLE IF EXISTS public.distancesweighted_"
+    cur.execute(query11)
+    conn.commit()
+
+    query11 = "DROP TABLE IF EXISTS public.distancescores_"
+    cur.execute(query11)
+    conn.commit()
+
+    query11 = "DROP TABLE IF EXISTS public.traveltimes_and_durations_"
+    cur.execute(query11)
+    conn.commit()
+
+    query11 = "DROP TABLE IF EXISTS public.durationsscores_"
+    cur.execute(query11)
+    conn.commit()
+
+def createTemporaryTables():
+    query7 = "CREATE TABLE public.distancesWeighted_ (userID INTEGER, commutingType TEXT, routeNumber INTEGER, duration INTEGER, transportModes MODES, latitude NUMERIC, longitude NUMERIC, sequenceNumber INTEGER, cellID INTEGER, frequencia INTEGER, distanceWeighted NUMERIC)"
+    cur.execute(query7)
+    conn.commit()
+
+    query8 = "CREATE TABLE public.distanceScores_ (userID INTEGER, commutingType TEXT, routeNumber INTEGER, distanceScore NUMERIC, transportmodes MODES, duration INTEGER)"
+    cur.execute(query8)
+    conn.commit()
+
+    query9 = "CREATE TABLE public.traveltimes_and_durations_ (userID INTEGER, commutingType TEXT, routeNumber INTEGER, transportmodes MODES, duration INTEGER, travelTime NUMERIC)"
+    cur.execute(query9)
+    conn.commit()
+
+    query10 = "CREATE TABLE public.durationsScores_ (userID INTEGER, commutingType TEXT, routeNumber INTEGER, transportmodes MODES, duration INTEGER, travelTime NUMERIC, durationscore NUMERIC)"
+    cur.execute(query10)
+    conn.commit()
+
+    query12 = "CREATE TABLE public.exactRoutes_ (userID INTEGER, commutingType TEXT, routeNumber INTEGER, transportmodes MODES, duration INTEGER, finalscore NUMERIC)"
+    cur.execute(query12)
+    conn.commit()
+
 def cleanUserData():
 
     query11 = "DELETE FROM public.exactroutes_"
@@ -770,14 +772,6 @@ def cleanUserData():
 
     query11 = "DELETE FROM public.durationsscores_"
     cur.execute(query11)
-    conn.commit()
-
-    query1 = "DELETE FROM frequencies_intermediatetowers_h_w_"
-    cur.execute(query1)
-    conn.commit()
-
-    query1 = "DELETE FROM frequencies_intermediatetowers_w_h_"
-    cur.execute(query1)
     conn.commit()
 
 
