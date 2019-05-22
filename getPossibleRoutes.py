@@ -43,7 +43,7 @@ apiKeys = [os.environ.get('MAPSAPIKEYJO'),
 """
 
 atualAPILimit = 58500 #decide the limit of request of the initial api
-keyNumber = initialNumber = 0 #decide which api key the program should start use
+keyNumber = initialNumber = 1 #decide which api key the program should start use
 logfile = open('log.txt', 'w')
 
 
@@ -79,8 +79,10 @@ def calculate_routes(origin, destination, city, userID, commutingtype):
     chosenkey = apiKeys[initialNumber]
 
     directionsAPIendpoint = 'https://maps.googleapis.com/maps/api/directions/json?'
-    #debug
+
     travel_modes = [ "transit", "driving", "walking", "bicycling"]
+    mobilityUser = {}
+    mobilityUser['routeNumber'] = 0
 
     for mode in travel_modes:
         if (countRequests >= atualAPILimit or countRequests >= geralAPILIMIT):  #budget limit for each google account
@@ -96,17 +98,14 @@ def calculate_routes(origin, destination, city, userID, commutingtype):
         response = json.loads(urllib.urlopen(request).read())
         countRequests += 1
 
-        #debug
         print("REQUEST: " + str(request))
 
-        logfile.write("\n=== Analyzing routes using the " + mode + " travel mode ===\n")
+        logfile.write("\n=== Analyzing routes " + commutingtype + " using the " + mode + " travel mode ===\n")
         # pode nao ter resposta
 
         if response['status'] == 'OK':
-            mobilityUser = {}
-            mobilityUser['routeNumber'] = 0
-            for route in response['routes']:
 
+            for route in response['routes']:
                 mobilityUser = analyzeLegs(mode, route, mobilityUser, multimode, origin, destination)
                 if 'route' in mobilityUser.keys():
 
@@ -114,7 +113,7 @@ def calculate_routes(origin, destination, city, userID, commutingtype):
                     sequenceNumber = 0
                     for point in mobilityUser['route']:
 
-                        query = "INSERT INTO public." + city + "_possible_routes (userID, commutingtype, routeNumber, duration, transportModes, latitude, longitude, sequenceNumber) VALUES (" + str(userID) + ", \'" + commutingtype + "\'," + str(mobilityUser['routeNumber']) + "," + str(mobilityUser['duration']) + ", ROW" + str(mobilityUser['transport_modes']) + "," + str(point[0]) + "," + str(point[1]) + "," + str(sequenceNumber) + ")"
+                        query = "INSERT INTO public." + city + "_possible_routes (userID, commutingtype, routeNumber, duration, transportModes, latitude, longitude, sequenceNumber, geom_point_orig) VALUES (" + str(userID) + ", \'" + commutingtype + "\'," + str(mobilityUser['routeNumber']) + "," + str(mobilityUser['duration']) + ", ROW" + str(mobilityUser['transport_modes']) + "," + str(point[0]) + "," + str(point[1]) + "," + str(sequenceNumber) + ", st_SetSrid(st_MakePoint(" + str(point[0]) + ", " + str(point[1 ]) + "), 4326))"
                         cur.execute(query)
                         conn.commit()
                         sequenceNumber += 1
@@ -272,12 +271,6 @@ def interpolate(mobilityUser, city, userID, commutingtype):
 
 def calculatingExactRoutes(city, userID):
 
-    query2 = "UPDATE public." + city + "_possible_routes SET geom_point_orig=st_SetSrid(st_MakePoint(longitude, latitude), 4326)"
-
-    cur.execute(query2)
-    conn.commit()
-
-
     query = "INSERT INTO public.finalscores_" + city + " (userID, commutingType, routenumber, transportmodes, duration, finalscore) " \
             "(SELECT j.userid, j.commutingtype, j.routenumber, j.transportmodes, j.duration, (distanceScore*durationscore) " \
             "FROM (     SELECT userid, commutingtype, routenumber, avg(averageToIntermediateTowers) AS distanceScore, transportmodes, duration " \
@@ -329,7 +322,7 @@ def calculatingExactRoutes(city, userID):
             "(SELECT g.* FROM (SELECT * FROM public." + city + "_possible_routes f WHERE userID = " + str(userID) + ") g, (   SELECT userid, commutingtype, routenumber, transportmodes, duration, finalscore " \
                                                                                                            "FROM (SELECT * FROM public.finalscores_" + city + " WHERE userID = " + str(userID) + ") f " \
                                                                                                            "WHERE (userid, commutingType, finalscore) IN ( SELECT userid, commutingType, min(finalscore) " \
-                                                                                                                                                          "FROM (SELECT * FROM public.finalscores_" + city + " " \
+                                                                                                                                                          "FROM (SELECT DISTINCT ON (finalscore) * FROM public.finalscores_" + city + " " \
                                                                                                                                                           "WHERE userID = " + str(userID) + ") f " \
                                                                                                            "GROUP BY userID, commutingType)) f " \
              "WHERE f.userid = g.userid " \
@@ -402,22 +395,22 @@ def renderFinalRoutes(city, userID):
 
 def cleanarchives(city):
 
-    #debug
+
     query1 = "DROP TABLE IF EXISTS public." + city + "_possible_routes"
     cur.execute(query1)
     conn.commit()
 
-    # debug
+
     query1 = "DROP TABLE IF EXISTS public.finalroutes_" + city
     cur.execute(query1)
     conn.commit()
 
-    # debug
+
     query1 = "DROP TABLE IF EXISTS public.finalscores_" + city
     cur.execute(query1)
     conn.commit()
 
-    #debug
+
     query1 = "DROP TABLE IF EXISTS public.OD" + city + "_users_characterization"
     cur.execute(query1)
     conn.commit()
@@ -445,19 +438,15 @@ def archivesCity(city):
     os.mkdir("C:/Users/Joel/Documents/ArcGIS/ODPaths/" + city + "/W_H/final_routes_points", 0777)
     os.mkdir("C:/Users/Joel/Documents/ArcGIS/ODPaths/" + city + "/W_H/final_routes_lines", 0777)
 
-    print("[DIRECTORIES CREATED]")
+    #print("[DIRECTORIES CREATED]")
 
     # Type "MODES" needs to be previously created
 
-    query13 = "CREATE TABLE IF NOT EXISTS public." + city + "_possible_routes (userID INTEGER, commutingType TEXT, routeNumber INTEGER, duration INTEGER, transportModes MODES, latitude NUMERIC, longitude NUMERIC, sequenceNumber INTEGER)"
+    query13 = "CREATE TABLE IF NOT EXISTS public." + city + "_possible_routes (userID INTEGER, commutingType TEXT, routeNumber INTEGER, duration INTEGER, transportModes MODES, latitude NUMERIC, longitude NUMERIC, sequenceNumber INTEGER, geom_point_orig GEOMETRY(Point, 4326))"
     cur.execute(query13)
     conn.commit()
 
-    query1 = "ALTER TABLE public." + city + "_possible_routes ADD COLUMN geom_point_orig GEOMETRY(Point, 4326)"
-    cur.execute(query1)
-    conn.commit()
-
-    query2 = "CREATE TABLE public.OD" + city + "_users_characterization AS (SELECT * FROM users_characterization_final WHERE user_id IN (SELECT id FROM eligibleUsers WHERE municipal = \'" + city + "\'))"
+    query2 = "CREATE TABLE public.OD" + city + "_users_characterization AS (SELECT * FROM users_characterization_final WHERE user_id IN (SELECT id FROM final_eligibleUsers WHERE municipal = \'" + city + "\'))"
     cur.execute(query2)
     conn.commit()
 
@@ -549,31 +538,32 @@ def connect():
 
         os.mkdir("C:/Users/Joel/Documents/ArcGIS/ODPaths", 0777)
 
-        print("[DIRECTORIES ERASED]")
+        #print("[DIRECTORIES ERASED]")
 
-        query = "SELECT * FROM public.eligibleUsers_byMunicipal ORDER BY \"Towers per 20 Km2\""
+        query = "SELECT * FROM public.final_eligibleUsers_byMunicipal"
         cur.execute(query)
 
         fetched = cur.fetchall()
         municipals = parseDBColumns(fetched, 0, str)
 
+        municipals = [unidecode.unidecode(line.decode('utf-8').strip()) for line in municipals]
+
+        for index, elem in enumerate(municipals):
+            municipals[index] = elem.replace(" ", "_")
+            municipals[index] = elem.replace("-", "_")
+
         #charts()
 
         countCity = 0
 
-        #debug
-        municipals = ['Lisboa']
         for city in municipals:
 
+            #cleanarchives(city)
+            #archivesCity(city)
 
             countUsers = 0
-            city = city.replace(" ", "_")
-            city = city.replace("-", "_")
 
-            archivesCity(city)
-
-            #debug
-            query2 = "SELECT * FROM public.OD" + city + "_users_characterization LIMIT 2"
+            query2 = "SELECT * FROM public.OD" + city + "_users_characterization"
             cur.execute(query2)
             fetched_users = cur.fetchall()
 
@@ -587,11 +577,11 @@ def connect():
 
 
                 if (min_traveltime_h_w != "None"):
-                    print("[CALCULATING POSSIBLE ROUTES HOME TO WORKPLACE OF USER " + str(userID) + "]")
+                    #print("[CALCULATING POSSIBLE ROUTES HOME TO WORKPLACE OF USER " + str(userID) + "]")
                     calculate_routes(home_location, work_location, city, userID, "H_W")
 
                 if (min_traveltime_w_h != "None"):
-                    print("[CALCULATING POSSIBLE ROUTES WORKPLACE TO HOME OF USER " + str(userID) + "]")
+                    #print("[CALCULATING POSSIBLE ROUTES WORKPLACE TO HOME OF USER " + str(userID) + "]")
                     calculate_routes(work_location, home_location, city, userID, "W_H")
 
                 # logfile.write("Calculating the exact pendular routes...\n")
@@ -602,16 +592,16 @@ def connect():
                 countUsers += 1
                 usersCounter += 1
 
-                logfile.write("\n==================== User " + str(usersCounter) + "/88474 (id: " + str(userID) + ") of " + city + " was processed =====================\n")
+                logfile.write("\n==================== User " + str(usersCounter) + "/4997 (id: " + str(userID) + ") of " + city + " was processed =====================\n")
 
                 elapsed_time = time.time() - start_time
-                logfile.write("\n\n ============== EXECUTION TIME: " + str(elapsed_time / 60) + " MINUTES ============== \n")
+                logfile.write("\n ============== EXECUTION TIME: " + str(elapsed_time / 60) + " MINUTES ============== \n\n")
 
             countCity += 1
 
 
-            print("[CITY OF " + str(city) + " PROCESSED]")
-            logfile.write("\n==================== The city " + str(countCity) + "/274 (name:" + city + ") was processed =====================\n")
+            #print("[CITY OF " + str(city) + " PROCESSED]")
+            logfile.write("\n==================== The city " + str(countCity) + "/274 (name:" + city + ") was processed =====================\n\n\n")
 
         query1 = "DROP TABLE IF EXISTS public.OD" + city + "_users_characterization"
         cur.execute(query1)
