@@ -23,7 +23,8 @@ import os, sys
 import shutil
 
 exceptions = 0
-usersCounter = 0
+#debug
+usersCounter = 436
 routesCounter = 0
 cur = None
 conn = None
@@ -343,6 +344,7 @@ def renderFinalRoutes(city, userID):
     cur.execute(query1)
     differentRoutes = cur.fetchall()
 
+
     for route, value in enumerate(differentRoutes):
         query2 = "SELECT * FROM public.finalRoutes_" + city + " WHERE userID = " + str(userID) + " AND commutingType = \'" + str(differentRoutes[route][1]) + "\' ORDER BY sequencenumber ASC"
 
@@ -393,71 +395,50 @@ def renderFinalRoutes(city, userID):
                                       "sequence")
 
 
-def cleanarchives(city):
-
-
-    query1 = "DROP TABLE IF EXISTS public." + city + "_possible_routes"
-    cur.execute(query1)
-    conn.commit()
-
-
-    query1 = "DROP TABLE IF EXISTS public.finalroutes_" + city
-    cur.execute(query1)
-    conn.commit()
-
-
-    query1 = "DROP TABLE IF EXISTS public.finalscores_" + city
-    cur.execute(query1)
-    conn.commit()
-
-
-    query1 = "DROP TABLE IF EXISTS public.OD" + city + "_users_characterization"
-    cur.execute(query1)
-    conn.commit()
-
-
 
 
 
 def archivesCity(city):
-    os.mkdir("C:/Users/Joel/Documents/ArcGIS/ODPaths/" + city, 0777)
-    os.mkdir("C:/Users/Joel/Documents/ArcGIS/ODPaths/" + city + "/H_W", 0777)
-    os.mkdir("C:/Users/Joel/Documents/ArcGIS/ODPaths/" + city + "/H_W/interpolated_route_points_shapefiles", 0777)
-    os.mkdir("C:/Users/Joel/Documents/ArcGIS/ODPaths/" + city + "/H_W/non_interpolated_route_points_csvs", 0777)
-    os.mkdir("C:/Users/Joel/Documents/ArcGIS/ODPaths/" + city + "/H_W/non_interpolated_route_points_shapefiles", 0777)
-    os.mkdir("C:/Users/Joel/Documents/ArcGIS/ODPaths/" + city + "/H_W/route_lines_shapefiles", 0777)
-    os.mkdir("C:/Users/Joel/Documents/ArcGIS/ODPaths/" + city + "/H_W/final_routes_csvs", 0777)
-    os.mkdir("C:/Users/Joel/Documents/ArcGIS/ODPaths/" + city + "/H_W/final_routes_points", 0777)
-    os.mkdir("C:/Users/Joel/Documents/ArcGIS/ODPaths/" + city + "/H_W/final_routes_lines", 0777)
-    os.mkdir("C:/Users/Joel/Documents/ArcGIS/ODPaths/" + city + "/W_H", 0777)
-    os.mkdir("C:/Users/Joel/Documents/ArcGIS/ODPaths/" + city + "/W_H/interpolated_route_points_shapefiles", 0777)
-    os.mkdir("C:/Users/Joel/Documents/ArcGIS/ODPaths/" + city + "/W_H/non_interpolated_route_points_csvs", 0777)
-    os.mkdir("C:/Users/Joel/Documents/ArcGIS/ODPaths/" + city + "/W_H/non_interpolated_route_points_shapefiles", 0777)
-    os.mkdir("C:/Users/Joel/Documents/ArcGIS/ODPaths/" + city + "/W_H/route_lines_shapefiles", 0777)
-    os.mkdir("C:/Users/Joel/Documents/ArcGIS/ODPaths/" + city + "/W_H/final_routes_csvs", 0777)
-    os.mkdir("C:/Users/Joel/Documents/ArcGIS/ODPaths/" + city + "/W_H/final_routes_points", 0777)
-    os.mkdir("C:/Users/Joel/Documents/ArcGIS/ODPaths/" + city + "/W_H/final_routes_lines", 0777)
+    #debug
+    if city != "Porto":
+        os.mkdir("C:/Users/Joel/Documents/ArcGIS/ODPaths/" + city, 0777)
+        os.mkdir("C:/Users/Joel/Documents/ArcGIS/ODPaths/" + city + "/H_W", 0777)
+        os.mkdir("C:/Users/Joel/Documents/ArcGIS/ODPaths/" + city + "/H_W/interpolated_route_points_shapefiles", 0777)
+        os.mkdir("C:/Users/Joel/Documents/ArcGIS/ODPaths/" + city + "/H_W/non_interpolated_route_points_csvs", 0777)
+        os.mkdir("C:/Users/Joel/Documents/ArcGIS/ODPaths/" + city + "/H_W/non_interpolated_route_points_shapefiles", 0777)
+        os.mkdir("C:/Users/Joel/Documents/ArcGIS/ODPaths/" + city + "/H_W/route_lines_shapefiles", 0777)
+        os.mkdir("C:/Users/Joel/Documents/ArcGIS/ODPaths/" + city + "/H_W/final_routes_csvs", 0777)
+        os.mkdir("C:/Users/Joel/Documents/ArcGIS/ODPaths/" + city + "/H_W/final_routes_points", 0777)
+        os.mkdir("C:/Users/Joel/Documents/ArcGIS/ODPaths/" + city + "/H_W/final_routes_lines", 0777)
+        os.mkdir("C:/Users/Joel/Documents/ArcGIS/ODPaths/" + city + "/W_H", 0777)
+        os.mkdir("C:/Users/Joel/Documents/ArcGIS/ODPaths/" + city + "/W_H/interpolated_route_points_shapefiles", 0777)
+        os.mkdir("C:/Users/Joel/Documents/ArcGIS/ODPaths/" + city + "/W_H/non_interpolated_route_points_csvs", 0777)
+        os.mkdir("C:/Users/Joel/Documents/ArcGIS/ODPaths/" + city + "/W_H/non_interpolated_route_points_shapefiles", 0777)
+        os.mkdir("C:/Users/Joel/Documents/ArcGIS/ODPaths/" + city + "/W_H/route_lines_shapefiles", 0777)
+        os.mkdir("C:/Users/Joel/Documents/ArcGIS/ODPaths/" + city + "/W_H/final_routes_csvs", 0777)
+        os.mkdir("C:/Users/Joel/Documents/ArcGIS/ODPaths/" + city + "/W_H/final_routes_points", 0777)
+        os.mkdir("C:/Users/Joel/Documents/ArcGIS/ODPaths/" + city + "/W_H/final_routes_lines", 0777)
 
-    #print("[DIRECTORIES CREATED]")
+        #print("[DIRECTORIES CREATED]")
 
-    # Type "MODES" needs to be previously created
+        # Type "MODES" needs to be previously created
 
-    query13 = "CREATE TABLE IF NOT EXISTS public." + city + "_possible_routes (userID INTEGER, commutingType TEXT, routeNumber INTEGER, duration INTEGER, transportModes MODES, latitude NUMERIC, longitude NUMERIC, sequenceNumber INTEGER, geom_point_orig GEOMETRY(Point, 4326))"
-    cur.execute(query13)
-    conn.commit()
+        query13 = "CREATE TABLE IF NOT EXISTS public." + city + "_possible_routes (userID INTEGER, commutingType TEXT, routeNumber INTEGER, duration INTEGER, transportModes MODES, latitude NUMERIC, longitude NUMERIC, sequenceNumber INTEGER, geom_point_orig GEOMETRY(Point, 4326))"
+        cur.execute(query13)
+        conn.commit()
 
-    query2 = "CREATE TABLE public.OD" + city + "_users_characterization AS (SELECT * FROM users_characterization_final WHERE user_id IN (SELECT id FROM final_eligibleUsers WHERE municipal = \'" + city + "\'))"
-    cur.execute(query2)
-    conn.commit()
+        query2 = "CREATE TABLE IF NOT EXISTS public.OD" + city + "_users_characterization AS (SELECT * FROM users_characterization_final WHERE user_id IN (SELECT id FROM final_eligibleUsers WHERE municipal = \'" + city + "\'))"
+        cur.execute(query2)
+        conn.commit()
 
-    query11 = "CREATE TABLE public.finalScores_" + city + " (userID INTEGER, commutingType TEXT, routeNumber INTEGER, transportmodes MODES, duration INTEGER, finalscore NUMERIC)"
-    cur.execute(query11)
-    conn.commit()
+        query11 = "CREATE TABLE IF NOT EXISTS public.finalScores_" + city + " (userID INTEGER, commutingType TEXT, routeNumber INTEGER, transportmodes MODES, duration INTEGER, finalscore NUMERIC)"
+        cur.execute(query11)
+        conn.commit()
 
 
-    query13 = "CREATE TABLE public.finalRoutes_" + city + " (userID INTEGER, commutingType TEXT, routeNumber INTEGER, duration INTEGER, transportModes MODES, latitude NUMERIC, longitude NUMERIC, sequenceNumber INTEGER, geom_point_orig GEOMETRY(Point, 4326))"
-    cur.execute(query13)
-    conn.commit()
+        query13 = "CREATE TABLE IF NOT EXISTS public.finalRoutes_" + city + " (userID INTEGER, commutingType TEXT, routeNumber INTEGER, duration INTEGER, transportModes MODES, latitude NUMERIC, longitude NUMERIC, sequenceNumber INTEGER, geom_point_orig GEOMETRY(Point, 4326))"
+        cur.execute(query13)
+        conn.commit()
 
 
 def charts():
@@ -531,13 +512,14 @@ def connect():
 
         # create a cursor
         cur = conn.cursor()
-
+        #debug
+        """
         if os.path.exists('C:/Users/Joel/Documents/ArcGIS/ODPaths') and os.path.isdir(
                 'C:/Users/Joel/Documents/ArcGIS/ODPaths'):
             shutil.rmtree('C:/Users/Joel/Documents/ArcGIS/ODPaths')
 
         os.mkdir("C:/Users/Joel/Documents/ArcGIS/ODPaths", 0777)
-
+        """
         #print("[DIRECTORIES ERASED]")
 
         query = "SELECT * FROM public.final_eligibleUsers_byMunicipal"
@@ -558,14 +540,17 @@ def connect():
 
         for city in municipals:
 
-            #cleanarchives(city)
-            #archivesCity(city)
+            archivesCity(city)
 
-            countUsers = 0
+            countUsers = 436
 
             query2 = "SELECT * FROM public.OD" + city + "_users_characterization"
             cur.execute(query2)
             fetched_users = cur.fetchall()
+
+            #debug
+            if city == "Porto":
+                fetched_users = fetched_users[436:]
 
             #DIRECTIONS API
             for i in range(len(fetched_users)):
