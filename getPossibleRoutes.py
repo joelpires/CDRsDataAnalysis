@@ -400,7 +400,7 @@ def renderFinalRoutes(city, userID):
 
 def archivesCity(city):
     #debug
-    if city != "Porto":
+    if city != "Porto" and city != "Lisboa" and city != "Coimbra":
         os.mkdir("C:/Users/Joel/Documents/ArcGIS/ODPaths/" + city, 0777)
         os.mkdir("C:/Users/Joel/Documents/ArcGIS/ODPaths/" + city + "/H_W", 0777)
         os.mkdir("C:/Users/Joel/Documents/ArcGIS/ODPaths/" + city + "/H_W/interpolated_route_points_shapefiles", 0777)
@@ -538,11 +538,21 @@ def connect():
 
         countCity = 0
 
+        #debug
+        municipals = municipals[2:]
+
+        """
+        print(municipals)
+        return
+        """
+
+
         for city in municipals:
 
             archivesCity(city)
 
-            countUsers = 436
+            #debug
+            countUsers = 402
 
             query2 = "SELECT * FROM public.OD" + city + "_users_characterization"
             cur.execute(query2)
@@ -550,7 +560,22 @@ def connect():
 
             #debug
             if city == "Porto":
-                fetched_users = fetched_users[436:]
+                fetched_users = fetched_users[432:]
+
+            if city == "Lisboa":
+                fetched_users = fetched_users[348:]
+
+            if city == "Coimbra":
+                fetched_users = fetched_users[402:]
+
+
+
+            # debug
+            """
+            for index, value in enumerate(fetched_users):
+                print(str(index) + ": " + str(value[0]))
+            return
+            """
 
             #DIRECTIONS API
             for i in range(len(fetched_users)):
