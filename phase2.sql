@@ -990,17 +990,19 @@ CREATE TEMPORARY TABLE finalroutes_stats_travel_modes_city AS (
 
 );
 
-
+DROP TABLE finalroutes_stats_typemode;
 CREATE TABLE finalroutes_stats_typemode AS (
-  SELECT city, commutingtype, CAST(sum(unimodal) AS FLOAT)*100/count(*) AS percentUnimodal, CAST(count(*)-sum(unimodal) AS FLOAT)*100/count(*) AS percentmultimodal, CAST(sum(public) AS FLOAT)*100/count(*) AS percentPublic, CAST(sum(private) AS FLOAT)*100/count(*) AS percentPrivate
-  FROM prep_all_final_routes
-  GROUP BY city, commutingtype
+  SELECT city, commutingtype, CAST(freqUnimodal AS FLOAT)*100/total AS percentUnimodal, CAST(freqmultimodal AS FLOAT)*100/total AS percentmultimodal, CAST(freqPublic AS FLOAT)*100/total AS percentPublic, CAST(freqprivate AS FLOAT)*100/total AS percentPrivate
+  FROM aux_finalroutes_stats_typemode_commutingtype
+  GROUP BY city, commutingtype, freqUnimodal, freqmultimodal, freqPublic, freqprivate, total
 
   UNION ALL
 
   SELECT city, 'H_W_H' AS commutingtype, CAST(sum(freqUnimodal) AS FLOAT)*100/sum(TOTAL) AS percentUnimodal, CAST(sum(freqmultimodal) AS FLOAT)*100/sum(TOTAL) AS percentMultimodal, CAST(sum(freqPublic) AS FLOAT)*100/sum(TOTAL) AS percentPublic, CAST(sum(freqprivate) AS FLOAT)*100/sum(TOTAL) AS percentPrivate
   FROM aux_finalroutes_stats_typemode_commutingtype t
   GROUP BY city
+
+  ORDER BY city, percentPublic DESC
 );
 
 
