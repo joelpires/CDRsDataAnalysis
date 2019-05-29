@@ -118,55 +118,111 @@ def connect():
 
         fetched = cur.fetchall()
 
-        for i in fetched:
-            print(i)
 
-        return
+        cities = parseDBColumns(fetched, 0, str)
 
-        municipals = parseDBColumns(fetched, 0, str)
-        population = parseDBColumns(fetched, 1, float)
-        datasetUsers = parseDBColumns(fetched, 2, float)
-        number = parseDBColumns(fetched, 3, float)
-        density = parseDBColumns(fetched, 4, float)
+        percentunimodal = parseDBColumns(fetched, 2, float)
+        percentmultimodal = parseDBColumns(fetched, 3, float)
+        percentpublic = parseDBColumns(fetched, 4, float)
+        percentprivate = parseDBColumns(fetched, 5, float)
 
-        municipals = [unidecode.unidecode(line.decode('utf-8').strip()) for line in municipals]
+        cities = [unidecode.unidecode(line.decode('utf-8').strip()) for line in cities]
+        commutingtypes = ["Home <-> Workplace", "Home -> Workplace", "Workplace -> Home"]
 
-        for index, elem in enumerate(municipals):
-            municipals[index] = elem.replace(" ", "\n")
+        array = np.arange(0, len(commutingtypes), 1)
 
-        array = np.arange(0, len(municipals), 1)
-        array0 = [x - 0.4 for x in array]
-        array2 = [x - 0.2 for x in array]
-        array3 = [x + 0.2 for x in array]
+        array2 = [x - 0.3 for x in array]
+        array0 = [x - 0.1 for x in array]
+        array3 = [x + 0.1 for x in array]
+        array4 = [x + 0.3 for x in array]
 
+        # COIMBRA
         fig = plt.figure(figsize=(16, 12))
         ax = plt.axes()
-        ax.set_xlim(-1, 12)
-        ax.set_ylim(1, 1000000)
-        # plt.yticks(np.arange(0, 560000, 50000), fontsize=14)
-        plt.yscale("log")
-        rects1 = ax.bar(array[:12], number[:12], width=0.2, color='b', align='center')
-        rects2 = ax.bar(array3[:12], density[:12], width=0.2, color='g', align='center')
-        rects3 = ax.bar(array0[:12], population[:12], width=0.2, color='r', align='center')
-        rects4 = ax.bar(array2[:12], datasetUsers[:12], width=0.2, color='k', align='center')
+        ax.set_xlim(-0.7, 2.7)
+        ax.set_ylim(0, 105)
+        plt.yticks(np.arange(0, 105, 3), fontsize=16)
+        #plt.yscale("log")
+
+        rects1 = ax.bar(array0, percentprivate[0:3], width=0.2, color='b', align='center')
+        rects2 = ax.bar(array2, percentunimodal[0:3], width=0.2, color='g', align='center')
+        rects3 = ax.bar(array3, percentpublic[0:3], width=0.2, color='r', align='center')
+        rects4 = ax.bar(array4, percentmultimodal[0:3], width=0.2, color='k', align='center')
 
         ax.legend((rects1[0], rects2[0], rects3[0], rects4[0]), (
-        "Number of Users to Infer Commuting Patterns", "Tower Density - Number of Towers per 20 Km2",
-        "Number of Inhabitants", "Number of Users in the Dataset"))
-        plt.xticks(array[:12], municipals[:12])
+        "Private Travel Mode", "Unimodal Travel Mode",
+        "Public Travel Mode", "Multimodal Travel Mode"))
+        plt.xticks(array, commutingtypes, fontsize=16)
 
         rects = ax.patches
         for rect in rects:
             height = rect.get_height()
-            ax.text(rect.get_x() + rect.get_width() / 1, 1.01 * height,
-                    '%d' % int(height),
-                    ha='center', va='bottom')
+            ax.text(rect.get_x() + rect.get_width() / 2, 1.01 * height,
+                    '%.2f' % float(round(height,2)),
+                    ha='center', va='bottom', fontsize=16)
 
-        plt.xlabel("Municipal", fontsize=20)
+        plt.xlabel("Type of Commuting Route", fontsize=20)
         plt.grid(True)
         plt.show()
 
+        #LISBOA
 
+        fig = plt.figure(figsize=(16, 12))
+        ax = plt.axes()
+        ax.set_xlim(-0.7, 2.7)
+        ax.set_ylim(0, 105)
+        plt.yticks(np.arange(0, 105, 3), fontsize=16)
+        #plt.yscale("log")
+
+        rects1 = ax.bar(array0, percentprivate[3:6], width=0.2, color='b', align='center')
+        rects2 = ax.bar(array2, percentunimodal[3:6], width=0.2, color='g', align='center')
+        rects3 = ax.bar(array3, percentpublic[3:6], width=0.2, color='r', align='center')
+        rects4 = ax.bar(array4, percentmultimodal[3:6], width=0.2, color='k', align='center')
+
+        ax.legend((rects1[0], rects2[0], rects3[0], rects4[0]), (
+            "Private Travel Mode", "Unimodal Travel Mode",
+            "Public Travel Mode", "Multimodal Travel Mode"))
+        plt.xticks(array, commutingtypes, fontsize=16)
+
+        rects = ax.patches
+        for rect in rects:
+            height = rect.get_height()
+            ax.text(rect.get_x() + rect.get_width() / 2, 1.01 * height,
+                    '%.2f' % float(round(height,2)),
+                    ha='center', va='bottom', fontsize=16)
+
+        plt.xlabel("Type of Commuting Route", fontsize=20)
+        plt.grid(True)
+        plt.show()
+
+        # PORTO
+        fig = plt.figure(figsize=(16, 12))
+        ax = plt.axes()
+        ax.set_xlim(-0.7, 2.7)
+        ax.set_ylim(0, 105)
+        plt.yticks(np.arange(0, 105, 3), fontsize=16)
+        #plt.yscale("log")
+
+        rects1 = ax.bar(array0, percentprivate[6:9], width=0.2, color='b', align='center')
+        rects2 = ax.bar(array2, percentunimodal[6:9], width=0.2, color='g', align='center')
+        rects3 = ax.bar(array3, percentpublic[6:9], width=0.2, color='r', align='center')
+        rects4 = ax.bar(array4, percentmultimodal[6:9], width=0.2, color='k', align='center')
+
+        ax.legend((rects1[0], rects2[0], rects3[0], rects4[0]), (
+        "Private Travel Mode", "Unimodal Travel Mode",
+        "Public Travel Mode", "Multimodal Travel Mode"))
+        plt.xticks(array, commutingtypes, fontsize=16)
+
+        rects = ax.patches
+        for rect in rects:
+            height = rect.get_height()
+            ax.text(rect.get_x() + rect.get_width() / 2, 1.01 * height,
+                    '%.2f' % float(round(height,2)),
+                    ha='center', va='bottom', fontsize=16)
+
+        plt.xlabel("Type of Commuting Route", fontsize=20)
+        plt.grid(True)
+        plt.show()
 
         elapsed_time = time.time() - start_time
         print("EXECUTION TIME: " + str(elapsed_time / 60) + " MINUTES")
