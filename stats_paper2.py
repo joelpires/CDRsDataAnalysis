@@ -113,6 +113,8 @@ def connect():
 
         # create a cursor
         cur = conn.cursor()
+
+
         query = "SELECT * FROM public.finalroutes_stats_typemode"
         cur.execute(query)
 
@@ -162,6 +164,7 @@ def connect():
                     ha='center', va='bottom', fontsize=16)
 
         plt.xlabel("Type of Commuting Route", fontsize=20)
+        plt.ylabel("Percentage of Commuting Routes", fontsize=20)
         plt.grid(True)
         plt.show()
 
@@ -192,6 +195,7 @@ def connect():
                     ha='center', va='bottom', fontsize=16)
 
         plt.xlabel("Type of Commuting Route", fontsize=20)
+        plt.ylabel("Percentage of Commuting Routes", fontsize=20)
         plt.grid(True)
         plt.show()
 
@@ -221,8 +225,321 @@ def connect():
                     ha='center', va='bottom', fontsize=16)
 
         plt.xlabel("Type of Commuting Route", fontsize=20)
+        plt.ylabel("Percentage of Commuting Routes", fontsize=20)
         plt.grid(True)
         plt.show()
+
+
+        query = "SELECT * FROM public.finalroutes_stats_travel_modes"
+        cur.execute(query)
+
+        fetched = cur.fetchall()
+
+        cities = parseDBColumns(fetched, 0, str)
+
+        transportmodes = parseDBColumns(fetched, 2, str)
+        transportmodes = transportmodes[:12]
+        percentage = parseDBColumns(fetched, 3, float)
+
+        array = np.arange(0, len(transportmodes), 1)
+
+        array2 = [x - 0.3 for x in array]
+        array0 = [x - 0 for x in array]
+        array3 = [x + 0.3 for x in array]
+
+        #COIMBRA
+
+        hw_percentage = percentage[0:12]
+        hwh_percentage = percentage[12:24]
+        wh_percentage = percentage[24:36]
+
+        ingeneral = []
+        unimodal = []
+        multimodal = []
+        hw_ingeneral = []
+        hwh_ingeneral = []
+        wh_ingeneral = []
+        hw_unimodal = []
+        hwh_unimodal = []
+        wh_unimodal = []
+        hw_multimodal = []
+        hwh_multimodal = []
+        wh_multimodal = []
+
+        for index, value in enumerate(transportmodes):
+            temp = value + " "
+            temp = temp.replace(",\"", "")
+            temp = temp.replace("\"", "")
+            temp = temp.replace("(", "")
+            temp = temp.replace(")", "")
+            temp = temp.replace(",", "_")
+            temp = temp.replace("COMMUTER_TRAIN", "TRAIN")
+            temp = temp.replace("_", "\nAND\n")
+            temp = temp.replace(" IN GENERAL", "\n(IN GENERAL)")
+            if(temp.find('\n') == -1):
+                temp = temp.replace("BUS ", "BUS\n(UNIMODAL)")
+                temp = temp.replace("SUBWAY ", "SUBWAY\n(UNIMODAL)")
+                temp = temp.replace("TRAIN ", "TRAIN\n(UNIMODAL)")
+                temp = temp.replace("DRIVING ", "DRIVING\n(UNIMODAL)")
+                temp = temp.replace("WALKING ", "WALKING\n(UNIMODAL)")
+            else:
+                temp = temp.replace("BUS ", "BUS\n(MULTIMODAL)")
+                temp = temp.replace("SUBWAY ", "SUBWAY\n(MULTIMODAL)")
+                temp = temp.replace("TRAIN ", "TRAIN\n(MULTIMODAL)")
+
+
+
+            if (temp.find("IN GENERAL") != -1):
+                ingeneral.append(temp)
+                hw_ingeneral.append(hw_percentage[index])
+                hwh_ingeneral.append(hwh_percentage[index])
+                wh_ingeneral.append(wh_percentage[index])
+
+            elif (temp.find("MULTIMODAL") != -1):
+                multimodal.append(temp)
+                hw_multimodal.append(hw_percentage[index])
+                hwh_multimodal.append(hwh_percentage[index])
+                wh_multimodal.append(wh_percentage[index])
+
+            else:
+                unimodal.append(temp)
+                hw_unimodal.append(hw_percentage[index])
+                hwh_unimodal.append(hwh_percentage[index])
+                wh_unimodal.append(wh_percentage[index])
+
+
+
+        transportmodes = unimodal + multimodal + ingeneral
+        hw_percentage = hw_unimodal + hw_multimodal + hw_ingeneral
+        hwh_percentage = hwh_unimodal + hwh_multimodal + hwh_ingeneral
+        wh_percentage = wh_unimodal + wh_multimodal + wh_ingeneral
+
+        fig = plt.figure(figsize=(16, 12))
+        ax = plt.axes()
+        ax.set_xlim(-0.7, 12)
+        ax.set_ylim(0, 87)
+        plt.yticks(np.arange(0, 87, 2), fontsize=16)
+        #plt.yscale("log")
+
+
+        rects1 = ax.bar(array0, hw_percentage, width=0.3, color='b', align='center')
+        rects2 = ax.bar(array2, hwh_percentage, width=0.3, color='g', align='center')
+        rects3 = ax.bar(array3, wh_percentage, width=0.3, color='r', align='center')
+
+
+        ax.legend((rects1[0], rects2[0], rects3[0]), (
+        "Home <-> Workplace", "Home -> Workplace",
+        "Workplace -> Home"))
+        plt.xticks(array, transportmodes, fontsize=12)
+
+        rects = ax.patches
+        for rect in rects:
+            height = rect.get_height()
+            ax.text(rect.get_x() + rect.get_width() / 2, 1.01 * height,
+                    '%.1f' % float(round(height,2)),
+                    ha='center', va='bottom', fontsize=12)
+
+        plt.xlabel("Travel Modes", fontsize=20)
+        plt.ylabel("Percentage of Commuting Routes", fontsize=20)
+        plt.grid(True)
+        plt.show()
+
+
+        #LISBOA
+
+        hw_percentage = percentage[36:48]
+        hwh_percentage = percentage[48:60]
+        wh_percentage = percentage[60:72]
+
+        ingeneral = []
+        unimodal = []
+        multimodal = []
+        hw_ingeneral = []
+        hwh_ingeneral = []
+        wh_ingeneral = []
+        hw_unimodal = []
+        hwh_unimodal = []
+        wh_unimodal = []
+        hw_multimodal = []
+        hwh_multimodal = []
+        wh_multimodal = []
+
+        for index, value in enumerate(transportmodes):
+            temp = value + " "
+            temp = temp.replace(",\"", "")
+            temp = temp.replace("\"", "")
+            temp = temp.replace("(", "")
+            temp = temp.replace(")", "")
+            temp = temp.replace(",", "_")
+            temp = temp.replace("COMMUTER_TRAIN", "TRAIN")
+            temp = temp.replace("_", "\nAND\n")
+            temp = temp.replace(" IN GENERAL", "\n(IN GENERAL)")
+            if(temp.find('\n') == -1):
+                temp = temp.replace("BUS ", "BUS\n(UNIMODAL)")
+                temp = temp.replace("SUBWAY ", "SUBWAY\n(UNIMODAL)")
+                temp = temp.replace("TRAIN ", "TRAIN\n(UNIMODAL)")
+                temp = temp.replace("DRIVING ", "DRIVING\n(UNIMODAL)")
+                temp = temp.replace("WALKING ", "WALKING\n(UNIMODAL)")
+            else:
+                temp = temp.replace("BUS ", "BUS\n(MULTIMODAL)")
+                temp = temp.replace("SUBWAY ", "SUBWAY\n(MULTIMODAL)")
+                temp = temp.replace("TRAIN ", "TRAIN\n(MULTIMODAL)")
+
+
+
+            if (temp.find("IN GENERAL") != -1):
+                ingeneral.append(temp)
+                hw_ingeneral.append(hw_percentage[index])
+                hwh_ingeneral.append(hwh_percentage[index])
+                wh_ingeneral.append(wh_percentage[index])
+
+            elif (temp.find("MULTIMODAL") != -1):
+                multimodal.append(temp)
+                hw_multimodal.append(hw_percentage[index])
+                hwh_multimodal.append(hwh_percentage[index])
+                wh_multimodal.append(wh_percentage[index])
+
+            else:
+                unimodal.append(temp)
+                hw_unimodal.append(hw_percentage[index])
+                hwh_unimodal.append(hwh_percentage[index])
+                wh_unimodal.append(wh_percentage[index])
+
+
+
+        transportmodes = unimodal + multimodal + ingeneral
+        hw_percentage = hw_unimodal + hw_multimodal + hw_ingeneral
+        hwh_percentage = hwh_unimodal + hwh_multimodal + hwh_ingeneral
+        wh_percentage = wh_unimodal + wh_multimodal + wh_ingeneral
+
+        fig = plt.figure(figsize=(16, 12))
+        ax = plt.axes()
+        ax.set_xlim(-0.7, 12)
+        ax.set_ylim(0, 87)
+        plt.yticks(np.arange(0, 87, 2), fontsize=16)
+        #plt.yscale("log")
+
+
+        rects1 = ax.bar(array0, hw_percentage, width=0.3, color='b', align='center')
+        rects2 = ax.bar(array2, hwh_percentage, width=0.3, color='g', align='center')
+        rects3 = ax.bar(array3, wh_percentage, width=0.3, color='r', align='center')
+
+
+        ax.legend((rects1[0], rects2[0], rects3[0]), (
+        "Home <-> Workplace", "Home -> Workplace",
+        "Workplace -> Home"))
+        plt.xticks(array, transportmodes, fontsize=12)
+
+        rects = ax.patches
+        for rect in rects:
+            height = rect.get_height()
+            ax.text(rect.get_x() + rect.get_width() / 2, 1.01 * height,
+                    '%.1f' % float(round(height,2)),
+                    ha='center', va='bottom', fontsize=12)
+
+        plt.xlabel("Travel Modes", fontsize=20)
+        plt.ylabel("Percentage of Commuting Routes", fontsize=20)
+        plt.grid(True)
+        plt.show()
+
+
+        #PORTO
+
+        hw_percentage = percentage[72:84]
+        hwh_percentage = percentage[84:96]
+        wh_percentage = percentage[96:108]
+
+        ingeneral = []
+        unimodal = []
+        multimodal = []
+        hw_ingeneral = []
+        hwh_ingeneral = []
+        wh_ingeneral = []
+        hw_unimodal = []
+        hwh_unimodal = []
+        wh_unimodal = []
+        hw_multimodal = []
+        hwh_multimodal = []
+        wh_multimodal = []
+
+        for index, value in enumerate(transportmodes):
+            temp = value + " "
+            temp = temp.replace(",\"", "")
+            temp = temp.replace("\"", "")
+            temp = temp.replace("(", "")
+            temp = temp.replace(")", "")
+            temp = temp.replace(",", "_")
+            temp = temp.replace("COMMUTER_TRAIN", "TRAIN")
+            temp = temp.replace("_", "\nAND\n")
+            temp = temp.replace(" IN GENERAL", "\n(IN GENERAL)")
+            if(temp.find('\n') == -1):
+                temp = temp.replace("BUS ", "BUS\n(UNIMODAL)")
+                temp = temp.replace("SUBWAY ", "SUBWAY\n(UNIMODAL)")
+                temp = temp.replace("TRAIN ", "TRAIN\n(UNIMODAL)")
+                temp = temp.replace("DRIVING ", "DRIVING\n(UNIMODAL)")
+                temp = temp.replace("WALKING ", "WALKING\n(UNIMODAL)")
+            else:
+                temp = temp.replace("BUS ", "BUS\n(MULTIMODAL)")
+                temp = temp.replace("SUBWAY ", "SUBWAY\n(MULTIMODAL)")
+                temp = temp.replace("TRAIN ", "TRAIN\n(MULTIMODAL)")
+
+
+
+            if (temp.find("IN GENERAL") != -1):
+                ingeneral.append(temp)
+                hw_ingeneral.append(hw_percentage[index])
+                hwh_ingeneral.append(hwh_percentage[index])
+                wh_ingeneral.append(wh_percentage[index])
+
+            elif (temp.find("MULTIMODAL") != -1):
+                multimodal.append(temp)
+                hw_multimodal.append(hw_percentage[index])
+                hwh_multimodal.append(hwh_percentage[index])
+                wh_multimodal.append(wh_percentage[index])
+
+            else:
+                unimodal.append(temp)
+                hw_unimodal.append(hw_percentage[index])
+                hwh_unimodal.append(hwh_percentage[index])
+                wh_unimodal.append(wh_percentage[index])
+
+
+
+        transportmodes = unimodal + multimodal + ingeneral
+        hw_percentage = hw_unimodal + hw_multimodal + hw_ingeneral
+        hwh_percentage = hwh_unimodal + hwh_multimodal + hwh_ingeneral
+        wh_percentage = wh_unimodal + wh_multimodal + wh_ingeneral
+
+        fig = plt.figure(figsize=(16, 12))
+        ax = plt.axes()
+        ax.set_xlim(-0.7, 12)
+        ax.set_ylim(0, 87)
+        plt.yticks(np.arange(0, 87, 2), fontsize=16)
+        #plt.yscale("log")
+
+
+        rects1 = ax.bar(array0, hw_percentage, width=0.3, color='b', align='center')
+        rects2 = ax.bar(array2, hwh_percentage, width=0.3, color='g', align='center')
+        rects3 = ax.bar(array3, wh_percentage, width=0.3, color='r', align='center')
+
+
+        ax.legend((rects1[0], rects2[0], rects3[0]), (
+        "Home <-> Workplace", "Home -> Workplace",
+        "Workplace -> Home"))
+        plt.xticks(array, transportmodes, fontsize=12)
+
+        rects = ax.patches
+        for rect in rects:
+            height = rect.get_height()
+            ax.text(rect.get_x() + rect.get_width() / 2, 1.01 * height,
+                    '%.1f' % float(round(height,2)),
+                    ha='center', va='bottom', fontsize=12)
+
+        plt.xlabel("Travel Modes", fontsize=20)
+        plt.ylabel("Percentage of Commuting Routes", fontsize=20)
+        plt.grid(True)
+        plt.show()
+
 
         elapsed_time = time.time() - start_time
         print("EXECUTION TIME: " + str(elapsed_time / 60) + " MINUTES")
