@@ -400,7 +400,7 @@ def renderFinalRoutes(city, userID):
 
 def archivesCity(city):
     #debug
-    if city != "Porto" and city != "Lisboa" and city != "Coimbra":
+    if city != "Porto" and city != "Lisboa" and city != "Coimbra" and city != "Braga" and city != "Leiria":
         os.mkdir("C:/Users/Joel/Documents/ArcGIS/ODPaths/" + city, 0777)
         os.mkdir("C:/Users/Joel/Documents/ArcGIS/ODPaths/" + city + "/H_W", 0777)
         os.mkdir("C:/Users/Joel/Documents/ArcGIS/ODPaths/" + city + "/H_W/interpolated_route_points_shapefiles", 0777)
@@ -529,30 +529,29 @@ def connect():
         municipals = parseDBColumns(fetched, 0, str)
 
         municipals = [unidecode.unidecode(line.decode('utf-8').strip()) for line in municipals]
-
+        new_municipals = []
         for index, elem in enumerate(municipals):
-            municipals[index] = elem.replace(" ", "_")
-            municipals[index] = elem.replace("-", "_")
+            new_municipals.append((elem.replace(" ", "_")).replace("-", "_"))
 
         #charts()
 
         countCity = 0
 
         #debug
-        municipals = municipals[2:]
+        new_municipals = new_municipals[8:]
 
         """
-        print(municipals)
+        print(new_municipals)
         return
         """
 
 
-        for city in municipals:
+        for city in new_municipals:
 
             archivesCity(city)
 
             #debug
-            countUsers = 402
+            countUsers = 0
 
             query2 = "SELECT * FROM public.OD" + city + "_users_characterization"
             cur.execute(query2)
@@ -567,6 +566,12 @@ def connect():
 
             if city == "Coimbra":
                 fetched_users = fetched_users[402:]
+
+            if city == "Braga":
+                fetched_users = fetched_users[350:]
+
+            if city == "Leiria":
+                fetched_users = fetched_users[270:]
 
 
 
