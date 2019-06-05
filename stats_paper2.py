@@ -114,7 +114,7 @@ def connect():
         # create a cursor
         cur = conn.cursor()
 
-
+        """
         query = "SELECT * FROM public.finalroutes_stats_typemode"
         cur.execute(query)
 
@@ -229,7 +229,7 @@ def connect():
         plt.grid(True)
         plt.show()
 
-
+        
         query = "SELECT * FROM public.finalroutes_stats_travel_modes"
         cur.execute(query)
 
@@ -536,6 +536,120 @@ def connect():
                     ha='center', va='bottom', fontsize=12)
 
         plt.xlabel("Travel Modes", fontsize=20)
+        plt.ylabel("Percentage of Commuting Routes", fontsize=20)
+        plt.grid(True)
+        plt.show()
+        """
+
+        query = "SELECT * FROM public.finalroutes_stats_durations"
+        cur.execute(query)
+
+        fetched = cur.fetchall()
+
+        cities = parseDBColumns(fetched, 0, str)
+
+        percentunimodal = parseDBColumns(fetched, 2, float)
+        percentmultimodal = parseDBColumns(fetched, 3, float)
+        percentpublic = parseDBColumns(fetched, 4, float)
+        percentprivate = parseDBColumns(fetched, 5, float)
+
+        cities = [unidecode.unidecode(line.decode('utf-8').strip()) for line in cities]
+        commutingtypes = ["Home <-> Workplace", "Home -> Workplace", "Workplace -> Home"]
+
+        array = np.arange(0, len(commutingtypes), 1)
+
+        array2 = [x - 0.3 for x in array]
+        array0 = [x - 0.1 for x in array]
+        array3 = [x + 0.1 for x in array]
+        array4 = [x + 0.3 for x in array]
+
+        # COIMBRA
+        fig = plt.figure(figsize=(16, 12))
+        ax = plt.axes()
+        ax.set_xlim(-0.7, 2.7)
+        ax.set_ylim(0, 105)
+        plt.yticks(np.arange(0, 105, 3), fontsize=16)
+        # plt.yscale("log")
+
+        rects1 = ax.bar(array0, percentprivate[0:3], width=0.2, color='b', align='center')
+        rects2 = ax.bar(array2, percentunimodal[0:3], width=0.2, color='g', align='center')
+        rects3 = ax.bar(array3, percentpublic[0:3], width=0.2, color='r', align='center')
+        rects4 = ax.bar(array4, percentmultimodal[0:3], width=0.2, color='k', align='center')
+
+        ax.legend((rects1[0], rects2[0], rects3[0], rects4[0]), (
+            "Private Travel Mode", "Unimodal Travel Mode",
+            "Public Travel Mode", "Multimodal Travel Mode"))
+        plt.xticks(array, commutingtypes, fontsize=16)
+
+        rects = ax.patches
+        for rect in rects:
+            height = rect.get_height()
+            ax.text(rect.get_x() + rect.get_width() / 2, 1.01 * height,
+                    '%.2f' % float(round(height, 2)),
+                    ha='center', va='bottom', fontsize=16)
+
+        plt.xlabel("Type of Commuting Route", fontsize=20)
+        plt.ylabel("Percentage of Commuting Routes", fontsize=20)
+        plt.grid(True)
+        plt.show()
+
+        # LISBOA
+
+        fig = plt.figure(figsize=(16, 12))
+        ax = plt.axes()
+        ax.set_xlim(-0.7, 2.7)
+        ax.set_ylim(0, 105)
+        plt.yticks(np.arange(0, 105, 3), fontsize=16)
+        # plt.yscale("log")
+
+        rects1 = ax.bar(array0, percentprivate[3:6], width=0.2, color='b', align='center')
+        rects2 = ax.bar(array2, percentunimodal[3:6], width=0.2, color='g', align='center')
+        rects3 = ax.bar(array3, percentpublic[3:6], width=0.2, color='r', align='center')
+        rects4 = ax.bar(array4, percentmultimodal[3:6], width=0.2, color='k', align='center')
+
+        ax.legend((rects1[0], rects2[0], rects3[0], rects4[0]), (
+            "Private Travel Mode", "Unimodal Travel Mode",
+            "Public Travel Mode", "Multimodal Travel Mode"))
+        plt.xticks(array, commutingtypes, fontsize=16)
+
+        rects = ax.patches
+        for rect in rects:
+            height = rect.get_height()
+            ax.text(rect.get_x() + rect.get_width() / 2, 1.01 * height,
+                    '%.2f' % float(round(height, 2)),
+                    ha='center', va='bottom', fontsize=16)
+
+        plt.xlabel("Type of Commuting Route", fontsize=20)
+        plt.ylabel("Percentage of Commuting Routes", fontsize=20)
+        plt.grid(True)
+        plt.show()
+
+        # PORTO
+        fig = plt.figure(figsize=(16, 12))
+        ax = plt.axes()
+        ax.set_xlim(-0.7, 2.7)
+        ax.set_ylim(0, 105)
+        plt.yticks(np.arange(0, 105, 3), fontsize=16)
+        # plt.yscale("log")
+
+        rects1 = ax.bar(array0, percentprivate[6:9], width=0.2, color='b', align='center')
+        rects2 = ax.bar(array2, percentunimodal[6:9], width=0.2, color='g', align='center')
+        rects3 = ax.bar(array3, percentpublic[6:9], width=0.2, color='r', align='center')
+        rects4 = ax.bar(array4, percentmultimodal[6:9], width=0.2, color='k', align='center')
+
+        ax.legend((rects1[0], rects2[0], rects3[0], rects4[0]), (
+            "Private Travel Mode", "Unimodal Travel Mode",
+            "Public Travel Mode", "Multimodal Travel Mode"))
+        plt.xticks(array, commutingtypes, fontsize=16)
+
+        rects = ax.patches
+        for rect in rects:
+            height = rect.get_height()
+            ax.text(rect.get_x() + rect.get_width() / 2, 1.01 * height,
+                    '%.2f' % float(round(height, 2)),
+                    ha='center', va='bottom', fontsize=16)
+
+        plt.xlabel("Type of Commuting Route", fontsize=20)
         plt.ylabel("Percentage of Commuting Routes", fontsize=20)
         plt.grid(True)
         plt.show()
