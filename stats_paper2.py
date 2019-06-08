@@ -114,7 +114,7 @@ def connect():
         # create a cursor
         cur = conn.cursor()
 
-        """
+
         query = "SELECT * FROM public.finalroutes_stats_typemode"
         cur.execute(query)
 
@@ -229,7 +229,8 @@ def connect():
         plt.grid(True)
         plt.show()
 
-        
+
+        """
         query = "SELECT * FROM public.finalroutes_stats_travel_modes"
         cur.execute(query)
 
@@ -246,9 +247,9 @@ def connect():
         array2 = [x - 0.3 for x in array]
         array0 = [x - 0 for x in array]
         array3 = [x + 0.3 for x in array]
-
+        """
         #COIMBRA
-
+        """
         hw_percentage = percentage[0:12]
         hwh_percentage = percentage[12:24]
         wh_percentage = percentage[24:36]
@@ -343,8 +344,8 @@ def connect():
         plt.ylabel("Percentage of Commuting Routes", fontsize=20)
         plt.grid(True)
         plt.show()
-
-
+        """
+        """
         #LISBOA
 
         hw_percentage = percentage[36:48]
@@ -404,14 +405,16 @@ def connect():
                 hw_unimodal.append(hw_percentage[index])
                 hwh_unimodal.append(hwh_percentage[index])
                 wh_unimodal.append(wh_percentage[index])
-
-
-
+            #debug
+            transportmodes[index] = temp
+        """
+        """
         transportmodes = unimodal + multimodal + ingeneral
         hw_percentage = hw_unimodal + hw_multimodal + hw_ingeneral
         hwh_percentage = hwh_unimodal + hwh_multimodal + hwh_ingeneral
         wh_percentage = wh_unimodal + wh_multimodal + wh_ingeneral
-
+        """
+        """
         fig = plt.figure(figsize=(16, 12))
         ax = plt.axes()
         ax.set_xlim(-0.7, 12)
@@ -502,14 +505,14 @@ def connect():
                 hw_unimodal.append(hw_percentage[index])
                 hwh_unimodal.append(hwh_percentage[index])
                 wh_unimodal.append(wh_percentage[index])
-
-
-
+        """
+        """
         transportmodes = unimodal + multimodal + ingeneral
         hw_percentage = hw_unimodal + hw_multimodal + hw_ingeneral
         hwh_percentage = hwh_unimodal + hwh_multimodal + hwh_ingeneral
         wh_percentage = wh_unimodal + wh_multimodal + wh_ingeneral
-
+        """
+        """
         fig = plt.figure(figsize=(16, 12))
         ax = plt.axes()
         ax.set_xlim(-0.7, 12)
@@ -539,8 +542,10 @@ def connect():
         plt.ylabel("Percentage of Commuting Routes", fontsize=20)
         plt.grid(True)
         plt.show()
+
         """
 
+        """
         query = "SELECT * FROM public.finalroutes_stats_durations"
         cur.execute(query)
 
@@ -548,20 +553,22 @@ def connect():
 
         cities = parseDBColumns(fetched, 0, str)
 
-        percentunimodal = parseDBColumns(fetched, 2, float)
-        percentmultimodal = parseDBColumns(fetched, 3, float)
-        percentpublic = parseDBColumns(fetched, 4, float)
-        percentprivate = parseDBColumns(fetched, 5, float)
+        lessthan15mins = parseDBColumns(fetched, 2, float)
+        _16minsto30mins = parseDBColumns(fetched, 3, float)
+        _31minsto60mins = parseDBColumns(fetched, 4, float)
+        _61minsto90mins = parseDBColumns(fetched, 5, float)
+        morethan90mins = parseDBColumns(fetched, 6, float)
 
         cities = [unidecode.unidecode(line.decode('utf-8').strip()) for line in cities]
         commutingtypes = ["Home <-> Workplace", "Home -> Workplace", "Workplace -> Home"]
 
         array = np.arange(0, len(commutingtypes), 1)
 
-        array2 = [x - 0.3 for x in array]
-        array0 = [x - 0.1 for x in array]
-        array3 = [x + 0.1 for x in array]
-        array4 = [x + 0.3 for x in array]
+        array2 = [x - 0.35 for x in array]
+        array0 = [x - 0.20 for x in array]
+        array3 = [x - 0.05 for x in array]
+        array4 = [x + 0.1 for x in array]
+        array5 = [x + 0.25 for x in array]
 
         # COIMBRA
         fig = plt.figure(figsize=(16, 12))
@@ -571,14 +578,15 @@ def connect():
         plt.yticks(np.arange(0, 105, 3), fontsize=16)
         # plt.yscale("log")
 
-        rects1 = ax.bar(array0, percentprivate[0:3], width=0.2, color='b', align='center')
-        rects2 = ax.bar(array2, percentunimodal[0:3], width=0.2, color='g', align='center')
-        rects3 = ax.bar(array3, percentpublic[0:3], width=0.2, color='r', align='center')
-        rects4 = ax.bar(array4, percentmultimodal[0:3], width=0.2, color='k', align='center')
+        rects1 = ax.bar(array0, _61minsto90mins[0:3], width=0.15, color='b', align='center')
+        rects2 = ax.bar(array2, lessthan15mins[0:3], width=0.15, color='g', align='center')
+        rects3 = ax.bar(array3, _31minsto60mins[0:3], width=0.15, color='r', align='center')
+        rects4 = ax.bar(array4, _16minsto30mins[0:3], width=0.15, color='k', align='center')
+        rects5 = ax.bar(array5, morethan90mins[0:3], width=0.15, color='y', align='center')
 
-        ax.legend((rects1[0], rects2[0], rects3[0], rects4[0]), (
-            "Private Travel Mode", "Unimodal Travel Mode",
-            "Public Travel Mode", "Multimodal Travel Mode"))
+        ax.legend((rects1[0], rects2[0], rects3[0], rects4[0], rects5[0]), (
+            "Less than 15 mins", "16 mins to 30 mins",
+            "31 mins to 60 mins", "61 mins to 90 mins", "more than 90 mins"))
         plt.xticks(array, commutingtypes, fontsize=16)
 
         rects = ax.patches
@@ -602,14 +610,15 @@ def connect():
         plt.yticks(np.arange(0, 105, 3), fontsize=16)
         # plt.yscale("log")
 
-        rects1 = ax.bar(array0, percentprivate[3:6], width=0.2, color='b', align='center')
-        rects2 = ax.bar(array2, percentunimodal[3:6], width=0.2, color='g', align='center')
-        rects3 = ax.bar(array3, percentpublic[3:6], width=0.2, color='r', align='center')
-        rects4 = ax.bar(array4, percentmultimodal[3:6], width=0.2, color='k', align='center')
+        rects1 = ax.bar(array0, _61minsto90mins[3:6], width=0.15, color='b', align='center')
+        rects2 = ax.bar(array2, lessthan15mins[3:6], width=0.15, color='g', align='center')
+        rects3 = ax.bar(array3, _31minsto60mins[3:6], width=0.15, color='r', align='center')
+        rects4 = ax.bar(array4, _16minsto30mins[3:6], width=0.15, color='k', align='center')
+        rects5 = ax.bar(array5, morethan90mins[3:6], width=0.15, color='y', align='center')
 
-        ax.legend((rects1[0], rects2[0], rects3[0], rects4[0]), (
-            "Private Travel Mode", "Unimodal Travel Mode",
-            "Public Travel Mode", "Multimodal Travel Mode"))
+        ax.legend((rects1[0], rects2[0], rects3[0], rects4[0], rects5[0]), (
+            "Less than 15 mins", "16 mins to 30 mins",
+            "31 mins to 60 mins", "61 mins to 90 mins", "more than 90 mins"))
         plt.xticks(array, commutingtypes, fontsize=16)
 
         rects = ax.patches
@@ -632,14 +641,15 @@ def connect():
         plt.yticks(np.arange(0, 105, 3), fontsize=16)
         # plt.yscale("log")
 
-        rects1 = ax.bar(array0, percentprivate[6:9], width=0.2, color='b', align='center')
-        rects2 = ax.bar(array2, percentunimodal[6:9], width=0.2, color='g', align='center')
-        rects3 = ax.bar(array3, percentpublic[6:9], width=0.2, color='r', align='center')
-        rects4 = ax.bar(array4, percentmultimodal[6:9], width=0.2, color='k', align='center')
+        rects1 = ax.bar(array0, _61minsto90mins[6:9], width=0.15, color='b', align='center')
+        rects2 = ax.bar(array2, lessthan15mins[6:9], width=0.15, color='g', align='center')
+        rects3 = ax.bar(array3, _31minsto60mins[6:9], width=0.15, color='r', align='center')
+        rects4 = ax.bar(array4, _16minsto30mins[6:9], width=0.15, color='k', align='center')
+        rects5 = ax.bar(array5, morethan90mins[6:9], width=0.15, color='y', align='center')
 
-        ax.legend((rects1[0], rects2[0], rects3[0], rects4[0]), (
-            "Private Travel Mode", "Unimodal Travel Mode",
-            "Public Travel Mode", "Multimodal Travel Mode"))
+        ax.legend((rects1[0], rects2[0], rects3[0], rects4[0], rects5[0]), (
+            "Less than 15 mins", "16 mins to 30 mins",
+            "31 mins to 60 mins", "61 mins to 90 mins", "more than 90 mins"))
         plt.xticks(array, commutingtypes, fontsize=16)
 
         rects = ax.patches
@@ -653,7 +663,7 @@ def connect():
         plt.ylabel("Percentage of Commuting Routes", fontsize=20)
         plt.grid(True)
         plt.show()
-
+        """
 
         elapsed_time = time.time() - start_time
         print("EXECUTION TIME: " + str(elapsed_time / 60) + " MINUTES")
