@@ -399,8 +399,8 @@ def renderFinalRoutes(city, userID):
 
 
 def archivesCity(city):
-    #debug
-    if city != "Porto" and city != "Lisboa" and city != "Coimbra" and city != "Braga" and city != "Leiria":
+    if (city != "Setubal"):
+        #debug
         os.mkdir("C:/Users/Joel/Documents/ArcGIS/ODPaths/" + city, 0777)
         os.mkdir("C:/Users/Joel/Documents/ArcGIS/ODPaths/" + city + "/H_W", 0777)
         os.mkdir("C:/Users/Joel/Documents/ArcGIS/ODPaths/" + city + "/H_W/interpolated_route_points_shapefiles", 0777)
@@ -528,17 +528,16 @@ def connect():
         fetched = cur.fetchall()
         municipals = parseDBColumns(fetched, 0, str)
 
-        municipals = [unidecode.unidecode(line.decode('utf-8').strip()) for line in municipals]
-        new_municipals = []
-        for index, elem in enumerate(municipals):
-            new_municipals.append((elem.replace(" ", "_")).replace("-", "_"))
-
         #charts()
 
         countCity = 0
 
         #debug
-        new_municipals = new_municipals[8:]
+        municipals = ['Setúbal', 'Bragança', 'Santarém', 'Évora']
+        temp = [unidecode.unidecode(line.decode('utf-8').strip()) for line in municipals]
+        new_municipals = []
+        for index, elem in enumerate(temp):
+            new_municipals.append((elem.replace(" ", "_")).replace("-", "_"))
 
         """
         print(new_municipals)
@@ -546,7 +545,7 @@ def connect():
         """
 
 
-        for city in new_municipals:
+        for index, city in enumerate(new_municipals):
 
             archivesCity(city)
 
@@ -557,23 +556,11 @@ def connect():
             cur.execute(query2)
             fetched_users = cur.fetchall()
 
+
             #debug
-            if city == "Porto":
-                fetched_users = fetched_users[432:]
 
-            if city == "Lisboa":
-                fetched_users = fetched_users[348:]
-
-            if city == "Coimbra":
-                fetched_users = fetched_users[402:]
-
-            if city == "Braga":
-                fetched_users = fetched_users[350:]
-
-            if city == "Leiria":
-                fetched_users = fetched_users[270:]
-
-
+            if city == "Setubal":
+                fetched_users = fetched_users[67:]
 
             # debug
             """

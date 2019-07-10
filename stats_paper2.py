@@ -120,7 +120,6 @@ def connect():
 
         fetched = cur.fetchall()
 
-
         cities = parseDBColumns(fetched, 0, str)
 
         percentunimodal = parseDBColumns(fetched, 2, float)
