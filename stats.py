@@ -158,7 +158,7 @@ def connect():
         # create a cursor
         cur = conn.cursor()
 
-        cur.execute('SELECT cell_id, latitude, longitude FROM public.call_dim')
+        cur.execute('SELECT distinct on (cell_id_unique) cell_id_unique, latitude, longitude FROM public.call_dim')
         fetched = cur.fetchall()
 
         cellIDs = parseDBColumns(fetched, 0, int)
@@ -169,17 +169,41 @@ def connect():
         for index, val in enumerate(cellIDs):
             coordsByCellIDs[val] = [cellIDsLats[index], cellIDsLons[index]]
 
-        cur.execute('SELECT originating_id, originating_cell_id, terminating_id, terminating_cell_id, date_id, duration_amt FROM public.call_fct WHERE duration_amt > 0 ORDER BY date_id')
-
+        cur.execute('SELECT originating_id FROM public.subsample_fct')
         fetched = cur.fetchall()
+        fetched = fetched[:100000] #7066024
 
-        """Parsing the collumns"""
         allOriginatingIDs = parseDBColumns(fetched, 0, int)
-        allOriginatingCellIDs = parseDBColumns(fetched, 1, int)
-        allTerminatingIDs = parseDBColumns(fetched, 2, int)
-        allTerminatingCellIDs = parseDBColumns(fetched, 3, int)
-        allDateIDs = parseDBColumns(fetched, 4, int)
-        allDurations = parseDBColumns(fetched, 5, int)
+
+        cur.execute('SELECT originating_cell_id FROM public.subsample_fct')
+        fetched = cur.fetchall()
+        fetched = fetched[:100000]  # 7066024
+
+        allOriginatingCellIDs = parseDBColumns(fetched, 0, int)
+
+        cur.execute('SELECT terminating_id FROM public.subsample_fct')
+        fetched = cur.fetchall()
+        fetched = fetched[:100000]  # 7066024
+
+        allTerminatingIDs = parseDBColumns(fetched, 0, int)
+
+        cur.execute('SELECT terminating_cell_id FROM public.subsample_fct')
+        fetched = cur.fetchall()
+        fetched = fetched[:100000]  # 7066024
+
+        allTerminatingCellIDs = parseDBColumns(fetched, 0, int)
+
+        cur.execute('SELECT date_id FROM public.subsample_fct')
+        fetched = cur.fetchall()
+        fetched = fetched[:100000]  # 7066024
+
+        allDateIDs = parseDBColumns(fetched, 0, int)
+
+        cur.execute('SELECT duration_amt FROM public.subsample_fct')
+        fetched = cur.fetchall()
+        fetched = fetched[:100000]  # 7066024
+
+        allDurations = parseDBColumns(fetched, 0, int)
 
         zipped = list(zip(allOriginatingIDs, allDateIDs, allOriginatingCellIDs))
         zipped = sorted(zipped, key=operator.itemgetter(0, 1))
@@ -216,8 +240,9 @@ def connect():
         weekday2 = ""
         hour2 = ""
         l = 0
+
         for index, val in enumerate(allOriginatingIDs):
-            print("FASE 1: " + str(l))
+
             month = getExactTime(allDateIDs[index], "nameMonth")
             weekday = getExactTime(allDateIDs[index], "weekday")
             date = getExactTime(allDateIDs[index], "date")
@@ -290,7 +315,6 @@ def connect():
             differentPlacesByHourByUser[i] = defaultdict(list)
         l = 0
         for tuple in zipped:
-            print("FASE 2: " + str(l))
 
             user = tuple[0]
             month = getExactTime(tuple[1], "nameMonth")
@@ -339,8 +363,8 @@ def connect():
 
 
         """ --------------------------------  calls activity (calls) x duration of the calls throughout the year ------------------------------- """
-        """
-        durationsMinutes = [x / 60 for x in allDurations]
+
+        durationsMinutes = [x for x in allDurations]
         frequenciesOfCallsByDuration = dict(collections.Counter(durationsMinutes))
         differentDurations, numberOfCalls = zip(*frequenciesOfCallsByDuration.items())
 
@@ -351,8 +375,10 @@ def connect():
         plt.ylabel("Number of Calls")
         ax.plot(differentDurations, numberOfCalls,'rx')
         plt.grid(True)
-        plt.show()
-        
+        fig.savefig('1.png')
+        plt.clf()
+        fig.clear()
+        plt.close(fig)
 
         print("-------------------- STATISTICS: calls activity (calls) x duration of the calls throughout the year ------------------------")
         print("STATS OF CALL'S DURATIONS (in seconds):")
@@ -366,17 +392,16 @@ def connect():
         maxNumberCalls = np.max(numberOfCalls)
         minDuration = statistics["min"]
         maxDuration = statistics["max"]
-        indexMinDuration = differentDurations.index(minDuration/60.0)
-        indexMaxDuration = differentDurations.index(maxDuration/60.0)
+        indexMinDuration = differentDurations.index(minDuration)
+        indexMaxDuration = differentDurations.index(maxDuration)
         indexMinCalls = numberOfCalls.index(minNumberCalls)
         indexMaxCalls = numberOfCalls.index(maxNumberCalls)
 
-        print("There are " + str(numberOfCalls[indexMinDuration]) + " calls with the minimum duration (" + str(minDuration/60.0) + " minutes)")
-        print("There are " + str(numberOfCalls[indexMaxDuration]) + " calls with the maximum duration (" + str(maxDuration/60.0) + " minutes)")
+        print("There are " + str(numberOfCalls[indexMinDuration]) + " calls with the minimum duration (" + str(minDuration) + " minutes)")
+        print("There are " + str(numberOfCalls[indexMaxDuration]) + " calls with the maximum duration (" + str(maxDuration) + " minutes)")
         print(str(differentDurations[indexMinCalls]) + " minutes was the duration recorded in the less amount of calls (" + str(minNumberCalls) + ")")
         print(str(differentDurations[indexMaxCalls]) + " minutes was the duration recorded in the most amount of calls (" + str(maxNumberCalls) + ")")
         print("-------------------------------------------------------------------------------------------------------------------------")
-
 
 
         ### --------------------------------  number of different active users  (calls) x calls activity throughout the year -------------------------------
@@ -384,7 +409,7 @@ def connect():
         frequenciesOfCallsByUser = dict(collections.Counter(allOriginatingIDs))
         numberOfCallsByNumberOfUsers = collections.Counter(frequenciesOfCallsByUser.values()).most_common()
         numberOfCalls, NumberOfUsersCalls = zip(*numberOfCallsByNumberOfUsers)
-          
+
         fig = plt.figure()
         ax = plt.axes()
         plt.title("Call Frequency per Different Number of Users Throughout the Year")
@@ -392,10 +417,13 @@ def connect():
         plt.ylabel("Number of Calls")
         plt.xscale("log")
         plt.yscale("log")
-        ax.plot( NumberOfUsersCalls, numberOfCalls,'gx')
+        ax.plot(NumberOfUsersCalls, numberOfCalls,'gx')
         plt.grid(True)
-        plt.show()
-        
+        fig.savefig('2.png')
+        plt.clf()
+        fig.clear()
+        plt.close(fig)
+
         print("-------------------- STATISTICS: number of different active users  (calls) x calls activity throughout the year ------------------------")
         print("Number of active users during the study: " + str(len(set(allOriginatingIDs))))
         print("Number of Calls: " + str(len(set(allOriginatingIDs))))
@@ -416,7 +444,7 @@ def connect():
         print("There are " + str(NumberOfUsersCalls[indexMaxCalls]) + " different users that made " + str(maxNumberCalls) + " calls troughout the year - the highest number of calls registered.")
 
         print("-------------------------------------------------------------------------------------------------------------------------")
-        """
+
 
         ### -----------------------------------  number of different active users in each month  ------------------------------------------------------------ 
 
@@ -428,6 +456,7 @@ def connect():
 
         freq_series = pd.Series(frequencies)
 
+        fig = plt.figure()
         ax = freq_series.plot(kind='bar', color='b', figsize=(30, 20), fontsize=25)
         ax.set_title('Number of Active Users in Each Month', fontsize=40)
         ax.set_xlabel('Months', fontsize=30)
@@ -441,7 +470,11 @@ def connect():
             height = rect.get_height()
             ax.text(rect.get_x() + rect.get_width() / 2, height, label, ha='center', va='bottom', fontsize=19)
 
-        plt.show()
+        fig.savefig('3.png')
+        plt.clf()
+        fig.clear()
+        plt.close(fig)
+
         print("-------------------- STATISTICS: number of different active users in each month ------------------------")
         print("STATS OF NUMBER OF ACTIVE USERS BY MONTH:")
         statistics = stats(frequencies)
@@ -454,7 +487,7 @@ def connect():
         print("The month with most active users (" + str(maxUsers) + ") was: " + str(months[indexMaxMonth]))
         print("-------------------------------------------------------------------------------------------------------------------------")
 
-        """
+
         ### -------------------------------------  number of different active users in each weekday (on average) -------------------------------------------- 
 
         for key in frequenciesWeekdays.keys():
@@ -466,6 +499,7 @@ def connect():
 
         freq_series = pd.Series(frequencies)
 
+        fig = plt.figure()
         ax = freq_series.plot(kind='bar', color='r', figsize=(30, 20), fontsize=25)
         ax.set_title('Number of Active Users in Each Weekday (on Average)', fontsize=40)
         ax.set_xlabel('Weekday', fontsize=30)
@@ -479,7 +513,10 @@ def connect():
             height = rect.get_height()
             ax.text(rect.get_x() + rect.get_width() / 2, height, int(label), ha='center', va='bottom', fontsize=19)
 
-        plt.show()
+        fig.savefig('4.png')
+        plt.clf()
+        fig.clear()
+        plt.close(fig)
 
         print("-------------------- STATISTICS: number of different active users in each weekday (on average) ------------------------")
         minUsers = np.min(frequencies)
@@ -499,7 +536,7 @@ def connect():
         dates, frequencies = zip(*originatingIDsByDate.items())
 
         freq_series = pd.Series(frequencies)
-
+        fig = plt.figure()
         ax = freq_series.plot(kind='bar', color='g', figsize=(30, 20), fontsize=25)
         ax.set_title('Number of Active Users in Each Day', fontsize=40)
         ax.set_xlabel('Day', fontsize=30)
@@ -513,7 +550,10 @@ def connect():
             height = rect.get_height()
             ax.text(rect.get_x() + rect.get_width() / 2, height, int(label), ha='center', va='bottom', fontsize=19)
 
-        plt.show()
+        fig.savefig('5.png')
+        plt.clf()
+        fig.clear()
+        plt.close(fig)
 
         print("-------------------- STATISTICS: number of different active users in each weekday (on average) ------------------------")
         print("STATS OF NUMBER OF ACTIVE USERS BY DAY:")
@@ -538,7 +578,7 @@ def connect():
         frequencies = frequencies[1:]
 
         freq_series = pd.Series(frequencies)
-
+        fig = plt.figure()
         ax = freq_series.plot(kind='bar', color='y', figsize=(30, 20), fontsize=25)
         ax.set_title('Number of Active Users in Each Hour (on Average)', fontsize=40)
         ax.set_xlabel('Hour', fontsize=30)
@@ -552,7 +592,10 @@ def connect():
             height = rect.get_height()
             ax.text(rect.get_x() + rect.get_width() / 2, height, int(label), ha='center', va='bottom', fontsize=19)
 
-        plt.show()
+        fig.savefig('6.png')
+        plt.clf()
+        fig.clear()
+        plt.close(fig)
 
         print("-------------------- STATISTICS: number of different active users in each hour (on average) ------------------------")
         print("STATS OF NUMBER OF ACTIVE USERS PER HOUR:")
@@ -578,7 +621,10 @@ def connect():
         plt.ylabel("Duration of the Calls (in minutes)")
         ax.plot(NumberOfUsersDurations, differentDurations,'yx')
         plt.grid(True)
-        plt.show()
+        fig.savefig('7.png')
+        plt.clf()
+        fig.clear()
+        plt.close(fig)
 
         print("-------------------- STATISTICS: number of different active users (calls) x duration of the calls throughout the year ------------------------")
         
@@ -598,7 +644,7 @@ def connect():
         months, durations = zip(*monthDurationsDict.items())
 
         freq_series = pd.Series(durations)
-
+        fig = plt.figure()
         ax = freq_series.plot(kind='bar', color='b', figsize=(30, 20), fontsize=25)
         ax.set_title('Duration of the Calls in Each Month', fontsize=40)
         ax.set_xlabel('Months', fontsize=30)
@@ -612,7 +658,11 @@ def connect():
             height = rect.get_height()
             ax.text(rect.get_x() + rect.get_width() / 2, height, round(label, 2), ha='center', va='bottom', fontsize=19)
 
-        plt.show()
+        fig.savefig('8.png')
+        plt.clf()
+        fig.clear()
+        plt.close(fig)
+
         print("-------------------- STATISTICS: duration of the calls in each month ------------------------")
         print("STATS OF DURATIONS BY MONTH:")
         statistics = stats(durations)
@@ -633,7 +683,7 @@ def connect():
         weekdays, durations = zip(*weekdaysDurationsDict.items())
 
         freq_series = pd.Series(durations)
-
+        fig = plt.figure()
         ax = freq_series.plot(kind='bar', color='r', figsize=(30, 20), fontsize=25)
         ax.set_title('Duration of the Calls in Each Weekday (on average)', fontsize=40)
         ax.set_xlabel('Weekdays', fontsize=30)
@@ -647,7 +697,10 @@ def connect():
             height = rect.get_height()
             ax.text(rect.get_x() + rect.get_width() / 2, height, round(label, 2), ha='center', va='bottom', fontsize=19)
 
-        plt.show()
+        fig.savefig('9.png')
+        plt.clf()
+        fig.clear()
+        plt.close(fig)
 
         print("-------------------- STATISTICS: duration of the calls  in each weekday (on average) ------------------------")
         minUsers = np.min(durations)
@@ -664,7 +717,7 @@ def connect():
         dates, durations = zip(*dateDurationsDict.items())
 
         freq_series = pd.Series(durations)
-
+        fig = plt.figure()
         ax = freq_series.plot(kind='bar', color='g', figsize=(30, 20), fontsize=25)
         ax.set_title('Duration of the Calls in Each Day', fontsize=40)
         ax.set_xlabel('Days', fontsize=30)
@@ -678,7 +731,10 @@ def connect():
             height = rect.get_height()
             ax.text(rect.get_x() + rect.get_width() / 2, height, round(label,2), ha='center', va='bottom', fontsize=19)
 
-        plt.show()
+        fig.savefig('10.png')
+        plt.clf()
+        fig.clear()
+        plt.close(fig)
 
         print("-------------------- STATISTICS: duration of the calls in each day throughout the year ------------------------")
         print("STATS OF Duration of the Calls BY DAY:")
@@ -701,7 +757,7 @@ def connect():
         hours, durations = zip(*hoursDurationsDict.items())
 
         freq_series = pd.Series(durations)
-
+        fig = plt.figure()
         ax = freq_series.plot(kind='bar', color='y', figsize=(30, 20), fontsize=25)
         ax.set_title('Duration of the Calls in Each Hour (average)', fontsize=40)
         ax.set_xlabel('Hour', fontsize=30)
@@ -715,7 +771,10 @@ def connect():
             height = rect.get_height()
             ax.text(rect.get_x() + rect.get_width() / 2, height, round(label,2), ha='center', va='bottom', fontsize=19)
 
-        plt.show()
+        fig.savefig('11.png')
+        plt.clf()
+        fig.clear()
+        plt.close(fig)
 
         print("-------------------- STATISTICS: duration of the calls in each hour (on average) ------------------------")
         print("STATS OF DURATION OF THE CALLS PER HOUR:")
@@ -735,7 +794,7 @@ def connect():
         months, frequencies = zip(*monthCallNumber.items())
 
         freq_series = pd.Series(frequencies)
-
+        fig = plt.figure()
         ax = freq_series.plot(kind='bar', color='b', figsize=(30, 20), fontsize=25)
         ax.set_title('Number of Calls Made in Each Month', fontsize=40)
         ax.set_xlabel('Months', fontsize=30)
@@ -749,7 +808,11 @@ def connect():
             height = rect.get_height()
             ax.text(rect.get_x() + rect.get_width() / 2, height, int(label), ha='center', va='bottom', fontsize=19)
 
-        plt.show()
+        fig.savefig('12.png')
+        plt.clf()
+        fig.clear()
+        plt.close(fig)
+
         print("-------------------- Call Activity (number of calls) in each month ------------------------")
         print("STATS OF NUMBER OF CALLS BY MONTH:")
         statistics = stats(frequencies)
@@ -771,7 +834,7 @@ def connect():
         weekdays, frequencies = zip(*weekdayCallNumber.items())
 
         freq_series = pd.Series(frequencies)
-
+        fig = plt.figure()
         ax = freq_series.plot(kind='bar', color='r', figsize=(30, 20), fontsize=25)
         plt.margins(y=0.2, tight=True)
         ax.set_title('Number of Calls Made in Each Weekday (on average)', fontsize=40)
@@ -785,7 +848,10 @@ def connect():
             height = rect.get_height()
             ax.text(rect.get_x() + rect.get_width() / 2, height, int(label), ha='center', va='bottom', fontsize=19)
 
-        plt.show()
+        fig.savefig('13.png')
+        plt.clf()
+        fig.clear()
+        plt.close(fig)
 
         print("-------------------- STATISTICS: Call Activity (number of calls) in each weekday (on average) ------------------------")
         minCalls = np.min(frequencies)
@@ -802,7 +868,7 @@ def connect():
         dates, frequencies = zip(*dateCallNumber.items())
 
         freq_series = pd.Series(frequencies)
-
+        fig = plt.figure()
         ax = freq_series.plot(kind='bar', color='g', figsize=(30, 20), fontsize=25)
         ax.set_title('Number of Calls in Each Day', fontsize=40)
         ax.set_xlabel('Days', fontsize=30)
@@ -816,7 +882,10 @@ def connect():
             height = rect.get_height()
             ax.text(rect.get_x() + rect.get_width() / 2, height, int(label), ha='center', va='bottom', fontsize=19)
 
-        plt.show()
+        fig.savefig('14.png')
+        plt.clf()
+        fig.clear()
+        plt.close(fig)
 
         print("-------------------- STATISTICS: Call Activity (number of calls) in each day throughout the year ------------------------")
         print("STATS OF Number of Calls BY DAY:")
@@ -838,7 +907,7 @@ def connect():
         hours, frequencies = zip(*hoursCallNumber.items())
 
         freq_series = pd.Series(frequencies)
-
+        fig = plt.figure()
         ax = freq_series.plot(kind='bar', color='y', figsize=(30, 20), fontsize=25)
         ax.set_title('Number of Calls in Each Hour ( on average)', fontsize=40)
         ax.set_xlabel('Hour', fontsize=30)
@@ -852,7 +921,10 @@ def connect():
             height = rect.get_height()
             ax.text(rect.get_x() + rect.get_width() / 2, height, int(label), ha='center', va='bottom', fontsize=19)
 
-        plt.show()
+        fig.savefig('15.png')
+        plt.clf()
+        fig.clear()
+        plt.close(fig)
 
         print("-------------------- STATISTICS: Call Activity (number of calls) in each hour ------------------------")
         print("STATS OF NUMBER OF CALLS PER HOUR:")
@@ -866,7 +938,7 @@ def connect():
         print("The Hour with more number of calls (" + str(int(maxHours)) + ") was: " + str(hours[indexMaxHour]))
         print("-------------------------------------------------------------------------------------------------------------------------")
 
-        """
+
         """------  number of different visited cells (only calls) x number of subjects throughout the year ------ """
 
         numberDifferentPlacesByNumberOfUsers = collections.Counter(numberDifferentPlacesByUser.values()).most_common()
@@ -879,7 +951,10 @@ def connect():
         plt.ylabel("Number of Different Visited Places")
         ax.plot(NumberOfUsersDifferentPlaces, numberDifferentPlaces,'ro')
         plt.grid(True)
-        plt.show()
+        fig.savefig('16.png')
+        plt.clf()
+        fig.clear()
+        plt.close(fig)
 
         print("-------------------- STATISTICS: number of different visited cells (only calls) x number of subjects throughout the year ------------------------")
         print("STATS OF DIFFERENT VISITED PLACES BY EACH USER THROUGHOUT THE YEAR:")
@@ -902,7 +977,7 @@ def connect():
 
         freq_series = pd.Series(averageDifferentPlaces)
 
-
+        fig = plt.figure()
         ax = freq_series.plot(kind='bar', color='b', figsize=(30, 20), fontsize=25)
         ax.set_title('Different Visited Places By Each User on Average in Each Month', fontsize=40)
         ax.set_xlabel('Months', fontsize=30)
@@ -917,7 +992,10 @@ def connect():
             height = rect.get_height()
             ax.text(rect.get_x() + rect.get_width() / 2, height, round(label,2), ha='center', va='bottom', fontsize=19)
 
-        plt.show()
+        fig.savefig('17.png')
+        plt.clf()
+        fig.clear()
+        plt.close(fig)
 
         print("-------------------- Different Visited Places By Each User on Average in Each Month ------------------------")
         print("STATS OF DIFFERENT VISITED PLACES BY EACH USER ON AVERAGE BY MONTH:")
@@ -937,7 +1015,7 @@ def connect():
         weekdays, averageDifferentPlaces = zip(*numberDifferentPlacesByWeekday.items())
 
         freq_series = pd.Series(averageDifferentPlaces)
-
+        fig = plt.figure()
         ax = freq_series.plot(kind='bar', color='r', figsize=(30, 20), fontsize=25)
         plt.margins(y=0.2, tight=True)
         ax.set_title('Different Visited Places By Each User on Average in Each Weekday', fontsize=40)
@@ -951,7 +1029,10 @@ def connect():
             height = rect.get_height()
             ax.text(rect.get_x() + rect.get_width() / 2, height, round(label,2), ha='center', va='bottom', fontsize=19)
 
-        plt.show()
+        fig.savefig('18.png')
+        plt.clf()
+        fig.clear()
+        plt.close(fig)
 
         print("-------------------- STATISTICS: Different Visited Places By Each User on Average in Each Weekday (on average) ------------------------")
         minDifferentPlaces = np.min(averageDifferentPlaces)
@@ -969,7 +1050,7 @@ def connect():
         hours, averageDifferentPlaces = zip(*differentPlacesByHour)
 
         freq_series = pd.Series(averageDifferentPlaces)
-
+        fig = plt.figure()
         ax = freq_series.plot(kind='bar', color='y', figsize=(30, 20), fontsize=25)
         ax.set_title('Different Visited Places By Each User on Average in Each Hour', fontsize=40)
         ax.set_xlabel('Hour', fontsize=30)
@@ -983,7 +1064,10 @@ def connect():
             height = rect.get_height()
             ax.text(rect.get_x() + rect.get_width() / 2, height, round(label,2), ha='center', va='bottom', fontsize=19)
 
-        plt.show()
+        fig.savefig('19.png')
+        plt.clf()
+        fig.clear()
+        plt.close(fig)
 
         print("-------------------- STATISTICS: Different Visited Places By Each User on Average in Each Hour (on average) ------------------------")
         print("STATS OF DIFFERENT VISITED PLACES BY EACH USER ON AVERAGE PER HOUR:")
@@ -1015,7 +1099,7 @@ def connect():
                     distanceTravelledByUser[user] += distanceInKmBetweenEarthCoordinates(coordsByCellIDs[differentPlaces[index-1]][0], coordsByCellIDs[differentPlaces[index-1]][1], coordsByCellIDs[differentPlaces[index]][0], coordsByCellIDs[differentPlaces[index]][1])
                 else:
                     distanceTravelledByUser[user] += 0
-
+        fig = plt.figure()
         classes = [0, 5, 25, 100, 500, 1250, 2500]
         classNames = ["[0 to 5[",  "]5 to 25]", "]25 to 100]", "]100 to 500]", "]500, 1250]", "]1250, 2500]"]
         out = pd.cut(list(distanceTravelledByUser.values()), bins=classes, include_lowest=True)
@@ -1043,7 +1127,10 @@ def connect():
         plt.ylabel("Number of Users", fontsize=30)
         plt.xlabel("Range of Travells Distance (in Kms)", fontsize=30)
         plt.grid(True)
-        plt.show()
+        fig.savefig('20.png')
+        plt.clf()
+        fig.clear()
+        plt.close(fig)
 
         """----------------------------------- Range of Distances of all the different visited places By the Users on Average in each Month --------------------------------------------------"""
 
@@ -1076,7 +1163,7 @@ def connect():
 
 
         freq_series = pd.Series(averageDistanceTravelled)
-
+        fig = plt.figure()
         ax = freq_series.plot(kind='bar', color='b', figsize=(30, 20), fontsize=25)
         ax.set_title('Range of Distances Travelled By Each user on Average in Each Month' , fontsize=40)
         ax.set_xlabel('Months', fontsize=30)
@@ -1090,7 +1177,10 @@ def connect():
             height = rect.get_height()
             ax.text(rect.get_x() + rect.get_width() / 2, height, round(label,2), ha='center', va='bottom', fontsize=19)
 
-        plt.show()
+        fig.savefig('21.png')
+        plt.clf()
+        fig.clear()
+        plt.close(fig)
 
         print("-------------------- Range of Distances of all the different visited places By the Users on Average in each Month ------------------------")
         print("STATS OF RANGE OF THE DIFFERENT VISITED PLACES BY EACH USER ON AVERAGE PER MONTH:")
@@ -1139,7 +1229,7 @@ def connect():
         hours, distanceTravelled = zip(*distanceTravelledByHour)
 
         freq_series = pd.Series(distanceTravelled)
-
+        fig = plt.figure()
         ax = freq_series.plot(kind='bar', color='y', figsize=(30, 20), fontsize=25)
         ax.set_title('Range of Distances Travelled By Each user on Average in Each Hour', fontsize=40)
         ax.set_xlabel('Hours', fontsize=30)
@@ -1153,7 +1243,10 @@ def connect():
             height = rect.get_height()
             ax.text(rect.get_x() + rect.get_width() / 2, height, round(label,2), ha='center', va='bottom', fontsize=19)
 
-        plt.show()
+        fig.savefig('22.png')
+        plt.clf()
+        fig.clear()
+        plt.close(fig)
 
         print("-------------------- Range of Distances of all the different visited places By Each user on Average in each Hour ------------------------")
         print("STATS OF RANGE OF THE DIFFERENT VISITED PLACES BY EACH USER ON AVERAGE PER HOUR:")
@@ -1201,7 +1294,7 @@ def connect():
         weekdays, averageDistanceTravelled = zip(*distanceTravelledByWeekday)
 
         freq_series = pd.Series(averageDistanceTravelled)
-
+        fig = plt.figure()
         ax = freq_series.plot(kind='bar', color='r', figsize=(30, 20), fontsize=25)
         plt.margins(y=0.2, tight=True)
         ax.set_title('Range of Distances Travelled By Each user on Average in Each Weekday', fontsize=40)
@@ -1215,7 +1308,10 @@ def connect():
             height = rect.get_height()
             ax.text(rect.get_x() + rect.get_width() / 2, height, round(label, 2), ha='center', va='bottom', fontsize=19)
 
-        plt.show()
+        fig.savefig('23.png')
+        plt.clf()
+        fig.clear()
+        plt.close(fig)
 
         print("-------------------- Range of Distances of all the different visited places By Each user on Average in each Weekday ------------------------")
         print("STATS OF RANGE OF THE DIFFERENT VISITED PLACES BY EACH USER ON AVERAGE PER DAY:")
@@ -1243,7 +1339,7 @@ def connect():
                 averageDistancesByUser[user] += distanceInKmBetweenEarthCoordinates(originatingCoords[0], originatingCoords[1], terminatingCoords[0], terminatingCoords[1])
 
             averageDistancesByUser[user] /= len(cellIDPairs)
-
+        fig = plt.figure()
         averageDistancesByUser = list(averageDistancesByUser.values())
         classes = [0, 5, 25, 100, 500, 1250, 2500]
         classNames = ["[0 to 5[", "]5 to 25]", "]25 to 100]", "]100 to 500]", "]500, 1250]", "]1250, 2500]"]
@@ -1270,7 +1366,10 @@ def connect():
         plt.xlabel("Average Distance (in Kms)", fontsize=30)
         plt.ylabel("Number of Users", fontsize=30)
         plt.grid(True)
-        plt.show()
+        fig.savefig('24.png')
+        plt.clf()
+        fig.clear()
+        plt.close(fig)
 
         elapsed_time = time.time() - start_time
         print(str(elapsed_time/60) + "minutes")
@@ -1278,7 +1377,7 @@ def connect():
 
         # close the communication with the PostgreSQL
         cur.close()
-    except (Exception, psycopg2.DatabaseError) as error:
+    except Exception as error:
         print(error)
     finally:
         if conn is not None:

@@ -399,7 +399,7 @@ def renderFinalRoutes(city, userID):
 
 
 def archivesCity(city):
-    if (city != "Setubal"):
+    if (city != "Evora"):
         #debug
         os.mkdir("C:/Users/Joel/Documents/ArcGIS/ODPaths/" + city, 0777)
         os.mkdir("C:/Users/Joel/Documents/ArcGIS/ODPaths/" + city + "/H_W", 0777)
@@ -533,7 +533,7 @@ def connect():
         countCity = 0
 
         #debug
-        municipals = ['Setúbal', 'Bragança', 'Santarém', 'Évora']
+        municipals = ['Évora']
         temp = [unidecode.unidecode(line.decode('utf-8').strip()) for line in municipals]
         new_municipals = []
         for index, elem in enumerate(temp):
@@ -559,8 +559,9 @@ def connect():
 
             #debug
 
-            if city == "Setubal":
-                fetched_users = fetched_users[67:]
+
+            if city == "Evora":
+                fetched_users = fetched_users[20:]
 
             # debug
             """
