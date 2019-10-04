@@ -2,49 +2,41 @@
 # encoding: utf-8
 """
 Exploratory Analysis Tools for CDR Dataset
-May 2019
+September 2019
 Joel Pires
 """
 __author__ = 'Joel Pires'
-__date__ = 'March 2019'
+__date__ = 'September 2019'
 
 import time
-import os
 import urllib, json
 import psycopg2
 import configparser
 import polyline
 import arcpy
-#from orderedset import OrderedSet
 import matplotlib.pyplot as plt
 import unidecode
 import numpy as np
-import os, sys
-import shutil
+import os
 
+# VARIABLES JUST FOR DEBUG
 exceptions = 0
-#debug
 usersCounter = 436
 routesCounter = 0
-cur = None
-conn = None
 countRequests = 0
+
+# API VARIABLES
 geralAPILIMIT = 58500
-apiKeys = [os.environ.get('MAPSAPIKEYJO'),
+apiKeys = [os.environ.get('MAPSAPIKEYJO'),  #All the Google API keys available in the system
            os.environ.get('MAPSAPIMA'),
            os.environ.get('MAPSAPILA')]
-"""
-           os.environ.get('MAPSAPIOC'),
-           os.environ.get('MAPSAPIBS'),
 
-           os.environ.get('MAPSAPIAP'),
-           os.environ.get('MAPSAPIMC')
-           #telefone da mae
-           ]  # aproximately a total of 351000 requests can be made
-"""
+atualAPILimit = 58500           #decide the limit of request of the initial api
+keyNumber = initialNumber = 1   #decide which api key the program should start use
 
-atualAPILimit = 58500 #decide the limit of request of the initial api
-keyNumber = initialNumber = 1 #decide which api key the program should start use
+#VARIABLES OF THE CONNECTION WITH THE DATABASE
+cur = None
+conn = None
 logfile = open('log.txt', 'w')
 
 
@@ -65,7 +57,14 @@ def config(filename='database.ini', section='postgresql'):
 
     return db
 
-
+"""
+    Method that is responsible for calculating possible routes given by the Google Directions API and storing the points of each route in postgres table
+    Inputs: origin - the geocoordinates of the home/work location of the user
+           destination - the geocoordinates of the work/home location of the user
+           city - string naming the city of the user
+           userID - the integer that identifies the user
+           commutingtype - 'H_W' if it is home to work or 'W_H' otherwise
+"""
 def calculate_routes(origin, destination, city, userID, commutingtype):
 
     global countRequests
@@ -90,8 +89,8 @@ def calculate_routes(origin, destination, city, userID, commutingtype):
             keyNumber += 1
             chosenkey = apiKeys[keyNumber]
 
-        if (mode == "transit"):
-            multimode = True
+        if (mode == "transit"): #"transit" corresponds to all public travel modes - tram, train, bus, subway
+            multimode = True    #multimodal trips only make sense if it involves public travel modes
         else:
             multimode = False
 
@@ -102,7 +101,6 @@ def calculate_routes(origin, destination, city, userID, commutingtype):
         print("REQUEST: " + str(request))
 
         logfile.write("\n=== Analyzing routes " + commutingtype + " using the " + mode + " travel mode ===\n")
-        # pode nao ter resposta
 
         if response['status'] == 'OK':
 
@@ -122,7 +120,15 @@ def calculate_routes(origin, destination, city, userID, commutingtype):
                     mobilityUser['routeNumber'] += 1
                     routesCounter += 1
 
-
+""" 
+   Method that analyze deeply the information obtained from the API and extract all the route points of a possible route of the google API
+   Inputs: mode - travel mode under analysis
+           route - possible route under analysis
+           mobilityUser - structure that contains the number of possible routes, the different route points and the respective travel modes
+           multimode - if it is a multimodal or unimodal kind of trip
+           origin - the geocoordinates of the home/work location of the user
+           destination - the geocoordinates of the work/home location of the user
+"""
 def analyzeLegs(mode, route, mobilityUser, multimode, origin, destination):
     global exceptions
     global logfile
@@ -194,7 +200,9 @@ def analyzeLegs(mode, route, mobilityUser, multimode, origin, destination):
         else:
             return {}
 
-
+"""Method responsible for interpolating the route points of each possible possible route given by the Google API. The points become equally
+   spaced by 20 meters. Shapefiles before the interpolation and after the interpolation are created.  
+"""
 def interpolate(mobilityUser, city, userID, commutingtype):
     global logfile
 
@@ -204,6 +212,7 @@ def interpolate(mobilityUser, city, userID, commutingtype):
     for word in mobilityUser['transport_modes']:
         transport_modes = transport_modes + "_" + word
 
+    # Creating the needed csv
     filename1 = city + "_" + commutingtype + "_" + str(userID) + "_" + transport_modes + "_non_interpolated_route_points_" + str(mobilityUser['routeNumber'])
     path_csvs = "C:\Users\Joel\Documents\ArcGIS\\ODPaths\\" + city + "\\" + commutingtype + "\\non_interpolated_route_points_csvs\\"
     with open(path_csvs + filename1 + ".csv", mode='w') as fp:
@@ -217,8 +226,7 @@ def interpolate(mobilityUser, city, userID, commutingtype):
             sequence += 1
     fp.close()
 
-    # creating GIS Layer
-    #logfile.write("Creating a GIS Layer from the CSV file...\n")
+    # Creating a GIS Layer from the CSV file
     arcpy.MakeXYEventLayer_management(path_csvs + filename1 + ".csv",
                                       "longitude",
                                       "latitude",
@@ -226,15 +234,14 @@ def interpolate(mobilityUser, city, userID, commutingtype):
                                       arcpy.SpatialReference("WGS 1984"),
                                       "sequence")
 
-    # convert the points to shapefile
-    #logfile.write("Creating a shapefile of the route points...\n")
+    # Creating a shapefile of the route points
     path_shapefile1 = "C:/Users/Joel/Documents/ArcGIS/ODPaths/" + city + "/" + commutingtype + "/non_interpolated_route_points_shapefiles/"
     arcpy.FeatureClassToFeatureClass_conversion(filename1 + "_Layer",
                                                 path_shapefile1,
                                                 filename1)
 
     # Execute PointsToLine
-    #logfile.write("Rendering the route line...\n")
+    # Rendering the route line
     filename2 = city + "_" + commutingtype + "_" + str(userID) + "_" + transport_modes + "_route_line_" + str(mobilityUser['routeNumber'])
     path_shapefile2 = "C:/Users/Joel/Documents/ArcGIS/ODPaths/" + city + "/" + commutingtype + "/route_lines_shapefiles/"
     arcpy.PointsToLine_management(path_shapefile1 + filename1 + ".shp",
@@ -242,8 +249,7 @@ def interpolate(mobilityUser, city, userID, commutingtype):
                                   "",
                                   "sequence")
 
-    # interpolate the points
-    #logfile.write("Creating a shapefile with the interpolated route points...\n")
+    # Creating a shapefile with the interpolated route points
     filename3 = city + "_" + commutingtype + "_" + str(userID) + "_" + transport_modes + "_interpolated_route_points_" + str(mobilityUser['routeNumber'])
     path_shapefile3 = "C:/Users/Joel/Documents/ArcGIS/ODPaths/" + city + "/" + commutingtype + "/interpolated_route_points_shapefiles/"
     arcpy.GeneratePointsAlongLines_management(path_shapefile2 + filename2 + ".shp",
@@ -252,13 +258,11 @@ def interpolate(mobilityUser, city, userID, commutingtype):
                                               Distance='20 meters',
                                               Include_End_Points='END_POINTS')
 
-    # convert the shapefile to layer
-    #logfile.write("Converting the shapefile to a layer...\n")
+    # Converting the shapefile to a layer
     layer = arcpy.MakeFeatureLayer_management(path_shapefile3 + filename3 + ".shp",
                                               filename3)
 
-    # convert layer to points
-    #logfile.write("Obtaining the interpolated points from the layer...\n")
+    # Obtaining the interpolated points from the layer
     fld_list = arcpy.ListFields(layer)
     fld_names = [fld.name for fld in fld_list]
     cursor = arcpy.da.SearchCursor(layer, fld_names)
@@ -270,6 +274,11 @@ def interpolate(mobilityUser, city, userID, commutingtype):
     return interpolated_route
 
 
+""" This procedure is used to calculate the final route once the possible routes were already stored in PostgresSQL. It makes use of
+    PostgreSQL to access the needed table and do the heavy calculations. The final route points are stored in a SQL table, no shapefiles generated.
+    Inputs: city - string of the city
+            userID - user from which we want to infer the exact route points
+"""
 def calculatingExactRoutes(city, userID):
 
     query = "INSERT INTO public.finalscores_" + city + " (userID, commutingType, routenumber, transportmodes, duration, finalscore) " \
@@ -333,11 +342,12 @@ def calculatingExactRoutes(city, userID):
     cur.execute(query)
     conn.commit()
 
-
-
+""" Once the final routes were calculated and store in postgreSQL, it is needed to render the shapefiles of the final routes.
+    Inputs: city - string of the city
+            userID - user from which we want to infer the exact route points
+"""
 def renderFinalRoutes(city, userID):
 
-    #logfile.write("Saving the final route points into csvs...")
 
     query1 = "SELECT DISTINCT ON(userID, commutingType) * FROM public.finalRoutes_" + city + " WHERE userID = " + str(userID)
 
@@ -369,8 +379,7 @@ def renderFinalRoutes(city, userID):
                 fp.write("\n")
         fp.close()
 
-        # creating GIS Layer
-        #logfile.write("Creating a GIS Layer of the final route from the CSV file...")
+        #Creating a GIS Layer of the final route from the CSV file..
         arcpy.MakeXYEventLayer_management(path_csvs + filename1 + ".csv",
                                           "longitude",
                                           "latitude",
@@ -378,15 +387,13 @@ def renderFinalRoutes(city, userID):
                                           arcpy.SpatialReference("WGS 1984"),
                                           "sequence")
 
-        # convert the points to shapefile
-        #logfile.write("Creating a shapefile of the final route...")
+        # Creating a shapefile of the final route...
         path_shapefile1 = "C:/Users/Joel/Documents/ArcGIS/ODPaths/" + city + "/" + differentRoutes[route][1] + "/final_routes_points/"
         arcpy.FeatureClassToFeatureClass_conversion(filename1 + "_Layer",
                                                     path_shapefile1,
                                                     filename1)
 
-        # Execute PointsToLine
-        # logfile.write("Rendering the route line...\n")
+        # Rendering the route line...
         filename2 = city + "_" + differentRoutes[route][1] + "_" + str(userID) + "_" + transport_modes + "_final_route_line_" + str(differentRoutes[route][2])
         path_shapefile2 = "C:/Users/Joel/Documents/ArcGIS/ODPaths/" + city + "/" + differentRoutes[route][1] + "/final_routes_lines/"
         arcpy.PointsToLine_management(path_shapefile1 + filename1 + ".shp",
@@ -394,53 +401,48 @@ def renderFinalRoutes(city, userID):
                                       "",
                                       "sequence")
 
-
-
-
-
+""" This method serves to create the necessary folders to store all the shapefiles created relative to a certain city"""
 def archivesCity(city):
-    if (city != "Evora"):
-        #debug
-        os.mkdir("C:/Users/Joel/Documents/ArcGIS/ODPaths/" + city, 0777)
-        os.mkdir("C:/Users/Joel/Documents/ArcGIS/ODPaths/" + city + "/H_W", 0777)
-        os.mkdir("C:/Users/Joel/Documents/ArcGIS/ODPaths/" + city + "/H_W/interpolated_route_points_shapefiles", 0777)
-        os.mkdir("C:/Users/Joel/Documents/ArcGIS/ODPaths/" + city + "/H_W/non_interpolated_route_points_csvs", 0777)
-        os.mkdir("C:/Users/Joel/Documents/ArcGIS/ODPaths/" + city + "/H_W/non_interpolated_route_points_shapefiles", 0777)
-        os.mkdir("C:/Users/Joel/Documents/ArcGIS/ODPaths/" + city + "/H_W/route_lines_shapefiles", 0777)
-        os.mkdir("C:/Users/Joel/Documents/ArcGIS/ODPaths/" + city + "/H_W/final_routes_csvs", 0777)
-        os.mkdir("C:/Users/Joel/Documents/ArcGIS/ODPaths/" + city + "/H_W/final_routes_points", 0777)
-        os.mkdir("C:/Users/Joel/Documents/ArcGIS/ODPaths/" + city + "/H_W/final_routes_lines", 0777)
-        os.mkdir("C:/Users/Joel/Documents/ArcGIS/ODPaths/" + city + "/W_H", 0777)
-        os.mkdir("C:/Users/Joel/Documents/ArcGIS/ODPaths/" + city + "/W_H/interpolated_route_points_shapefiles", 0777)
-        os.mkdir("C:/Users/Joel/Documents/ArcGIS/ODPaths/" + city + "/W_H/non_interpolated_route_points_csvs", 0777)
-        os.mkdir("C:/Users/Joel/Documents/ArcGIS/ODPaths/" + city + "/W_H/non_interpolated_route_points_shapefiles", 0777)
-        os.mkdir("C:/Users/Joel/Documents/ArcGIS/ODPaths/" + city + "/W_H/route_lines_shapefiles", 0777)
-        os.mkdir("C:/Users/Joel/Documents/ArcGIS/ODPaths/" + city + "/W_H/final_routes_csvs", 0777)
-        os.mkdir("C:/Users/Joel/Documents/ArcGIS/ODPaths/" + city + "/W_H/final_routes_points", 0777)
-        os.mkdir("C:/Users/Joel/Documents/ArcGIS/ODPaths/" + city + "/W_H/final_routes_lines", 0777)
+    os.mkdir("C:/Users/Joel/Documents/ArcGIS/ODPaths/" + city, 0777)
+    os.mkdir("C:/Users/Joel/Documents/ArcGIS/ODPaths/" + city + "/H_W", 0777)
+    os.mkdir("C:/Users/Joel/Documents/ArcGIS/ODPaths/" + city + "/H_W/interpolated_route_points_shapefiles", 0777)
+    os.mkdir("C:/Users/Joel/Documents/ArcGIS/ODPaths/" + city + "/H_W/non_interpolated_route_points_csvs", 0777)
+    os.mkdir("C:/Users/Joel/Documents/ArcGIS/ODPaths/" + city + "/H_W/non_interpolated_route_points_shapefiles", 0777)
+    os.mkdir("C:/Users/Joel/Documents/ArcGIS/ODPaths/" + city + "/H_W/route_lines_shapefiles", 0777)
+    os.mkdir("C:/Users/Joel/Documents/ArcGIS/ODPaths/" + city + "/H_W/final_routes_csvs", 0777)
+    os.mkdir("C:/Users/Joel/Documents/ArcGIS/ODPaths/" + city + "/H_W/final_routes_points", 0777)
+    os.mkdir("C:/Users/Joel/Documents/ArcGIS/ODPaths/" + city + "/H_W/final_routes_lines", 0777)
+    os.mkdir("C:/Users/Joel/Documents/ArcGIS/ODPaths/" + city + "/W_H", 0777)
+    os.mkdir("C:/Users/Joel/Documents/ArcGIS/ODPaths/" + city + "/W_H/interpolated_route_points_shapefiles", 0777)
+    os.mkdir("C:/Users/Joel/Documents/ArcGIS/ODPaths/" + city + "/W_H/non_interpolated_route_points_csvs", 0777)
+    os.mkdir("C:/Users/Joel/Documents/ArcGIS/ODPaths/" + city + "/W_H/non_interpolated_route_points_shapefiles", 0777)
+    os.mkdir("C:/Users/Joel/Documents/ArcGIS/ODPaths/" + city + "/W_H/route_lines_shapefiles", 0777)
+    os.mkdir("C:/Users/Joel/Documents/ArcGIS/ODPaths/" + city + "/W_H/final_routes_csvs", 0777)
+    os.mkdir("C:/Users/Joel/Documents/ArcGIS/ODPaths/" + city + "/W_H/final_routes_points", 0777)
+    os.mkdir("C:/Users/Joel/Documents/ArcGIS/ODPaths/" + city + "/W_H/final_routes_lines", 0777)
 
-        #print("[DIRECTORIES CREATED]")
+    #print("[DIRECTORIES CREATED]")
 
-        # Type "MODES" needs to be previously created
+    # Type "MODES" needs to be previously created
 
-        query13 = "CREATE TABLE IF NOT EXISTS public." + city + "_possible_routes (userID INTEGER, commutingType TEXT, routeNumber INTEGER, duration INTEGER, transportModes MODES, latitude NUMERIC, longitude NUMERIC, sequenceNumber INTEGER, geom_point_orig GEOMETRY(Point, 4326))"
-        cur.execute(query13)
-        conn.commit()
+    query13 = "CREATE TABLE IF NOT EXISTS public." + city + "_possible_routes (userID INTEGER, commutingType TEXT, routeNumber INTEGER, duration INTEGER, transportModes MODES, latitude NUMERIC, longitude NUMERIC, sequenceNumber INTEGER, geom_point_orig GEOMETRY(Point, 4326))"
+    cur.execute(query13)
+    conn.commit()
 
-        query2 = "CREATE TABLE IF NOT EXISTS public.OD" + city + "_users_characterization AS (SELECT * FROM users_characterization_final WHERE user_id IN (SELECT id FROM final_eligibleUsers WHERE municipal = \'" + city + "\'))"
-        cur.execute(query2)
-        conn.commit()
+    query2 = "CREATE TABLE IF NOT EXISTS public.OD" + city + "_users_characterization AS (SELECT * FROM users_characterization_final WHERE user_id IN (SELECT id FROM final_eligibleUsers WHERE municipal = \'" + city + "\'))"
+    cur.execute(query2)
+    conn.commit()
 
-        query11 = "CREATE TABLE IF NOT EXISTS public.finalScores_" + city + " (userID INTEGER, commutingType TEXT, routeNumber INTEGER, transportmodes MODES, duration INTEGER, finalscore NUMERIC)"
-        cur.execute(query11)
-        conn.commit()
+    query11 = "CREATE TABLE IF NOT EXISTS public.finalScores_" + city + " (userID INTEGER, commutingType TEXT, routeNumber INTEGER, transportmodes MODES, duration INTEGER, finalscore NUMERIC)"
+    cur.execute(query11)
+    conn.commit()
 
 
-        query13 = "CREATE TABLE IF NOT EXISTS public.finalRoutes_" + city + " (userID INTEGER, commutingType TEXT, routeNumber INTEGER, duration INTEGER, transportModes MODES, latitude NUMERIC, longitude NUMERIC, sequenceNumber INTEGER, geom_point_orig GEOMETRY(Point, 4326))"
-        cur.execute(query13)
-        conn.commit()
+    query13 = "CREATE TABLE IF NOT EXISTS public.finalRoutes_" + city + " (userID INTEGER, commutingType TEXT, routeNumber INTEGER, duration INTEGER, transportModes MODES, latitude NUMERIC, longitude NUMERIC, sequenceNumber INTEGER, geom_point_orig GEOMETRY(Point, 4326))"
+    cur.execute(query13)
+    conn.commit()
 
-
+""" This method serves just to make a graph of the distribution of the users in each municipal"""
 def charts():
     query = "SELECT * FROM public.eligibleUsers_byMunicipal"
     cur.execute(query)
@@ -490,8 +492,23 @@ def charts():
     plt.show()
 
 
-""" Connect to the PostgreSQL database server """
-def connect():
+""" Helper function just to obtain a certain collumn of a DB table in a form of a list
+    Inputs: listToParse - list of lists, in which each list is a collumn of a DB table
+            collumn: specify the index of the collumn that we want to extract
+            _constructor: specifiy the type of the data contained in the specidifed collumn
+    Outputs: a list with the values of the collumn
+"""
+def parseDBColumns(listToParse, collumn, _constructor):
+    constructor = _constructor
+    collumnList = []
+    for i in range(0, len(listToParse)):
+        collumnList.append(constructor(listToParse[i][collumn]))
+
+    return collumnList
+
+
+""" Main Function """
+def main():
     global countRequests
     global cur
     global keyNumber
@@ -500,7 +517,7 @@ def connect():
     global usersCounter
     global logfile
 
-    start_time = time.time()
+    start_time = time.time()    #Count time
 
     try:
         # read connection parameters
@@ -512,65 +529,36 @@ def connect():
 
         # create a cursor
         cur = conn.cursor()
-        #debug
-        """
-        if os.path.exists('C:/Users/Joel/Documents/ArcGIS/ODPaths') and os.path.isdir(
-                'C:/Users/Joel/Documents/ArcGIS/ODPaths'):
-            shutil.rmtree('C:/Users/Joel/Documents/ArcGIS/ODPaths')
 
-        os.mkdir("C:/Users/Joel/Documents/ArcGIS/ODPaths", 0777)
-        """
-        #print("[DIRECTORIES ERASED]")
-
-        query = "SELECT * FROM public.final_eligibleUsers_byMunicipal"
+        query = "SELECT * FROM public.final_eligibleUsers_byMunicipal"  #query needed just to retrieve all the municipals under evaluation
         cur.execute(query)
 
         fetched = cur.fetchall()
         municipals = parseDBColumns(fetched, 0, str)
 
+        #optional - create charts about the municipals and the quantity of the users in there
         #charts()
 
-        countCity = 0
-
-        #debug
-        municipals = ['Évora']
+        #These 4 lines are necessary in order to the algorithm run smoothly in cities with special characters like "ç", "à", etc
         temp = [unidecode.unidecode(line.decode('utf-8').strip()) for line in municipals]
         new_municipals = []
         for index, elem in enumerate(temp):
             new_municipals.append((elem.replace(" ", "_")).replace("-", "_"))
 
-        """
-        print(new_municipals)
-        return
-        """
-
-
+        #Main loop that will create routes for the users of each municipal
+        countCity = 0
         for index, city in enumerate(new_municipals):
 
             archivesCity(city)
 
-            #debug
             countUsers = 0
 
+            #Retrieving the users of each city. Information about their home and work location is also retrieved
             query2 = "SELECT * FROM public.OD" + city + "_users_characterization"
             cur.execute(query2)
             fetched_users = cur.fetchall()
 
-
-            #debug
-
-
-            if city == "Evora":
-                fetched_users = fetched_users[20:]
-
-            # debug
-            """
-            for index, value in enumerate(fetched_users):
-                print(str(index) + ": " + str(value[0]))
-            return
-            """
-
-            #DIRECTIONS API
+            #LOOP across all the users
             for i in range(len(fetched_users)):
                 userID = str(fetched_users[i][0])
                 home_location = (float(fetched_users[i][11]), float(fetched_users[i][12]))
@@ -578,37 +566,32 @@ def connect():
                 min_traveltime_h_w = str(fetched_users[i][18])
                 min_traveltime_w_h = str(fetched_users[i][24])
 
-
                 if (min_traveltime_h_w != "None"):
-                    #print("[CALCULATING POSSIBLE ROUTES HOME TO WORKPLACE OF USER " + str(userID) + "]")
+                    #CALCULATING ALL POSSIBLE ROUTES HOME TO WORKPLACE OF USER
                     calculate_routes(home_location, work_location, city, userID, "H_W")
 
                 if (min_traveltime_w_h != "None"):
-                    #print("[CALCULATING POSSIBLE ROUTES WORKPLACE TO HOME OF USER " + str(userID) + "]")
+                    #CALCULATING ALL POSSIBLE ROUTES WORKPLACE TO HOME OF USER
                     calculate_routes(work_location, home_location, city, userID, "W_H")
 
-                # logfile.write("Calculating the exact pendular routes...\n")
+                #Calculating the exact/final commuting routes
                 calculatingExactRoutes(city, userID)
 
+                #Creating the final shapefiles to put on ARCGIS
                 renderFinalRoutes(city, userID)
 
                 countUsers += 1
                 usersCounter += 1
 
-                logfile.write("\n==================== User " + str(usersCounter) + "/4997 (id: " + str(userID) + ") of " + city + " was processed =====================\n")
-
-                elapsed_time = time.time() - start_time
-                logfile.write("\n ============== EXECUTION TIME: " + str(elapsed_time / 60) + " MINUTES ============== \n\n")
+                logfile.write("\n==================== User " + str(usersCounter) + " (id: " + str(userID) + ") of " + city + " was processed =====================\n")
 
             countCity += 1
 
-
-            #print("[CITY OF " + str(city) + " PROCESSED]")
             logfile.write("\n==================== The city " + str(countCity) + "/274 (name:" + city + ") was processed =====================\n\n\n")
 
-        query1 = "DROP TABLE IF EXISTS public.OD" + city + "_users_characterization"
-        cur.execute(query1)
-        conn.commit()
+            query1 = "DROP TABLE IF EXISTS public.OD" + city + "_users_characterization"    #We don't need this temporary table anymore
+            cur.execute(query1)
+            conn.commit()
 
         logfile.write("A TOTAL OF " + str(countCity) + " cities were processed.\n")
         logfile.write("A TOTAL OF " + str(routesCounter) + " routes were processed.\n")
@@ -631,20 +614,6 @@ def connect():
             conn.close()
             print('DATABASE CONNECTION CLOSED.')
             logfile.close()
-
-
-def parseDBColumns(listToParse, collumn, _constructor):
-    constructor = _constructor
-    collumnList = []
-    for i in range(0, len(listToParse)):
-        collumnList.append(constructor(listToParse[i][collumn]))
-
-    return collumnList
-
-
-def main():
-
-    connect()
 
 
 if __name__ == '__main__':

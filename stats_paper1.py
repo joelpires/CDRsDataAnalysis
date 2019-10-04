@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 Exploratory Analysis Tools for CDR Dataset
-March 2019
+September 2019
 Joel Pires
 """
 import time
@@ -98,6 +98,35 @@ def connect():
 
         # create a cursor
         cur = conn.cursor()
+
+        ax = plt.axes()
+
+        cities = ["Lisboa", "Porto", "Coimbra", "Braga", "Setubal", "Aveiro", "Faro", "Leiria", "Viana", "Vila", "Viseu", "Santarem", "Guarda", "Portalegre", "Braganca", "Evora", "Castelo", "Beja"]
+        driving = [43.7, 41.4, 81.8, 61.5, 59.0, 62.4, 73.3, 78.0, 71.2, 59.4, 74.6, 82.7, 90.0, 77.3, 87.0, 93.4,73.7, 75.8]
+        walking = [6.6, 9.3, 18.2, 21.5, 20.2, 14.8, 26.6, 12.0, 15.2, 17.5, 15.3, 17.3, 10.0, 22.7, 13.0, 6.6, 23.7, 24.2]
+
+        plt.xlabel("Municipalities")
+        plt.ylabel("Percentage of Users")
+        #ax.set_xlim(0, 17, 2)
+        #ax.set_ylim(-1, 100)
+        ax.set_xticklabels(cities)
+        #plt.yticks(np.arange(0, 100, 5), fontsize=14)
+
+        ax.plot(driving, color="#663300", linewidth=4, label="Percentage of Use of Private Car")
+
+        ax.plot(walking, 'y', linewidth=4, label="Percentage of Walking")
+
+
+
+        f = lambda x, y, z: proj3d.proj_transform(x, y, z, ax.get_proj())[:2]
+        ax.legend(loc="upper left",
+                  bbox_transform=ax.transData,
+                  prop={'size': 14})
+
+        plt.grid(True)
+        plt.show()
+
+        return
         """
         cur.execute('SELECT "Tower Density (Km2 per Cell)" FROM public.statsmunicipals')
         fetched = cur.fetchall()
@@ -382,16 +411,14 @@ def connect():
         ax.set_ylim(-1, 100)
         plt.xticks(np.arange(min(numberDays)-1, 420, 20),fontsize=14)
         plt.yticks(np.arange(0, 100, 5), fontsize=14)
+        
         ax.plot(numberDays, numberDays_racioWeekdays,color="#663300", linewidth=4, label="Call Activity on Weekdays")
 
         ax.plot(numberDays, numberDays_racioHome_Workplace, 'y', linewidth=4, label="Indentified Home and Workplace")
 
-        ax.plot(numberDays, numberDays_racioHome_Workplace_Morning,'r', linewidth=4, label="Activity at Home and Workplace in the Morning")
-
-        ax.plot(numberDays, numberDays_racioHome_Workplace_Evening, 'b', linewidth=4, label="Activity at Home and Workplace in the Morning")
-
-        ax.plot(numberDays, numberDays_racioH_W_or_W_H, 'g', linewidth=4, label="Call Activity During Home->Work or Vice-Versa")
-        ax.plot(numberDays, numberDays_racioH_W_and_W_H, 'c', linewidth=4, label="Call Activity During Home->to Work and Vice-Versa")
+cities = ["Lisboa, Porto", "Coimbra", "Braga", "Setubal", "Aveiro", "Faro", "Leiria", "Viana", "Vila", "Viseu", "Santarem", "Guarda", "Portalegre", "Braganca", "Evora", "Castelo", "Beja"]
+driving = [43.7,41.4,81.8,61.5,59.0,62.4,73.3,71.2,59.4,74.6,82.7,77.3,87.0,93.4,73.7]
+walking = [6.6,9.3,18.2,21.5,20.2,14.8,26.6,15.2,17.5,15.3,17.3,22.7,13.0,6.6,23.7]
 
         f = lambda x, y, z: proj3d.proj_transform(x, y, z, ax.get_proj())[:2]
         ax.legend(loc="upper right",
