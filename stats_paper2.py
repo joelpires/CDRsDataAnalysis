@@ -11,7 +11,6 @@ import sys
 reload(sys)
 sys.setdefaultencoding('utf8')
 
-
 import time
 import psycopg2
 import configparser

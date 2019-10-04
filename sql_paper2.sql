@@ -12,7 +12,6 @@ CREATE TEMPORARY TABLE subset_users AS (
 
 );
 
-
 ---------------------------- DETERMINING THE ELIGIBLE USERS FROM THE SUBSET ------------------------------------
 
 DROP TABLE IF EXISTS aux_eligibleUsers;
@@ -141,173 +140,6 @@ UPDATE frequencies_intermediateTowers_H_W SET geom_point_dest=st_SetSrid(st_Make
 ALTER TABLE frequencies_intermediateTowers_W_H ADD COLUMN geom_point_dest GEOMETRY(Point, 4326);
 UPDATE frequencies_intermediateTowers_W_H SET geom_point_dest=st_SetSrid(st_MakePoint(longitude, latitude), 4326);
 
-/*
-
--- number of users that I ended up with
-SELECT count (DISTINCT userID) FROM porto_possible_routes;
-
--- number of exact routes that I need to end up with in distanceScore
-SELECT count(*)
-FROM (SELECT DISTINCT (userID, commutingType, routeNumber) FROM porto_possible_routes) f;
-
--- number of exact routes that I need to end up in the final
-SELECT count(*)
-FROM (SELECT DISTINCT (userID, commutingType, routeNumber) FROM porto_possible_routes) f;
-
-CREATE TABLE possible_routes_byUser AS (
-  SELECT userid, sum(qtd) AS routes
-  FROM (
-      SELECT userid, commutingType, count(DISTINCT routeNumber) AS qtd
-      FROM porto_possible_routes
-      GROUP BY userid, commutingType
-  ) g
-  GROUP BY userid
-);
-
--- number of possible routes that need to be filtered
-SELECT sum(routes)
-FROM (
-  SELECT userid, sum(qtd) AS routes
-  FROM (
-      SELECT userid, commutingType, count(DISTINCT routeNumber) AS qtd
-      FROM porto_possible_routes
-      GROUP BY userid, commutingType
-  ) g
-  GROUP BY userid
-) i;
-
--- number of different transport modes detected in general
-
-
-
--- DISTANCES SCORES HOME <-> WORK
-/*
-ALTER TABLE frequencies_intermediateTowers_H_W ADD COLUMN geom_point_dest GEOMETRY(Point, 4326);
-UPDATE frequencies_intermediateTowers_H_W SET geom_point_dest=st_SetSrid(st_MakePoint(longitude, latitude), 4326);
-
-ALTER TABLE frequencies_intermediateTowers_W_H ADD COLUMN geom_point_dest GEOMETRY(Point, 4326);
-UPDATE frequencies_intermediateTowers_W_H SET geom_point_dest=st_SetSrid(st_MakePoint(longitude, latitude), 4326);
-*/
-
-ALTER TABLE porto_possible_routes ADD COLUMN geom_point_orig GEOMETRY(Point, 4326);
-UPDATE porto_possible_routes SET geom_point_orig=st_SetSrid(st_MakePoint(longitude, latitude), 4326);
-
-
-CREATE TEMPORARY TABLE distancesWeighted AS (
-
-    SELECT f.*, cellID,
-           frequencia,
-           st_distance(ST_Transform(geom_point_orig, 3857),ST_Transform(geom_point_dest, 3857)) * CAST(1 AS FLOAT)/frequencia AS distanceWeighted
-    FROM porto_possible_routes f
-
-    INNER JOIN (SELECT id, cell_id AS cellID, frequencia, geom_point_dest FROM frequencies_intermediateTowers_H_W) g
-        ON g.id = userid
-        AND commutingtype = 'H_W'
-
-    UNION ALL
-
-    SELECT f.*, cellID,
-           frequencia,
-           st_distance(ST_Transform(geom_point_orig, 3857),ST_Transform(geom_point_dest, 3857)) * CAST(1 AS FLOAT)/frequencia AS distanceWeighted
-    FROM porto_possible_routes f
-
-    INNER JOIN (SELECT id, cell_id AS cellID, frequencia, geom_point_dest FROM frequencies_intermediateTowers_W_H) g
-        ON g.id = userid
-        AND commutingtype = 'W_H'
-
-);
-
-
-CREATE TEMPORARY TABLE distanceScores AS(
-  SELECT userid,
-         commutingtype,
-         routenumber,
-         avg(averageToIntermediateTowers) AS distanceScore,
-         transportmodes, duration
-  FROM(
-    SELECT userid,
-           commutingtype,
-           routenumber,
-           duration,
-           transportmodes,
-           latitude,
-           longitude,
-           avg(distanceWeighted) AS averageToIntermediateTowers
-    FROM distancesWeighted
-    GROUP BY userid, commutingtype, routenumber, duration, transportmodes, latitude, longitude
-  ) h
-  GROUP BY userID, commutingType, routenumber, transportmodes, duration
-);
-
-
--- DURATIONS SCORES HOME <-> WORK
-
-CREATE TEMPORARY TABLE traveltimes_and_durations AS (
-
-    SELECT userID, commutingType, routenumber, transportmodes, duration, travelTime
-    FROM porto_possible_routes f
-
-    INNER JOIN (SELECT hwid, minTravelTime_H_W AS travelTime FROM new_traveltimes_h_w_u) g
-        ON hwid = userid
-        AND commutingtype = 'H_W'
-    GROUP BY userID, commutingType, routenumber, transportmodes, duration,travelTime
-
-    UNION ALL
-
-    SELECT userID, commutingType, routenumber, transportmodes, duration,travelTime
-    FROM porto_possible_routes f
-
-    INNER JOIN (SELECT whid, minTravelTime_W_H AS travelTime FROM new_traveltimes_w_h_u) g
-        ON whid = userid
-        AND commutingtype = 'W_H'
-
-    GROUP BY userID, commutingType, routenumber, transportmodes, duration, travelTime
-
-);
-
-CREATE TEMPORARY TABLE durationsScores AS (
-  SELECT *,
-          CASE
-                WHEN (traveltime-duration) < 0 THEN traveltime-duration
-                ELSE 0
-          END AS durationscore
-  FROM traveltimes_and_durations
-);
-
-
--- FINAL EXACT ROUTES --
-CREATE TEMPORARY TABLE finalScores AS (
-    SELECT j.userid, j.commutingtype, j.routenumber, j.transportmodes, j.duration, (CAST(0.7 AS FLOAT)*distanceScore + CAST(0.3 AS FLOAT)*durationscore) AS finalscore
-    FROM distanceScores j
-    INNER JOIN durationsScores l
-    ON     j.userID = l.userID
-    AND    j.commutingType = l.commutingType
-    AND    j.routenumber = l.routenumber
-    AND    j.transportmodes = l.transportmodes
-    AND    j.duration = l.duration
-);
-
-CREATE TABLE exactRoutes AS (
-  SELECT userid, commutingtype, routenumber, transportmodes, duration, finalscore AS score
-  FROM finalScores
-  WHERE (userid, commutingType, finalscore) IN (
-      SELECT userid, commutingType, min(finalscore)
-      FROM finalScores
-      GROUP BY userID, commutingType
-  )
-);
-
-CREATE TABLE finalRoutes_porto AS (
-  SELECT g.*
-  FROM porto_de_mos_possible_routes g, exactRoutes_porto f
-  WHERE f.userid = g.userid
-    AND f.commutingtype = g.commutingtype
-    AND f.routenumber = g.routenumber
-);
-
-
-*/
-
 
 INSERT INTO public.finalscores_Lisboa (userID, commutingType, routenumber, transportmodes, duration, finalscore)
     (SELECT j.userid, j.commutingtype, j.routenumber, j.transportmodes, j.duration, (distanceScore*durationscore)
@@ -352,7 +184,7 @@ INSERT INTO public.finalscores_Lisboa (userID, commutingType, routenumber, trans
      AND    j.routenumber = l.routenumber
      AND    j.transportmodes = l.transportmodes
      AND    j.duration = l.duration
-)
+);
 
 
 
@@ -407,6 +239,7 @@ CREATE TEMPORARY TABLE final AS (
 -- CASTELO BRANCO, SANTAREM, FARO, EVORA -> 150  -- 450
 -- GUARDA, BEJA -> 100  -- 200
 -- PORTOALEGRE -> 97  -- 97
+-- total = 5150 utilizadores dos 18 distritos
 -- no resto dos municípios é põr um numero redondo de pessoas (no minimo ~100 pessoas como no caso de Portalegre) - 5247 pessoas no total
 -- previsao de 21 dias para acabar
 
@@ -494,16 +327,6 @@ CREATE TABLE final_eligibleUsers_byMunicipal AS (
   ORDER BY  userscommuting DESC, t.municipal DESC
 );
 
-
-
-
-
-SELECT * FROM finalscores_lisboa;
-SELECT * FROM finalroutes_lisboa;
-
-
-
-
 ---------------------- --- STATISTICS AND VISUALIZATIONS ------------ ------------ ------------ ------------ ------------
 
 -- know the number of different final routes written
@@ -518,7 +341,7 @@ SELECT count(*) FROM (SELECT DISTINCT ON (userid, commutingtype, (transportmodes
 -- EM Coimbra NAO HOUVE UMA DECISAO QUE SE TEVE DE ESCOLHER TRAVEL MODES ALEATORIAMENTE (ISTO È, HOUVE MAIS QUE UMA ROTA COM MODOS DE TRANSPORTE DIFERENTES MAS COM FINALSCORE)
 SELECT count(*) FROM (SELECT DISTINCT ON (userid, commutingtype, (transportmodes).mode1, (transportmodes).mode2, (transportmodes).mode3, (transportmodes).mode4) * FROM finalroutes_coimbra) t ;
 
-DROP TABLE new_finalRoutes_porto;
+DROP TABLE IF EXISTS new_finalRoutes_porto;
 CREATE TEMPORARY TABLE new_finalRoutes_porto AS (
   SELECT *
   FROM porto_possible_routes
@@ -526,7 +349,7 @@ CREATE TEMPORARY TABLE new_finalRoutes_porto AS (
 
 );
 
-DROP TABLE new_finalRoutes_lisboa;
+DROP TABLE IF EXISTS new_finalRoutes_lisboa;
 CREATE TEMPORARY TABLE new_finalRoutes_lisboa AS (
   SELECT *
   FROM lisboa_possible_routes
@@ -534,7 +357,7 @@ CREATE TEMPORARY TABLE new_finalRoutes_lisboa AS (
 
 );
 
-DROP TABLE new_finalRoutes_coimbra;
+DROP TABLE IF EXISTS new_finalRoutes_coimbra;
 CREATE TEMPORARY TABLE new_finalRoutes_coimbra AS (
   SELECT *
   FROM coimbra_possible_routes
@@ -542,7 +365,153 @@ CREATE TEMPORARY TABLE new_finalRoutes_coimbra AS (
 
 );
 
+DROP TABLE IF EXISTS new_finalRoutes_braga;
+CREATE TEMPORARY TABLE new_finalRoutes_braga AS (
+  SELECT *
+  FROM braga_possible_routes
+  WHERE (userid, commutingtype, routenumber, duration, transportmodes) IN (SELECT DISTINCT ON (userid, commutingtype) userid, commutingtype, routenumber, duration, transportmodes FROM finalroutes_braga)
 
+);
+
+DROP TABLE IF EXISTS new_finalRoutes_setubal;
+CREATE TEMPORARY TABLE new_finalRoutes_setubal AS (
+  SELECT *
+  FROM setubal_possible_routes
+  WHERE (userid, commutingtype, routenumber, duration, transportmodes) IN (SELECT DISTINCT ON (userid, commutingtype) userid, commutingtype, routenumber, duration, transportmodes FROM finalroutes_setubal)
+
+);
+SELECT * FROM new_finalRoutes_setubal;
+
+
+
+DROP TABLE IF EXISTS new_finalRoutes_aveiro;
+CREATE TEMPORARY TABLE new_finalRoutes_aveiro AS (
+  SELECT *
+  FROM aveiro_possible_routes
+  WHERE (userid, commutingtype, routenumber, duration, transportmodes) IN (SELECT DISTINCT ON (userid, commutingtype) userid, commutingtype, routenumber, duration, transportmodes FROM finalroutes_aveiro)
+
+);
+SELECT * FROM new_finalRoutes_aveiro;
+
+
+
+DROP TABLE IF EXISTS new_finalRoutes_faro;
+CREATE TEMPORARY TABLE new_finalRoutes_faro AS (
+  SELECT *
+  FROM faro_possible_routes
+  WHERE (userid, commutingtype, routenumber, duration, transportmodes) IN (SELECT DISTINCT ON (userid, commutingtype) userid, commutingtype, routenumber, duration, transportmodes FROM finalroutes_faro)
+
+);
+SELECT * FROM new_finalRoutes_faro;
+
+
+DROP TABLE IF EXISTS new_finalRoutes_leiria;
+CREATE TEMPORARY TABLE new_finalRoutes_leiria AS (
+  SELECT *
+  FROM leiria_possible_routes
+  WHERE (userid, commutingtype, routenumber, duration, transportmodes) IN (SELECT DISTINCT ON (userid, commutingtype) userid, commutingtype, routenumber, duration, transportmodes FROM finalroutes_leiria)
+
+);
+SELECT * FROM new_finalRoutes_leiria;
+
+
+DROP TABLE IF EXISTS new_finalRoutes_viana_do_castelo;
+CREATE TEMPORARY TABLE new_finalRoutes_viana_do_castelo AS (
+  SELECT *
+  FROM viana_do_castelo_possible_routes
+  WHERE (userid, commutingtype, routenumber, duration, transportmodes) IN (SELECT DISTINCT ON (userid, commutingtype) userid, commutingtype, routenumber, duration, transportmodes FROM finalroutes_viana_do_castelo)
+
+);
+SELECT * FROM new_finalRoutes_viana_do_castelo;
+
+
+DROP TABLE IF EXISTS new_finalRoutes_vila_real;
+CREATE TEMPORARY TABLE new_finalRoutes_vila_real AS (
+  SELECT *
+  FROM vila_real_possible_routes
+  WHERE (userid, commutingtype, routenumber, duration, transportmodes) IN (SELECT DISTINCT ON (userid, commutingtype) userid, commutingtype, routenumber, duration, transportmodes FROM finalroutes_vila_real)
+
+);
+SELECT * FROM new_finalRoutes_vila_real;
+
+DROP TABLE IF EXISTS new_finalRoutes_viseu;
+CREATE TEMPORARY TABLE new_finalRoutes_viseu AS (
+  SELECT *
+  FROM viseu_possible_routes
+  WHERE (userid, commutingtype, routenumber, duration, transportmodes) IN (SELECT DISTINCT ON (userid, commutingtype) userid, commutingtype, routenumber, duration, transportmodes FROM finalroutes_viseu)
+
+);
+SELECT * FROM new_finalRoutes_viseu;
+
+
+
+DROP TABLE IF EXISTS new_finalRoutes_santarem;
+CREATE TEMPORARY TABLE new_finalRoutes_santarem AS (
+  SELECT *
+  FROM santarem_possible_routes
+  WHERE (userid, commutingtype, routenumber, duration, transportmodes) IN (SELECT DISTINCT ON (userid, commutingtype) userid, commutingtype, routenumber, duration, transportmodes FROM finalroutes_santarem)
+
+);
+SELECT * FROM new_finalRoutes_santarem;
+
+
+DROP TABLE IF EXISTS new_finalRoutes_guarda;
+CREATE TEMPORARY TABLE new_finalRoutes_guarda AS (
+  SELECT *
+  FROM guarda_possible_routes
+  WHERE (userid, commutingtype, routenumber, duration, transportmodes) IN (SELECT DISTINCT ON (userid, commutingtype) userid, commutingtype, routenumber, duration, transportmodes FROM finalroutes_guarda)
+
+);
+SELECT * FROM new_finalRoutes_guarda;
+
+
+DROP TABLE IF EXISTS new_finalRoutes_portalegre;
+CREATE TEMPORARY TABLE new_finalRoutes_portalegre AS (
+  SELECT *
+  FROM portalegre_possible_routes
+  WHERE (userid, commutingtype, routenumber, duration, transportmodes) IN (SELECT DISTINCT ON (userid, commutingtype) userid, commutingtype, routenumber, duration, transportmodes FROM finalroutes_portalegre)
+
+);
+SELECT * FROM new_finalRoutes_portalegre;
+
+DROP TABLE IF EXISTS new_finalRoutes_braganca;
+CREATE TEMPORARY TABLE new_finalRoutes_braganca AS (
+  SELECT *
+  FROM braganca_possible_routes
+  WHERE (userid, commutingtype, routenumber, duration, transportmodes) IN (SELECT DISTINCT ON (userid, commutingtype) userid, commutingtype, routenumber, duration, transportmodes FROM finalroutes_braganca)
+
+);
+SELECT * FROM new_finalRoutes_braganca;
+
+
+DROP TABLE IF EXISTS new_finalRoutes_evora;
+CREATE TEMPORARY TABLE new_finalRoutes_evora AS (
+  SELECT *
+  FROM evora_possible_routes
+  WHERE (userid, commutingtype, routenumber, duration, transportmodes) IN (SELECT DISTINCT ON (userid, commutingtype) userid, commutingtype, routenumber, duration, transportmodes FROM finalroutes_evora)
+
+);
+SELECT * FROM new_finalRoutes_evora;
+
+
+DROP TABLE IF EXISTS new_finalRoutes_castelo_branco;
+CREATE TEMPORARY TABLE new_finalRoutes_castelo_branco AS (
+  SELECT *
+  FROM castelo_branco_possible_routes
+  WHERE (userid, commutingtype, routenumber, duration, transportmodes) IN (SELECT DISTINCT ON (userid, commutingtype) userid, commutingtype, routenumber, duration, transportmodes FROM finalroutes_castelo_branco)
+
+);
+SELECT * FROM new_finalRoutes_castelo_branco;
+
+
+DROP TABLE IF EXISTS new_finalRoutes_beja;
+CREATE TEMPORARY TABLE new_finalRoutes_beja AS (
+  SELECT *
+  FROM beja_possible_routes
+  WHERE (userid, commutingtype, routenumber, duration, transportmodes) IN (SELECT DISTINCT ON (userid, commutingtype) userid, commutingtype, routenumber, duration, transportmodes FROM finalroutes_beja)
+
+);
+SELECT * FROM new_finalRoutes_beja;
 
 -- different transport modes/combinations in the final routes
 SELECT count(distinct transportmodes) FROM new_finalRoutes_lisboa;
@@ -553,7 +522,6 @@ SELECT DISTINCT ON (transportmodes) * FROM new_finalroutes_porto;
 
 SELECT count(distinct transportmodes) FROM new_finalroutes_coimbra;
 SELECT DISTINCT ON (transportmodes) * FROM new_finalroutes_coimbra;
-
 
 -- different transport modes/combinations in the possible routes
 SELECT count(distinct transportmodes) FROM lisboa_possible_routes;
@@ -589,29 +557,11 @@ SELECT count(*) FROM lisboa_possible_routes WHERE sequencenumber = 0 AND (transp
 SELECT count(*) FROM lisboa_possible_routes WHERE sequencenumber = 0 AND (transportmodes).mode1 = 'WALKING' AND (transportmodes).mode2 = 'COMMUTER_TRAIN' AND (transportmodes).mode3 = '' AND (transportmodes).mode4 = '';
 
 -- how many possible routes are in lisbon using multimodal
-SELECT count(*) FROM lisboa_possible_routes WHERE sequencenumber = 0 AND (transportmodes).mode1 = 'BUS' AND (transportmodes).mode2 = 'WALKING' AND (transportmodes).mode3 = '' AND (transportmodes).mode4 = '';
+SELECT count(*) FROM finalroutes_lisboa WHERE sequencenumber = 0;
 SELECT count(*) FROM lisboa_possible_routes WHERE sequencenumber = 0 AND (transportmodes).mode1 = 'WALKING' AND (transportmodes).mode2 = 'COMMUTER_TRAIN' AND (transportmodes).mode3 = 'SUBWAY' AND (transportmodes).mode4 = '';
 SELECT count(*) FROM lisboa_possible_routes WHERE sequencenumber = 0 AND (transportmodes).mode1 = 'BUS' AND (transportmodes).mode2 = 'WALKING' AND (transportmodes).mode3 = 'COMMUTER_TRAIN' AND (transportmodes).mode4 = '';
 SELECT count(*) FROM lisboa_possible_routes WHERE sequencenumber = 0 AND (transportmodes).mode1 = 'BUS' AND (transportmodes).mode2 = 'WALKING' AND (transportmodes).mode3 = 'COMMUTER_TRAIN' AND (transportmodes).mode4 = 'SUBWAY';
 SELECT count(*) FROM lisboa_possible_routes WHERE sequencenumber = 0 AND (transportmodes).mode1 = 'BUS' AND (transportmodes).mode2 = 'WALKING' AND (transportmodes).mode3 = 'SUBWAY' AND (transportmodes).mode4 = '';
-
-
-"(BUS,"""","""","""")"
-"(BUS,WALKING,"""","""")"
-"(BUS,WALKING,COMMUTER_TRAIN,"""")"
-"(BUS,WALKING,COMMUTER_TRAIN,SUBWAY)"
-"(BUS,WALKING,HEAVY_RAIL,"""")"
-"(BUS,WALKING,SUBWAY,"""")"
-"(DRIVING,"""","""","""")"
-"(HEAVY_RAIL,WALKING,SUBWAY,"""")"
-"(WALKING,"""","""","""")"
-"(WALKING,COMMUTER_TRAIN,"""","""")"
-"(WALKING,COMMUTER_TRAIN,HEAVY_RAIL,"""")"
-"(WALKING,COMMUTER_TRAIN,SUBWAY,"""")"
-"(WALKING,SUBWAY,"""","""")"
-
-(TRAM,WALKING,"","")
-(WALKING,HEAVY_RAIL,"","")
 
 CREATE TEMPORARY TABLE new_porto_possible_routes AS(
   SELECT *
@@ -640,22 +590,86 @@ UPDATE new_lisboa_possible_routes SET city='Lisboa';
 ALTER TABLE new_coimbra_possible_routes ADD COLUMN city TEXT;
 UPDATE new_coimbra_possible_routes SET city='Coimbra';
 
+--  do the same for the other municipals...
+
 DROP TABLE IF EXISTS all_possible_routes;
 CREATE TEMPORARY TABLE all_possible_routes AS (
   SELECT *
-  FROM new_porto_possible_routes
+  FROM new_braga_possible_routes
 
   UNION ALL
 
   SELECT *
-  FROM new_lisboa_possible_routes
+  FROM new_setubal_possible_routes
 
   UNION ALL
 
   SELECT *
-  FROM new_coimbra_possible_routes
+  FROM new_aveiro_possible_routes
+
+  UNION ALL
+
+  SELECT *
+  FROM new_faro_possible_routes
+
+  UNION ALL
+
+  SELECT *
+  FROM new_leiria_possible_routes
+
+  UNION ALL
+
+  SELECT *
+  FROM new_viana_do_castelo_possible_routes
+
+  UNION ALL
+
+  SELECT *
+  FROM new_vila_real_possible_routes
+
+  UNION ALL
+
+  SELECT *
+  FROM new_viseu_possible_routes
+
+  UNION ALL
+
+  SELECT *
+  FROM new_santarem_possible_routes
+
+  UNION ALL
+
+  SELECT *
+  FROM new_guarda_possible_routes
+
+  UNION ALL
+
+  SELECT *
+  FROM new_portalegre_possible_routes
+
+  UNION ALL
+
+  SELECT *
+  FROM new_braganca_possible_routes
+
+  UNION ALL
+
+  SELECT *
+  FROM new_evora_possible_routes
+
+  UNION ALL
+
+  SELECT *
+  FROM new_castelo_branco_possible_routes
+
+  UNION ALL
+
+  SELECT *
+  FROM new_beja_possible_routes
 
 );
+
+
 
 CREATE TEMPORARY TABLE aux_finalRoutes_lisboa AS(
   SELECT *
@@ -681,8 +695,93 @@ UPDATE aux_finalRoutes_porto SET city='Porto';
 ALTER TABLE aux_finalRoutes_lisboa ADD COLUMN city TEXT;
 UPDATE aux_finalRoutes_lisboa SET city='Lisboa';
 
-ALTER TABLE aux_finalRoutes_coimbra ADD COLUMN city TEXT;
-UPDATE aux_finalRoutes_coimbra SET city='Coimbra';
+CREATE TEMPORARY TABLE aux_finalRoutes_beja AS(
+  SELECT *
+  FROM new_finalRoutes_beja
+  WHERE sequencenumber = 0
+);
+
+ALTER TABLE aux_finalRoutes_beja ADD COLUMN city TEXT;
+UPDATE aux_finalRoutes_beja SET city='Beja';
+
+
+DROP TABLE IF EXISTS all_finalroutes;
+CREATE TEMPORARY TABLE all_finalroutes AS (
+  SELECT *
+  FROM aux_finalRoutes_braga
+
+  UNION ALL
+
+  SELECT *
+  FROM aux_finalRoutes_setubal
+
+  UNION ALL
+
+  SELECT *
+  FROM aux_finalRoutes_aveiro
+
+  UNION ALL
+
+  SELECT *
+  FROM aux_finalRoutes_faro
+
+  UNION ALL
+
+  SELECT *
+  FROM aux_finalRoutes_leiria
+
+  UNION ALL
+
+  SELECT *
+  FROM aux_finalRoutes_viana_do_castelo
+
+  UNION ALL
+
+  SELECT *
+  FROM aux_finalRoutes_vila_real
+
+  UNION ALL
+
+  SELECT *
+  FROM aux_finalRoutes_viseu
+
+  UNION ALL
+
+  SELECT *
+  FROM aux_finalRoutes_santarem
+
+  UNION ALL
+
+  SELECT *
+  FROM aux_finalRoutes_guarda
+
+  UNION ALL
+
+  SELECT *
+  FROM aux_finalRoutes_portalegre
+
+  UNION ALL
+
+  SELECT *
+  FROM aux_finalRoutes_braganca
+
+  UNION ALL
+
+  SELECT *
+  FROM aux_finalRoutes_evora
+
+  UNION ALL
+
+  SELECT *
+  FROM aux_finalRoutes_castelo_branco
+
+  UNION ALL
+
+  SELECT *
+  FROM aux_finalRoutes_beja
+
+);
+
 
 DROP TABLE IF EXISTS all_finalroutes;
 CREATE TEMPORARY TABLE all_finalroutes AS (
@@ -717,20 +816,6 @@ CREATE TEMPORARY TABLE all_finalroutes AS (
   -- how many multimodal possible routes: - 12: ...
   SELECT count(distinct transportmodes) FROM all_possible_routes WHERE (transportmodes).mode1 IS NOT NULL AND (transportmodes).mode2 != '';
   SELECT DISTINCT ON (transportmodes) * FROM all_possible_routes WHERE (transportmodes).mode1 IS NOT NULL AND (transportmodes).mode2 != '';
-
-
-  -- how many private transport modes: driving
-
-  -- how many public transport modes: bus, commuter_train, heavy_rail, tram, subway
-
-  -- how many non-poluent transport modes: bicycle, walking
-
-  -- how many poluent transport modes: driving, bus, commuter_train, heavy_rail, tram, subway
-
-  -- percentages and rations comparison
-
--- percentages and rations comparison
-
 
 
 -- preparing all possible routes: we have to eliminate walking as a multimodal travel mode combination
@@ -795,6 +880,7 @@ DROP TABLE IF EXISTS prep_all_final_routes;
 CREATE TEMPORARY TABLE prep_all_final_routes AS (
   SELECT *,   CASE
               WHEN (transportmodes).mode1 = 'DRIVING' AND (transportmodes).mode2 = '' AND (transportmodes).mode3 = '' AND (transportmodes).mode3 = '' THEN 1 -- and bicycling
+              WHEN (transportmodes).mode1 = 'WALKING' AND (transportmodes).mode2 = '' AND (transportmodes).mode3 = '' AND (transportmodes).mode3 = '' THEN 1 -- and bicycling
               ELSE 0
             END AS private,     CASE
                                 WHEN (transportmodes).mode1 = 'BUS' OR (transportmodes).mode2 = 'BUS' OR (transportmodes).mode3 = 'BUS' OR (transportmodes).mode4 = 'BUS'
@@ -877,8 +963,6 @@ CREATE TEMPORARY TABLE aux_possibleroutes_stats_travel_modes_commutingtype AS (
 
 );
 
-
-
 CREATE TEMPORARY TABLE possibleroutes_stats_travel_modes_city AS (
 
   SELECT u.city, u.commutingtype, u.transportmodes, CAST(freq AS FLOAT)*100/total AS percentage
@@ -909,10 +993,10 @@ CREATE TEMPORARY TABLE possibleroutes_stats_travel_modes_city AS (
 
 
 --- final routes ---
-
+DROP TABLE IF EXISTS aux_finalroutes_stats_typemode_commutingtype;
 CREATE TEMPORARY TABLE aux_finalroutes_stats_typemode_commutingtype AS (
    SELECT city, commutingtype, sum(unimodal) AS freqUnimodal, count(*)-sum(unimodal) AS freqmultimodal, sum(public) AS freqPublic, sum(private) AS freqprivate, count(*) AS TOTAL
-   FROM prep_all_possible_routes
+   FROM prep_all_final_routes
    GROUP BY city, commutingtype
 );
 
@@ -990,22 +1074,22 @@ CREATE TEMPORARY TABLE finalroutes_stats_travel_modes_city AS (
 
 );
 
-DROP TABLE finalroutes_stats_typemode;
+DROP TABLE IF EXISTS finalroutes_stats_typemode;
 CREATE TABLE finalroutes_stats_typemode AS (
-  SELECT city, commutingtype, CAST(freqUnimodal AS FLOAT)*100/total AS percentUnimodal, CAST(freqmultimodal AS FLOAT)*100/total AS percentmultimodal, CAST(freqPublic AS FLOAT)*100/total AS percentPublic, CAST(freqprivate AS FLOAT)*100/total AS percentPrivate
+  SELECT city, commutingtype, CAST(freqUnimodal AS FLOAT)*100/total AS percentUnimodal, CAST(freqmultimodal AS FLOAT)*100/total AS percentmultimodal, CAST(freqPublic AS FLOAT)*100/total AS percentPublic, CAST(freqprivate AS FLOAT)*100/total AS percentPrivate, '2' AS factor
   FROM aux_finalroutes_stats_typemode_commutingtype
   GROUP BY city, commutingtype, freqUnimodal, freqmultimodal, freqPublic, freqprivate, total
 
   UNION ALL
 
-  SELECT city, 'H_W_H' AS commutingtype, CAST(sum(freqUnimodal) AS FLOAT)*100/sum(TOTAL) AS percentUnimodal, CAST(sum(freqmultimodal) AS FLOAT)*100/sum(TOTAL) AS percentMultimodal, CAST(sum(freqPublic) AS FLOAT)*100/sum(TOTAL) AS percentPublic, CAST(sum(freqprivate) AS FLOAT)*100/sum(TOTAL) AS percentPrivate
+  SELECT city, 'H_W_H' AS commutingtype, CAST(sum(freqUnimodal) AS FLOAT)*100/sum(TOTAL) AS percentUnimodal, CAST(sum(freqmultimodal) AS FLOAT)*100/sum(TOTAL) AS percentMultimodal, CAST(sum(freqPublic) AS FLOAT)*100/sum(TOTAL) AS percentPublic, CAST(sum(freqprivate) AS FLOAT)*100/sum(TOTAL) AS percentPrivate, '3' AS factor
   FROM aux_finalroutes_stats_typemode_commutingtype t
   GROUP BY city
 
-  ORDER BY city, percentPublic DESC
+  ORDER BY city, factor DESC, commutingtype
 );
 
-
+DROP TABLE finalroutes_stats_travel_modes;
 CREATE TABLE finalroutes_stats_travel_modes AS (
   SELECT v.city, v.commutingtype, v.transportmodes, coalesce(percentage,0)
   FROM (SELECT * FROM finalroutes_stats_travel_modes_city) y
@@ -1015,4 +1099,69 @@ CREATE TABLE finalroutes_stats_travel_modes AS (
   ON y.city = v.city
   AND y.commutingtype = v.commutingtype
   AND y.transportmodes = v.transportmodes
+
+  ORDER BY city, v.commutingtype, v.transportmodes
 );
+
+
+
+CREATE TEMPORARY TABLE aux_finalroutes_stats_duration_commutingtype AS (
+   SELECT *
+   FROM all_final_routes
+
+);
+
+DROP TABLE IF EXISTS prep_all_final_routes;
+CREATE TEMPORARY TABLE prep_all_final_routes AS (
+  SELECT userid, city, commutingtype, duration,   CASE
+                                                      WHEN duration < 960 THEN 1 -- até 15 mins
+                                                      ELSE 0
+                                                  END AS "less than 15mins", CASE
+                                                                                  WHEN duration >= 960 AND duration < 1800 THEN 1 -- de 16 a 30 mins
+                                                                                  ELSE 0
+                                                                              END AS "16minsto30mins",
+                                                                                                        CASE
+                                                                                                            WHEN duration >= 1800 AND duration < 3600 THEN 1  -- de 31 a 60 mins
+                                                                                                            ELSE 0
+                                                                                                        END AS "31minsto60mins", CASE
+                                                                                                                                        WHEN duration >= 3600 AND duration < 5400 THEN 1  -- de 61 a 90 mins
+                                                                                                                                        ELSE 0
+                                                                                                                                    END AS "61minsto90mins",
+                                                                                                                                                              CASE
+                                                                                                                                                                  WHEN duration >= 5400 THEN 1  -- de mais de 90 mins
+                                                                                                                                                                  ELSE 0
+                                                                                                                                                              END AS "morethan90"
+  FROM all_finalroutes
+);
+
+DROP TABLE IF EXISTS aux_finalroutes_stats_durations_commutingtype;
+CREATE TEMPORARY TABLE aux_finalroutes_stats_durations_commutingtype AS (
+   SELECT city, commutingtype, sum("less than 15mins") AS "freq less than 15mins", sum("16minsto30mins") AS "freq 16minsto30mins", sum("31minsto60mins") AS "freq 31minsto60mins", sum("61minsto90mins") AS "freq 61minsto90mins", sum("morethan90") AS "freq morethan90", count(*) AS TOTAL
+   FROM prep_all_final_routes
+   GROUP BY city, commutingtype
+);
+
+DROP TABLE finalroutes_stats_durations;
+CREATE TABLE finalroutes_stats_durations AS (
+  SELECT city, commutingtype, CAST("freq less than 15mins" AS FLOAT)*100/total AS "percent less than 15mins", CAST("freq 16minsto30mins" AS FLOAT)*100/total AS "percent 16minsto30mins", CAST("freq 31minsto60mins" AS FLOAT)*100/total AS "percent 31minsto60mins", CAST("freq 61minsto90mins" AS FLOAT)*100/total AS "percent 61minsto90mins", CAST("freq morethan90" AS FLOAT)*100/total AS "percent morethan90", '2' AS factor
+  FROM aux_finalroutes_stats_durations_commutingtype
+  GROUP BY city, commutingtype, "percent less than 15mins", "percent 16minsto30mins", "percent 31minsto60mins", "percent 61minsto90mins", "percent morethan90", total
+
+  UNION ALL
+
+  SELECT city, 'H_W_H' AS commutingtype, CAST(sum("freq less than 15mins") AS FLOAT)*100/sum(TOTAL) AS "percent less than 15mins", CAST(sum("freq 16minsto30mins") AS FLOAT)*100/sum(TOTAL) AS "percent 16minsto30mins", CAST(sum("freq 31minsto60mins") AS FLOAT)*100/sum(TOTAL) AS "percent 31minsto60mins", CAST(sum("freq 61minsto90mins") AS FLOAT)*100/sum(TOTAL) AS "percent 61minsto90mins", CAST(sum("freq morethan90") AS FLOAT)*100/sum(TOTAL) AS "percent morethan90", '3' AS factor
+  FROM aux_finalroutes_stats_durations_commutingtype t
+  GROUP BY city
+
+  ORDER BY city, factor DESC, commutingtype
+);
+
+
+SELECT count(*) FROM (SELECT DISTINCT ON (transportmodes) * FROM all_finalroutes WHERE commutingtype = 'W_H')r;
+SELECT count(*) FROM (SELECT DISTINCT ON (transportmodes) * FROM finalroutes_coimbra) r;
+
+
+SELECT * FROM finalroutes_stats_typemode;
+
+
+SELECT * FROM public.final_eligibleUsers_byMunicipal

@@ -1,58 +1,3 @@
-DROP TABLE experiment_stats;
-CREATE TABLE experiment_stats (
-  total_users_characterization INTEGER,
-  total_users_characterization_final INTEGER,
-  users_characterization_experiment1_1_1 INTEGER,
-  users_characterization_experiment1_1_2 INTEGER,
-  users_characterization_experiment1_1_3 INTEGER,
-  users_characterization_experiment1_2_1 INTEGER,
-  users_characterization_experiment1_2_2 INTEGER,
-  users_characterization_experiment1_2_3 INTEGER,
-  users_characterization_experiment1_3_1 INTEGER,
-  users_characterization_experiment1_3_2 INTEGER,
-  users_characterization_experiment1_3_3 INTEGER,
-  users_characterization_experiment1_4_1 INTEGER,
-  users_characterization_experiment1_4_2 INTEGER,
-  users_characterization_experiment1_4_3 INTEGER,
-  users_characterization_experiment1_4_4 INTEGER,
-  users_characterization_experiment1_5_1 INTEGER,
-  users_characterization_experiment2_1_1 INTEGER,
-  users_characterization_experiment2_1_2 INTEGER,
-  users_characterization_experiment2_1_3 INTEGER,
-  users_characterization_experiment2_2_1 INTEGER,
-  users_characterization_experiment2_2_2 INTEGER,
-  users_characterization_experiment2_2_3 INTEGER,
-  users_characterization_experiment2_3_1 INTEGER,
-  users_characterization_experiment2_3_2 INTEGER,
-  users_characterization_experiment2_3_3 INTEGER,
-  users_characterization_experiment2_4_1 INTEGER,
-  users_characterization_experiment2_4_2 INTEGER,
-  users_characterization_experiment2_4_3 INTEGER,
-  users_characterization_experiment2_4_4 INTEGER,
-  users_characterization_experiment2_5_1 INTEGER,
-  users_characterization_experiment3_1_1 INTEGER,
-  users_characterization_experiment3_1_2 INTEGER,
-  users_characterization_experiment3_1_3 INTEGER,
-  users_characterization_experiment3_2_1 INTEGER,
-  users_characterization_experiment3_2_2 INTEGER,
-  users_characterization_experiment3_2_3 INTEGER,
-  users_characterization_experiment3_3_1 INTEGER,
-  users_characterization_experiment3_3_2 INTEGER,
-  users_characterization_experiment3_3_3 INTEGER,
-  users_characterization_experiment3_4_1 INTEGER,
-  users_characterization_experiment3_4_2 INTEGER,
-  users_characterization_experiment3_4_3 INTEGER,
-  users_characterization_experiment3_4_4 INTEGER,
-  users_characterization_experiment3_5_1 INTEGER,
-  users_characterization_experiment4_1 INTEGER,
-  users_characterization_experiment4_2_1 INTEGER,
-  users_characterization_experiment4_2_2 INTEGER,
-  users_characterization_experiment4_2_3 INTEGER,
-  users_characterization_experiment4_2_4 INTEGER
-);
-INSERT INTO experiment_stats DEFAULT VALUES;
-SELECT * FROM experiment_stats;
-
 ------------------------------------------------------------------------------------------------------------------------
 CREATE TABLE unique_call_fct AS(
   SELECT originating_id,
@@ -512,7 +457,7 @@ FROM travelTimes_H_W_u
 WHERE minTravelTime_H_W = 0;
 
 --issue: e se houver mais que um minimum travel time, há que fazer merge!
-CREATE TEMPORARY TABLE new_travelTimes_H_W_u AS (
+CREATE TABLE new_travelTimes_H_W_u AS (
   SELECT DISTINCT ON(id, averageTravelTime_H_W, minTravelTime_H_W) *
   FROM travelTimes_H_W_u
 );
@@ -692,7 +637,7 @@ DELETE
 FROM travelTimes_W_H_u
 WHERE minTravelTime_W_H = 0;
 
-CREATE TEMPORARY TABLE new_travelTimes_W_H_u AS (
+CREATE TABLE new_travelTimes_W_H_u AS (
   SELECT DISTINCT ON(id, averageTravelTime_W_H, minTravelTime_W_H) *
   FROM travelTimes_W_H_u
 );
@@ -700,10 +645,10 @@ CREATE TEMPORARY TABLE new_travelTimes_W_H_u AS (
 -- --------------------------------------------------------------------------- INTERMEDIATE CELL TOWERS WITHIN TRAVEL TIME ------------------------------------------------------------ --
 -- HOME -> WORK
 
-ALTER TABLE travelTimes_H_W_u
+ALTER TABLE new_travelTimes_H_W_u
 RENAME COLUMN id TO hwid;
 
-CREATE TEMPORARY TABLE intermediateTowers_H_W_u AS (
+CREATE TABLE intermediateTowers_H_W_u AS (
   SELECT intermediateTowers_H_WID, tower, longitude, latitude, geom_point,  CASE
                                                                             WHEN (tower = home_id) THEN 1
                                                                             ELSE 0
@@ -716,7 +661,7 @@ CREATE TEMPORARY TABLE intermediateTowers_H_W_u AS (
     FROM (
           SELECT *
           FROM unique_fct_weekdays_u p
-          INNER JOIN (SELECT * FROM travelTimes_H_W_u) h ON hwid = p.id
+          INNER JOIN (SELECT * FROM new_travelTimes_H_W_u) h ON hwid = p.id
 
           WHERE time > startdate_H_W
           AND time < finishdate_H_W
@@ -729,11 +674,11 @@ CREATE TEMPORARY TABLE intermediateTowers_H_W_u AS (
 
 );
 
-ALTER TABLE travelTimes_W_H_u
+ALTER TABLE new_travelTimes_W_H_u
 RENAME COLUMN id TO whid;
 
 -- WORK -> HOME
-CREATE TEMPORARY TABLE intermediateTowers_W_H_u AS (
+CREATE TABLE intermediateTowers_W_H_u AS (
   SELECT intermediateTowers_W_HID, tower, longitude, latitude, geom_point,  CASE
                                                                             WHEN (tower = home_id) THEN 1
                                                                             ELSE 0
@@ -746,7 +691,7 @@ CREATE TEMPORARY TABLE intermediateTowers_W_H_u AS (
     FROM (
           SELECT *
           FROM unique_fct_weekdays_u p
-          INNER JOIN (SELECT * FROM travelTimes_W_H_u) h ON whid = p.id
+          INNER JOIN (SELECT * FROM new_travelTimes_W_H_u) h ON whid = p.id
 
           WHERE time > startdate_W_H
           AND time < finishdate_W_H
@@ -931,14 +876,13 @@ DELETE
 FROM users_characterization
 WHERE workplace_id IN (SELECT cell_id FROM call_dim WHERE region = 2);
 
-
+DROP TABLE IF EXISTS infomunicipals_and_cells;
 CREATE TEMPORARY TABLE infomunicipals_and_cells AS (
-  SELECT f.name_2, averagekm2percell AS "Tower Density (Km2 per Cell)", g.cell_id
+  SELECT f.name_2, "Tower Density (Km2 per Cell)" AS "Tower Density (Km2 per Cell)", g.cell_id
   FROM cell_idsbyregions g
-  INNER JOIN infoMunicipals f
+  INNER JOIN statsmunicipals f
   ON g.name_2 = f.name_2
 );
-
 
 CREATE TEMPORARY TABLE megatable AS (
   SELECT f.*, name_2 AS municipalHome, "Tower Density (Km2 per Cell)" AS densityHome
@@ -946,13 +890,12 @@ CREATE TEMPORARY TABLE megatable AS (
   RIGHT JOIN users_characterization f
   ON g.cell_id = f.home_id
 );
-
-CREATE TEMPORARY TABLE users_characterization_final AS ( -- aparently users only work or live in 275 municipals from 297 municipals that have cell towers. Remember as well that initially there are 306 municipals in Portugal, but only 297 municipals have towers
+DROP TABLE users_characterization_final
+CREATE TABLE users_characterization_final AS ( -- aparently users only work or live in 275 municipals from 297 municipals that have cell towers. Remember as well that initially there are 306 municipals in Portugal, but only 297 municipals have towers
   SELECT f.*, name_2 AS municipalWorkplace, "Tower Density (Km2 per Cell)" AS densityWorkplace
   FROM infomunicipals_and_cells g
   RIGHT JOIN megatable f
   ON g.cell_id = f.workplace_id
-  AND municipalhome = name_2 -- Don't forget to mention that we are dealing only with users that have home and workplace in the same municipal
 );
 
 UPDATE experiment_stats
@@ -2650,8 +2593,5 @@ CREATE TABLE experiment_1_5 AS (
 -- check if the number of different days are preserved
 SELECT * FROM experiment_2_2;
 SELECT * FROM experiment_2_3;
-
-
-
 
 SELECT * FROM statsmunicipals
