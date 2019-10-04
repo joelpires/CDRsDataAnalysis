@@ -4,25 +4,18 @@ Exploratory Analysis Tools for CDR Dataset
 September 2019
 Joel Pires
 """
-import time
-import sys
-
-from matplotlib.collections import PolyCollection
-from matplotlib.colors import colorConverter
-
-reload(sys)
-sys.setdefaultencoding('utf8')
 
 __author__ = 'Joel Pires'
-__date__ = 'January 2019'
+__date__ = 'September 2019'
 
+import time
 import psycopg2
 import configparser
 import numpy as np
 import scipy.stats as st
 import matplotlib.pyplot as plt
+from mpl_toolkits.mplot3d import proj3d
 import pandas as pd
-from mpl_toolkits.mplot3d import Axes3D, proj3d
 
 """ function that will parser the database.ini """
 def config(filename='database.ini', section='postgresql'):
@@ -42,24 +35,12 @@ def config(filename='database.ini', section='postgresql'):
     return db
 
 
-def stats(data):
-    alldata = data
-    statistics = {}
-    statistics["min"] = np.amin(data)
-    statistics["max"] = np.amax(data)
-    statistics["mean"]= np.mean(data)
-    statistics["median"] = np.median(data)
-    statistics["mode"] = st.mode(data)
-    statistics["std"] = np.std(data)
-
-    return statistics
-
-
-"""  
-Receives a List resulted from a DB Query
-Returns a list with the content parsed
+""" Helper function just to obtain a certain collumn of a DB table in a form of a list
+    Inputs: listToParse - list of lists, in which each list is a collumn of a DB table
+            collumn: specify the index of the collumn that we want to extract
+            _constructor: specifiy the type of the data contained in the specidifed collumn
+    Outputs: a list with the values of the collumn
 """
-
 def parseDBColumns(listToParse, collumn, _constructor):
     constructor = _constructor
     collumnList = []
@@ -68,9 +49,8 @@ def parseDBColumns(listToParse, collumn, _constructor):
 
     return collumnList
 
-
+""" Procedure to elaborate basic statistics on a list of data"""
 def stats(data):
-    alldata = data
     statistics = {}
     statistics["min"] = np.amin(data)
     statistics["max"] = np.amax(data)
@@ -79,12 +59,11 @@ def stats(data):
     statistics["mode"] = st.mode(data)
     statistics["std"] = np.std(data)
     statistics["var"] = np.var(data)
-    statistics["q_25"], statistics["q_50"], statistics["q_75"] = np.percentile(data, [25, 50, 75])
 
     return statistics
 
-""" Connect to the PostgreSQL database server """
-def connect():
+""" Main Method """
+def main():
     start_time = time.time()
 
     conn = None
@@ -101,33 +80,6 @@ def connect():
 
         ax = plt.axes()
 
-        cities = ["Lisboa", "Porto", "Coimbra", "Braga", "Setubal", "Aveiro", "Faro", "Leiria", "Viana", "Vila", "Viseu", "Santarem", "Guarda", "Portalegre", "Braganca", "Evora", "Castelo", "Beja"]
-        driving = [43.7, 41.4, 81.8, 61.5, 59.0, 62.4, 73.3, 78.0, 71.2, 59.4, 74.6, 82.7, 90.0, 77.3, 87.0, 93.4,73.7, 75.8]
-        walking = [6.6, 9.3, 18.2, 21.5, 20.2, 14.8, 26.6, 12.0, 15.2, 17.5, 15.3, 17.3, 10.0, 22.7, 13.0, 6.6, 23.7, 24.2]
-
-        plt.xlabel("Municipalities")
-        plt.ylabel("Percentage of Users")
-        #ax.set_xlim(0, 17, 2)
-        #ax.set_ylim(-1, 100)
-        ax.set_xticklabels(cities)
-        #plt.yticks(np.arange(0, 100, 5), fontsize=14)
-
-        ax.plot(driving, color="#663300", linewidth=4, label="Percentage of Use of Private Car")
-
-        ax.plot(walking, 'y', linewidth=4, label="Percentage of Walking")
-
-
-
-        f = lambda x, y, z: proj3d.proj_transform(x, y, z, ax.get_proj())[:2]
-        ax.legend(loc="upper left",
-                  bbox_transform=ax.transData,
-                  prop={'size': 14})
-
-        plt.grid(True)
-        plt.show()
-
-        return
-        """
         cur.execute('SELECT "Tower Density (Km2 per Cell)" FROM public.statsmunicipals')
         fetched = cur.fetchall()
         towerDensities = parseDBColumns(fetched, 0, float)
@@ -172,7 +124,6 @@ def connect():
         plt.grid(True)
         plt.show()
         # ----------------------------------------------------------------------------------------------
-
 
         cur.execute('SELECT "Average Calls Per Day", "Average of Days Until Call","Nº Active Days" FROM public.region_users_characterization')
         fetched = cur.fetchall()
@@ -304,20 +255,8 @@ def connect():
         plt.xlabel("Nº Active Days", fontsize=30)
         plt.grid(True)
         plt.show()
-        # ----------------------------------------------------------------------------------------------
-        """
 
-
-
-
-
-
-
-
-
-
-        """
-        #EXPERIMENT 5 --------------------------------------------------------
+        # --------------------------------------------------------
         cur.execute('SELECT * FROM public.experiment5')
         fetched = cur.fetchall()
 
@@ -355,10 +294,8 @@ def connect():
                   prop={'size': 13})
 
         plt.show()
-        """
-        """
 
-        #EXPERIMENT 3 --------------------------------------------------------
+        #--------------------------------------------------------
         cur.execute('SELECT * FROM public.experiment_3_1')
         fetched = cur.fetchall()
         numberDays = parseDBColumns(fetched, 0, float)
@@ -416,10 +353,6 @@ def connect():
 
         ax.plot(numberDays, numberDays_racioHome_Workplace, 'y', linewidth=4, label="Indentified Home and Workplace")
 
-cities = ["Lisboa, Porto", "Coimbra", "Braga", "Setubal", "Aveiro", "Faro", "Leiria", "Viana", "Vila", "Viseu", "Santarem", "Guarda", "Portalegre", "Braganca", "Evora", "Castelo", "Beja"]
-driving = [43.7,41.4,81.8,61.5,59.0,62.4,73.3,71.2,59.4,74.6,82.7,77.3,87.0,93.4,73.7]
-walking = [6.6,9.3,18.2,21.5,20.2,14.8,26.6,15.2,17.5,15.3,17.3,22.7,13.0,6.6,23.7]
-
         f = lambda x, y, z: proj3d.proj_transform(x, y, z, ax.get_proj())[:2]
         ax.legend(loc="upper right",
                   bbox_transform=ax.transData,
@@ -427,41 +360,8 @@ walking = [6.6,9.3,18.2,21.5,20.2,14.8,26.6,15.2,17.5,15.3,17.3,22.7,13.0,6.6,23
 
         plt.grid(True)
         plt.show()
-        
 
-        stats1 = stats(numberDays_racioWeekdays)
-        stats2 = stats(numberDays_racioHome_Workplace)
-        stats3 = stats(numberDays_racioHome_Workplace_Morning)
-        stats4 = stats(numberDays_racioHome_Workplace_Evening)
-        stats5 = stats(numberDays_racioH_W_or_W_H)
-        stats6 = stats(numberDays_racioH_W_and_W_H)
-
-        res1 = next(x for x, val in enumerate(numberDays_racioWeekdays)
-                   if val > stats1["mean"])
-        res2 = next(x for x, val in enumerate(numberDays_racioHome_Workplace)
-                   if val > stats2["mean"])
-        res3 = next(x for x, val in enumerate(numberDays_racioHome_Workplace_Morning)
-                   if val > stats3["mean"])
-        res4 = next(x for x, val in enumerate(numberDays_racioHome_Workplace_Evening)
-                   if val > stats4["mean"])
-        res5 = next(x for x, val in enumerate(numberDays_racioH_W_or_W_H)
-                   if val > stats5["mean"])
-        res6 = next(x for x, val in enumerate(numberDays_racioH_W_and_W_H)
-                   if val > stats6["mean"])
-
-        print(numberDays[res1])
-        print(numberDays[res2])
-        print(numberDays[res3])
-        print(numberDays[res4])
-        print(numberDays[res5])
-        print(stats5["mean"])
-        print(numberDays[res6])
-        print(stats6["mean"])
-        print(numberDays)
-
-        """
-        """
-        #EXPERIMENT 2 --------------------------------------------------------
+        # --------------------------------------------------------
         cur.execute('SELECT * FROM public.experiment_2_1')
         fetched = cur.fetchall()
         regularity = parseDBColumns(fetched, 0, float)
@@ -563,9 +463,8 @@ walking = [6.6,9.3,18.2,21.5,20.2,14.8,26.6,15.2,17.5,15.3,17.3,22.7,13.0,6.6,23
         print(regularity[res6])
         print(stats6["mean"])
         print(regularity)
-         """
-        """
-        #EXPERIMENT 1 --------------------------------------------------------
+
+        #--------------------------------------------------------
         cur.execute('SELECT * FROM public.experiment_1_1')
         fetched = cur.fetchall()
         averageCalls = parseDBColumns(fetched, 0, float)
@@ -657,8 +556,6 @@ walking = [6.6,9.3,18.2,21.5,20.2,14.8,26.6,15.2,17.5,15.3,17.3,22.7,13.0,6.6,23
         print(averageCalls[res6])
         print(stats6["mean"])
 
-        """
-        """
         #EXPERIMENT 5 --------------------------------------------------------------------------------------------------------------------
 
         cur.execute('SELECT * FROM public.experiment5')
@@ -692,56 +589,8 @@ walking = [6.6,9.3,18.2,21.5,20.2,14.8,26.6,15.2,17.5,15.3,17.3,22.7,13.0,6.6,23
                   prop={'size': 13})
 
         plt.show()
-        """
 
 
-
-
-
-        #EXPERIMENT 4_1
-
-
-        cur.execute('SELECT tower_density, racio FROM public.experiment_4_1')
-        fetched = cur.fetchall()
-
-        towerdensities = parseDBColumns(fetched, 0, float)
-        percentages = parseDBColumns(fetched, 1, float)
-
-        """
-        stats6 = stats(percentages)
-        res6 = next(x for x, val in enumerate(percentages)
-                   if val < stats6["mean"])
-        print(stats6["mean"])
-
-        print(towerdensities[res6])
-        print(stats6["std"])
-        """
-        fig = plt.figure(figsize=(12,8))
-        ax = plt.axes()
-
-        plt.xlabel("Tower Density (Km2 per cell)", fontsize=18)
-        plt.ylabel("Percentage of Users", fontsize=18)
-        ax.set_xlim(0, 550)
-        ax.set_ylim(-0.5, 45)
-        plt.xticks(np.arange(0, 550, 25), fontsize=14)
-        plt.yticks(np.arange(-0.5, 45, 2.5), fontsize=14)
-        ax.plot(towerdensities, percentages, "yo", label="Percentage of Users with Distinct Home and Workplace")
-
-        fit = np.polyfit(towerdensities[:550], percentages[:550], 4)
-        fit_fn = np.poly1d(fit)
-
-        plt.plot(towerdensities[:550], percentages[:550], 'yo')
-        plt.plot(towerdensities[:570], fit_fn(towerdensities[:570]), 'b',linewidth=3, label="Fitting curve: 2.416e-09x^4 - 3.065e-06x^3 + 0.001344x^2 - 0.2657x + 25.22")
-
-        f = lambda x, y, z: proj3d.proj_transform(x, y, z, ax.get_proj())[:2]
-        ax.legend(loc="upper right",
-                  bbox_transform=ax.transData,
-                  prop={'size': 14})
-        plt.grid(True)
-        plt.show()
-
-
-        """
         # EXPERIMENT 4_2
 
 
@@ -760,8 +609,7 @@ walking = [6.6,9.3,18.2,21.5,20.2,14.8,26.6,15.2,17.5,15.3,17.3,22.7,13.0,6.6,23
 
         plt.xlabel("Tower Density (Km2 per cell)")
         plt.ylabel("Percentage of Users")
-        #ax.set_xlim(-1, 50)
-        #ax.set_ylim(-1, 100)
+
         plt.xticks(np.arange(0, 607, 20))
         plt.yticks(np.arange(0, 100, 10))
         ax.plot(towerdensities, racioH_W, "*", label="Intermediate Towers Home->Work")
@@ -787,11 +635,6 @@ walking = [6.6,9.3,18.2,21.5,20.2,14.8,26.6,15.2,17.5,15.3,17.3,22.7,13.0,6.6,23
         print("Drawing the Chart...")
 
 
-        #ax.set_xlim(0, 400)
-        #ax.set_ylim(-1, 210)
-        #ax.set_zlim(-1, 45)
-        #plt.gca().invert_xaxis()
-
         ax.set_yticks(np.arange(0, 600, 40))
         plt.gca().invert_yaxis()
         plt.xticks(np.arange(4), ('Home->Work', 'Work->Home', 'Home->Work \nor Work->Home', 'Home->Work \nand Work->Home'), fontsize=14)
@@ -809,7 +652,6 @@ walking = [6.6,9.3,18.2,21.5,20.2,14.8,26.6,15.2,17.5,15.3,17.3,22.7,13.0,6.6,23
                   prop={'size': 13})
 
         plt.show()
-        """
 
         elapsed_time = time.time() - start_time
         print("EXECUTION TIME: " + str(elapsed_time/60) + " MINUTES")
@@ -821,9 +663,6 @@ walking = [6.6,9.3,18.2,21.5,20.2,14.8,26.6,15.2,17.5,15.3,17.3,22.7,13.0,6.6,23
         if conn is not None:
             conn.close()
             print('Database connection closed.')
-
-def main():
-    connect()
 
 
 if __name__ == '__main__':

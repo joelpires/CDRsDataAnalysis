@@ -1,43 +1,25 @@
 # -*- coding: utf-8 -*-
 """
 Exploratory Analysis Tools for CDR Dataset
-March 2019
+September 2019
 Joel Pires
 """
-import time
-import os
-import urllib, json
-import psycopg2
-import configparser
-import polyline
-import arcpy
-#from orderedset import OrderedSet
-import matplotlib.pyplot as plt
-import unidecode
-import numpy as np
-import os, sys
-import shutil
-
-from matplotlib.collections import PolyCollection
-from matplotlib.colors import colorConverter
-
-reload(sys)
-sys.setdefaultencoding('utf8')
-
 __author__ = 'Joel Pires'
 __date__ = 'January 2019'
 
+import sys
+reload(sys)
+sys.setdefaultencoding('utf8')
+
+
+import time
 import psycopg2
 import configparser
 import numpy as np
 import scipy.stats as st
 import matplotlib.pyplot as plt
-import pandas as pd
-from mpl_toolkits.mplot3d import Axes3D, proj3d
 
 """ function that will parser the database.ini """
-
-
 def config(filename='database.ini', section='postgresql'):
     # create a parser
     parser = configparser.ConfigParser()
@@ -54,9 +36,8 @@ def config(filename='database.ini', section='postgresql'):
 
     return db
 
-
+""" Procedure to elaborate basic statistics on a list of data"""
 def stats(data):
-    alldata = data
     statistics = {}
     statistics["min"] = np.amin(data)
     statistics["max"] = np.amax(data)
@@ -68,12 +49,12 @@ def stats(data):
     return statistics
 
 
-"""  
-Receives a List resulted from a DB Query
-Returns a list with the content parsed
+""" Helper function just to obtain a certain collumn of a DB table in a form of a list
+    Inputs: listToParse - list of lists, in which each list is a collumn of a DB table
+            collumn: specify the index of the collumn that we want to extract
+            _constructor: specifiy the type of the data contained in the specidifed collumn
+    Outputs: a list with the values of the collumn
 """
-
-
 def parseDBColumns(listToParse, collumn, _constructor):
     constructor = _constructor
     collumnList = []
@@ -82,24 +63,8 @@ def parseDBColumns(listToParse, collumn, _constructor):
 
     return collumnList
 
-
-def stats(data):
-    alldata = data
-    statistics = {}
-    statistics["min"] = np.amin(data)
-    statistics["max"] = np.amax(data)
-    statistics["mean"] = np.mean(data)
-    statistics["median"] = np.median(data)
-    statistics["mode"] = st.mode(data)
-    statistics["std"] = np.std(data)
-    statistics["var"] = np.var(data)
-    statistics["q_25"], statistics["q_50"], statistics["q_75"] = np.percentile(data, [25, 50, 75])
-
-    return statistics
-
-
-
-def connect():
+""" Main Method """
+def main():
     start_time = time.time()
 
     conn = None
@@ -114,7 +79,6 @@ def connect():
         # create a cursor
         cur = conn.cursor()
 
-
         query = "SELECT * FROM public.finalroutes_stats_typemode"
         cur.execute(query)
 
@@ -127,7 +91,8 @@ def connect():
         percentpublic = parseDBColumns(fetched, 4, float)
         percentprivate = parseDBColumns(fetched, 5, float)
 
-        cities = [unidecode.unidecode(line.decode('utf-8').strip()) for line in cities]
+        ############################################ COIMBRA TYPES OF TRAVEL MODES ############################################
+
         commutingtypes = ["Home <-> Workplace", "Home -> Workplace", "Workplace -> Home"]
 
         array = np.arange(0, len(commutingtypes), 1)
@@ -137,13 +102,11 @@ def connect():
         array3 = [x + 0.1 for x in array]
         array4 = [x + 0.3 for x in array]
 
-        # COIMBRA
         fig = plt.figure(figsize=(16, 12))
         ax = plt.axes()
         ax.set_xlim(-0.7, 2.7)
         ax.set_ylim(0, 105)
         plt.yticks(np.arange(0, 105, 3), fontsize=16)
-        #plt.yscale("log")
 
         rects1 = ax.bar(array0, percentprivate[0:3], width=0.2, color='b', align='center')
         rects2 = ax.bar(array2, percentunimodal[0:3], width=0.2, color='g', align='center')
@@ -167,14 +130,13 @@ def connect():
         plt.grid(True)
         plt.show()
 
-        #LISBOA
+        ############################################ LISBOA TYPES OF TRAVEL MODES ############################################
 
         fig = plt.figure(figsize=(16, 12))
         ax = plt.axes()
         ax.set_xlim(-0.7, 2.7)
         ax.set_ylim(0, 105)
         plt.yticks(np.arange(0, 105, 3), fontsize=16)
-        #plt.yscale("log")
 
         rects1 = ax.bar(array0, percentprivate[3:6], width=0.2, color='b', align='center')
         rects2 = ax.bar(array2, percentunimodal[3:6], width=0.2, color='g', align='center')
@@ -198,13 +160,12 @@ def connect():
         plt.grid(True)
         plt.show()
 
-        # PORTO
+        ############################################ PORTO TYPES OF TRAVEL MODES ############################################
         fig = plt.figure(figsize=(16, 12))
         ax = plt.axes()
         ax.set_xlim(-0.7, 2.7)
         ax.set_ylim(0, 105)
         plt.yticks(np.arange(0, 105, 3), fontsize=16)
-        #plt.yscale("log")
 
         rects1 = ax.bar(array0, percentprivate[6:9], width=0.2, color='b', align='center')
         rects2 = ax.bar(array2, percentunimodal[6:9], width=0.2, color='g', align='center')
@@ -229,7 +190,7 @@ def connect():
         plt.show()
 
 
-        """
+        ############################################ COIMBRA DISTRIBUTION OF THE DIFFERENT TRAVEL MODES ############################################
         query = "SELECT * FROM public.finalroutes_stats_travel_modes"
         cur.execute(query)
 
@@ -246,9 +207,7 @@ def connect():
         array2 = [x - 0.3 for x in array]
         array0 = [x - 0 for x in array]
         array3 = [x + 0.3 for x in array]
-        """
-        #COIMBRA
-        """
+
         hw_percentage = percentage[0:12]
         hwh_percentage = percentage[12:24]
         wh_percentage = percentage[24:36]
@@ -343,9 +302,8 @@ def connect():
         plt.ylabel("Percentage of Commuting Routes", fontsize=20)
         plt.grid(True)
         plt.show()
-        """
-        """
-        #LISBOA
+
+        ############################################ LISBON DISTRIBUTION OF THE DIFFERENT TRAVEL MODES ############################################
 
         hw_percentage = percentage[36:48]
         hwh_percentage = percentage[48:60]
@@ -406,14 +364,12 @@ def connect():
                 wh_unimodal.append(wh_percentage[index])
             #debug
             transportmodes[index] = temp
-        """
-        """
+
         transportmodes = unimodal + multimodal + ingeneral
         hw_percentage = hw_unimodal + hw_multimodal + hw_ingeneral
         hwh_percentage = hwh_unimodal + hwh_multimodal + hwh_ingeneral
         wh_percentage = wh_unimodal + wh_multimodal + wh_ingeneral
-        """
-        """
+
         fig = plt.figure(figsize=(16, 12))
         ax = plt.axes()
         ax.set_xlim(-0.7, 12)
@@ -425,7 +381,6 @@ def connect():
         rects1 = ax.bar(array0, hw_percentage, width=0.3, color='b', align='center')
         rects2 = ax.bar(array2, hwh_percentage, width=0.3, color='g', align='center')
         rects3 = ax.bar(array3, wh_percentage, width=0.3, color='r', align='center')
-
 
         ax.legend((rects1[0], rects2[0], rects3[0]), (
         "Home <-> Workplace", "Home -> Workplace",
@@ -444,8 +399,7 @@ def connect():
         plt.grid(True)
         plt.show()
 
-
-        #PORTO
+        ############################################ PORTO DISTRIBUTION OF THE DIFFERENT TRAVEL MODES ############################################
 
         hw_percentage = percentage[72:84]
         hwh_percentage = percentage[84:96]
@@ -504,20 +458,17 @@ def connect():
                 hw_unimodal.append(hw_percentage[index])
                 hwh_unimodal.append(hwh_percentage[index])
                 wh_unimodal.append(wh_percentage[index])
-        """
-        """
+
         transportmodes = unimodal + multimodal + ingeneral
         hw_percentage = hw_unimodal + hw_multimodal + hw_ingeneral
         hwh_percentage = hwh_unimodal + hwh_multimodal + hwh_ingeneral
         wh_percentage = wh_unimodal + wh_multimodal + wh_ingeneral
-        """
-        """
+
         fig = plt.figure(figsize=(16, 12))
         ax = plt.axes()
         ax.set_xlim(-0.7, 12)
         ax.set_ylim(0, 87)
         plt.yticks(np.arange(0, 87, 2), fontsize=16)
-        #plt.yscale("log")
 
 
         rects1 = ax.bar(array0, hw_percentage, width=0.3, color='b', align='center')
@@ -542,128 +493,6 @@ def connect():
         plt.grid(True)
         plt.show()
 
-        """
-
-        """
-        query = "SELECT * FROM public.finalroutes_stats_durations"
-        cur.execute(query)
-
-        fetched = cur.fetchall()
-
-        cities = parseDBColumns(fetched, 0, str)
-
-        lessthan15mins = parseDBColumns(fetched, 2, float)
-        _16minsto30mins = parseDBColumns(fetched, 3, float)
-        _31minsto60mins = parseDBColumns(fetched, 4, float)
-        _61minsto90mins = parseDBColumns(fetched, 5, float)
-        morethan90mins = parseDBColumns(fetched, 6, float)
-
-        cities = [unidecode.unidecode(line.decode('utf-8').strip()) for line in cities]
-        commutingtypes = ["Home <-> Workplace", "Home -> Workplace", "Workplace -> Home"]
-
-        array = np.arange(0, len(commutingtypes), 1)
-
-        array2 = [x - 0.35 for x in array]
-        array0 = [x - 0.20 for x in array]
-        array3 = [x - 0.05 for x in array]
-        array4 = [x + 0.1 for x in array]
-        array5 = [x + 0.25 for x in array]
-
-        # COIMBRA
-        fig = plt.figure(figsize=(16, 12))
-        ax = plt.axes()
-        ax.set_xlim(-0.7, 2.7)
-        ax.set_ylim(0, 105)
-        plt.yticks(np.arange(0, 105, 3), fontsize=16)
-        # plt.yscale("log")
-
-        rects1 = ax.bar(array0, _61minsto90mins[0:3], width=0.15, color='b', align='center')
-        rects2 = ax.bar(array2, lessthan15mins[0:3], width=0.15, color='g', align='center')
-        rects3 = ax.bar(array3, _31minsto60mins[0:3], width=0.15, color='r', align='center')
-        rects4 = ax.bar(array4, _16minsto30mins[0:3], width=0.15, color='k', align='center')
-        rects5 = ax.bar(array5, morethan90mins[0:3], width=0.15, color='y', align='center')
-
-        ax.legend((rects1[0], rects2[0], rects3[0], rects4[0], rects5[0]), (
-            "Less than 15 mins", "16 mins to 30 mins",
-            "31 mins to 60 mins", "61 mins to 90 mins", "more than 90 mins"))
-        plt.xticks(array, commutingtypes, fontsize=16)
-
-        rects = ax.patches
-        for rect in rects:
-            height = rect.get_height()
-            ax.text(rect.get_x() + rect.get_width() / 2, 1.01 * height,
-                    '%.2f' % float(round(height, 2)),
-                    ha='center', va='bottom', fontsize=16)
-
-        plt.xlabel("Type of Commuting Route", fontsize=20)
-        plt.ylabel("Percentage of Commuting Routes", fontsize=20)
-        plt.grid(True)
-        plt.show()
-
-        # LISBOA
-
-        fig = plt.figure(figsize=(16, 12))
-        ax = plt.axes()
-        ax.set_xlim(-0.7, 2.7)
-        ax.set_ylim(0, 105)
-        plt.yticks(np.arange(0, 105, 3), fontsize=16)
-        # plt.yscale("log")
-
-        rects1 = ax.bar(array0, _61minsto90mins[3:6], width=0.15, color='b', align='center')
-        rects2 = ax.bar(array2, lessthan15mins[3:6], width=0.15, color='g', align='center')
-        rects3 = ax.bar(array3, _31minsto60mins[3:6], width=0.15, color='r', align='center')
-        rects4 = ax.bar(array4, _16minsto30mins[3:6], width=0.15, color='k', align='center')
-        rects5 = ax.bar(array5, morethan90mins[3:6], width=0.15, color='y', align='center')
-
-        ax.legend((rects1[0], rects2[0], rects3[0], rects4[0], rects5[0]), (
-            "Less than 15 mins", "16 mins to 30 mins",
-            "31 mins to 60 mins", "61 mins to 90 mins", "more than 90 mins"))
-        plt.xticks(array, commutingtypes, fontsize=16)
-
-        rects = ax.patches
-        for rect in rects:
-            height = rect.get_height()
-            ax.text(rect.get_x() + rect.get_width() / 2, 1.01 * height,
-                    '%.2f' % float(round(height, 2)),
-                    ha='center', va='bottom', fontsize=16)
-
-        plt.xlabel("Type of Commuting Route", fontsize=20)
-        plt.ylabel("Percentage of Commuting Routes", fontsize=20)
-        plt.grid(True)
-        plt.show()
-
-        # PORTO
-        fig = plt.figure(figsize=(16, 12))
-        ax = plt.axes()
-        ax.set_xlim(-0.7, 2.7)
-        ax.set_ylim(0, 105)
-        plt.yticks(np.arange(0, 105, 3), fontsize=16)
-        # plt.yscale("log")
-
-        rects1 = ax.bar(array0, _61minsto90mins[6:9], width=0.15, color='b', align='center')
-        rects2 = ax.bar(array2, lessthan15mins[6:9], width=0.15, color='g', align='center')
-        rects3 = ax.bar(array3, _31minsto60mins[6:9], width=0.15, color='r', align='center')
-        rects4 = ax.bar(array4, _16minsto30mins[6:9], width=0.15, color='k', align='center')
-        rects5 = ax.bar(array5, morethan90mins[6:9], width=0.15, color='y', align='center')
-
-        ax.legend((rects1[0], rects2[0], rects3[0], rects4[0], rects5[0]), (
-            "Less than 15 mins", "16 mins to 30 mins",
-            "31 mins to 60 mins", "61 mins to 90 mins", "more than 90 mins"))
-        plt.xticks(array, commutingtypes, fontsize=16)
-
-        rects = ax.patches
-        for rect in rects:
-            height = rect.get_height()
-            ax.text(rect.get_x() + rect.get_width() / 2, 1.01 * height,
-                    '%.2f' % float(round(height, 2)),
-                    ha='center', va='bottom', fontsize=16)
-
-        plt.xlabel("Type of Commuting Route", fontsize=20)
-        plt.ylabel("Percentage of Commuting Routes", fontsize=20)
-        plt.grid(True)
-        plt.show()
-        """
-
         elapsed_time = time.time() - start_time
         print("EXECUTION TIME: " + str(elapsed_time / 60) + " MINUTES")
         # close the communication with the PostgreSQL
@@ -674,10 +503,6 @@ def connect():
         if conn is not None:
             conn.close()
             print('Database connection closed.')
-
-
-def main():
-    connect()
 
 
 if __name__ == '__main__':
