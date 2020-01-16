@@ -1,4 +1,4 @@
-# PREDICTING COMMUTING ROUTES AND RESPECTIVES MODES OF TRANSPORT THROUGH CALL DETAIL RECORDS
+# Predicting Commuting Routes And Respectives Modes Of Transport Through Call Detail Records
 
 <p align="center">
   <b>More detailed information about the implementation and methodology used can be found in these series of articles:</b><br>
