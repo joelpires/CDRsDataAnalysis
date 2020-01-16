@@ -2,11 +2,12 @@
 # encoding: utf-8
 """
 Exploratory Analysis Tools for CDR Dataset
-September 2019
+November 2019
 Joel Pires
+ATTENTION TO "WARNING" KEYWORDS
 """
 __author__ = 'Joel Pires'
-__date__ = 'September 2019'
+__date__ = 'November 2019'
 
 import time
 import urllib, json
@@ -21,18 +22,16 @@ import os
 
 # VARIABLES JUST FOR DEBUG
 exceptions = 0
-usersCounter = 436
+usersCounter = 0
 routesCounter = 0
 countRequests = 0
 
-# API VARIABLES
-geralAPILIMIT = 58500
-apiKeys = [os.environ.get('MAPSAPIKEYJO'),  #All the Google API keys available in the system
-           os.environ.get('MAPSAPIMA'),
-           os.environ.get('MAPSAPILA')]
+# WARNING: BEFORE STARTING THE PROGRAM, VERIFY THE API LIMITS AND CREDENTIALS. AT LEAST A GOOGLE API ACCOUNT NEEDS TO BE CREATED AND STORED AS A ENVIRONMENT VARIABLE OF THE SYSTEM
+geralAPILIMIT = 58500  #THIS IS THE THEORETICAL LIMIT FOR EVERY NEW ACCOUNT, HAVING INTO ACCOUNT THE NEEDED CALLS AND BUDJET AVAILABLE
+apiKeys = ["AIzaSyDcSMSUzS-3sLt5rInwnYTj7gQOcg07TzM"]  #THIS IS AN ARRAY OF All the Google API keys available in the system. THE APY KEY USED WILL BE CHANGED ONCE THE LIMIT VALUE OF THE ACTUAL API IS REACHED.
 
-atualAPILimit = 58500           #decide the limit of request of the initial api
-keyNumber = initialNumber = 1   #decide which api key the program should start use
+atualAPILimit = 58500           #THE ACTUAL LIMIT DEPENDS ON THE AVAILABLE BUDJET FOR THE ACCOUNT
+keyNumber = initialNumber = 0   #decide which api key the program should start use
 
 #VARIABLES OF THE CONNECTION WITH THE DATABASE
 cur = None
@@ -56,6 +55,7 @@ def config(filename='database.ini', section='postgresql'):
         raise Exception('Section {0} not found in the {1} file'.format(section, filename))
 
     return db
+
 
 """
     Method that is responsible for calculating possible routes given by the Google Directions API and storing the points of each route in postgres table
@@ -112,7 +112,7 @@ def calculate_routes(origin, destination, city, userID, commutingtype):
                     sequenceNumber = 0
                     for point in mobilityUser['route']:
 
-                        query = "INSERT INTO public." + city + "_possible_routes (userID, commutingtype, routeNumber, duration, transportModes, latitude, longitude, sequenceNumber, geom_point_orig) VALUES (" + str(userID) + ", \'" + commutingtype + "\'," + str(mobilityUser['routeNumber']) + "," + str(mobilityUser['duration']) + ", ROW" + str(mobilityUser['transport_modes']) + "," + str(point[0]) + "," + str(point[1]) + "," + str(sequenceNumber) + ", st_SetSrid(st_MakePoint(" + str(point[0]) + ", " + str(point[1 ]) + "), 4326))"
+                        query = "INSERT INTO public.altice_" + city + "_possible_routes (userID, commutingtype, routeNumber, duration, transportModes, latitude, longitude, sequenceNumber, geom_point_orig) VALUES (" + str(userID) + ", \'" + commutingtype + "\'," + str(mobilityUser['routeNumber']) + "," + str(mobilityUser['duration']) + ", ROW" + str(mobilityUser['transport_modes']) + "," + str(point[0]) + "," + str(point[1]) + "," + str(sequenceNumber) + ", st_SetSrid(st_MakePoint(" + str(point[0]) + ", " + str(point[1 ]) + "), 4326))"
                         cur.execute(query)
                         conn.commit()
                         sequenceNumber += 1
@@ -200,9 +200,13 @@ def analyzeLegs(mode, route, mobilityUser, multimode, origin, destination):
         else:
             return {}
 
+
+
+
 """Method responsible for interpolating the route points of each possible possible route given by the Google API. The points become equally
    spaced by 20 meters. Shapefiles before the interpolation and after the interpolation are created.  
 """
+# WARNING: OS DIRETÓRIOS PROVAVELMENTE TERÂO QUE SER ADAPTADOS "C:\Users\Joel\Documents\\altice_ODPaths...."
 def interpolate(mobilityUser, city, userID, commutingtype):
     global logfile
 
@@ -214,7 +218,7 @@ def interpolate(mobilityUser, city, userID, commutingtype):
 
     # Creating the needed csv
     filename1 = city + "_" + commutingtype + "_" + str(userID) + "_" + transport_modes + "_non_interpolated_route_points_" + str(mobilityUser['routeNumber'])
-    path_csvs = "C:\Users\Joel\Documents\ArcGIS\\ODPaths\\" + city + "\\" + commutingtype + "\\non_interpolated_route_points_csvs\\"
+    path_csvs = "C:\Users\Joel\Documents\\altice_ODPaths\\" + city + "\\" + commutingtype + "\\non_interpolated_route_points_csvs\\"
     with open(path_csvs + filename1 + ".csv", mode='w') as fp:
         fp.write("latitude, longitude, sequence")
         fp.write("\n")
@@ -235,7 +239,7 @@ def interpolate(mobilityUser, city, userID, commutingtype):
                                       "sequence")
 
     # Creating a shapefile of the route points
-    path_shapefile1 = "C:/Users/Joel/Documents/ArcGIS/ODPaths/" + city + "/" + commutingtype + "/non_interpolated_route_points_shapefiles/"
+    path_shapefile1 = "C:/Users/Joel/Documents/altice_ODPaths/" + city + "/" + commutingtype + "/non_interpolated_route_points_shapefiles/"
     arcpy.FeatureClassToFeatureClass_conversion(filename1 + "_Layer",
                                                 path_shapefile1,
                                                 filename1)
@@ -243,7 +247,7 @@ def interpolate(mobilityUser, city, userID, commutingtype):
     # Execute PointsToLine
     # Rendering the route line
     filename2 = city + "_" + commutingtype + "_" + str(userID) + "_" + transport_modes + "_route_line_" + str(mobilityUser['routeNumber'])
-    path_shapefile2 = "C:/Users/Joel/Documents/ArcGIS/ODPaths/" + city + "/" + commutingtype + "/route_lines_shapefiles/"
+    path_shapefile2 = "C:/Users/Joel/Documents/altice_ODPaths/" + city + "/" + commutingtype + "/route_lines_shapefiles/"
     arcpy.PointsToLine_management(path_shapefile1 + filename1 + ".shp",
                                   path_shapefile2 + filename2,
                                   "",
@@ -251,7 +255,7 @@ def interpolate(mobilityUser, city, userID, commutingtype):
 
     # Creating a shapefile with the interpolated route points
     filename3 = city + "_" + commutingtype + "_" + str(userID) + "_" + transport_modes + "_interpolated_route_points_" + str(mobilityUser['routeNumber'])
-    path_shapefile3 = "C:/Users/Joel/Documents/ArcGIS/ODPaths/" + city + "/" + commutingtype + "/interpolated_route_points_shapefiles/"
+    path_shapefile3 = "C:/Users/Joel/Documents/altice_ODPaths/" + city + "/" + commutingtype + "/interpolated_route_points_shapefiles/"
     arcpy.GeneratePointsAlongLines_management(path_shapefile2 + filename2 + ".shp",
                                               path_shapefile3 + filename3 + ".shp",
                                               'DISTANCE',
@@ -274,6 +278,7 @@ def interpolate(mobilityUser, city, userID, commutingtype):
     return interpolated_route
 
 
+
 """ This procedure is used to calculate the final route once the possible routes were already stored in PostgresSQL. It makes use of
     PostgreSQL to access the needed table and do the heavy calculations. The final route points are stored in a SQL table, no shapefiles generated.
     Inputs: city - string of the city
@@ -281,21 +286,21 @@ def interpolate(mobilityUser, city, userID, commutingtype):
 """
 def calculatingExactRoutes(city, userID):
 
-    query = "INSERT INTO public.finalscores_" + city + " (userID, commutingType, routenumber, transportmodes, duration, finalscore) " \
+    query = "INSERT INTO public.altice_finalscores_" + city + " (userID, commutingType, routenumber, transportmodes, duration, finalscore) " \
             "(SELECT j.userid, j.commutingtype, j.routenumber, j.transportmodes, j.duration, (distanceScore*durationscore) " \
             "FROM (     SELECT userid, commutingtype, routenumber, avg(averageToIntermediateTowers) AS distanceScore, transportmodes, duration " \
                         "FROM ( " \
                               "SELECT userid, commutingtype, routenumber, duration, transportmodes, latitude, longitude, avg(distanceWeighted) AS averageToIntermediateTowers " \
                               "FROM (  SELECT userID, commutingType, routeNumber, duration, transportModes, latitude, longitude, sequenceNumber, cellID, frequencia, st_distance(ST_Transform(geom_point_orig, 3857),ST_Transform(geom_point_dest, 3857)) * CAST(1 AS FLOAT)/frequencia AS distanceWeighted " \
-                              "FROM (SELECT * FROM public." + city + "_possible_routes f WHERE userID = " + str(userID) + ") f " \
-                              "INNER JOIN (SELECT intermediatetowers_h_wid, tower AS cellID, frequencia, geom_point_dest FROM public.frequencies_intermediateTowers_H_W) g " \
+                              "FROM (SELECT * FROM public.altice_" + city + "_possible_routes f WHERE userID = " + str(userID) + ") f " \
+                              "INNER JOIN (SELECT intermediatetowers_h_wid, tower AS cellID, frequencia, geom_point_dest FROM public.altice_frequencies_intermediateTowers_H_W) g " \
                                       "ON g.intermediatetowers_h_wid = userid AND commutingtype = 'H_W' " \
                               "" \
                               "UNION ALL " \
                               "" \
                               "SELECT userID, commutingType, routeNumber, duration, transportModes, latitude, longitude, sequenceNumber, cellID, frequencia, st_distance(ST_Transform(geom_point_orig, 3857),ST_Transform(geom_point_dest, 3857)) * CAST(1 AS FLOAT)/frequencia AS distanceWeighted " \
-                              "FROM (SELECT * FROM public." + city + "_possible_routes f WHERE userID = " + str(userID) + ") f " \
-                              "INNER JOIN (SELECT intermediatetowers_w_hid, tower AS cellID, frequencia, geom_point_dest FROM public.frequencies_intermediateTowers_W_H) g " \
+                              "FROM (SELECT * FROM public.altice_" + city + "_possible_routes f WHERE userID = " + str(userID) + ") f " \
+                              "INNER JOIN (SELECT intermediatetowers_w_hid, tower AS cellID, frequencia, geom_point_dest FROM public.altice_frequencies_intermediateTowers_W_H) g " \
                               "ON g.intermediatetowers_w_hid = userid AND commutingtype = 'W_H' " \
                         ") i " \
                         "GROUP BY userid, commutingtype, routenumber, duration, transportmodes, latitude, longitude ) h " \
@@ -304,16 +309,16 @@ def calculatingExactRoutes(city, userID):
             "INNER JOIN (SELECT *, CASE WHEN (traveltime-duration) < 0 THEN abs(traveltime-duration) ELSE 1 END AS durationscore " \
                         "FROM ( " \
                                 "SELECT userID, commutingType, routenumber, transportmodes, duration, travelTime " \
-                                "FROM (SELECT * FROM public." + city + "_possible_routes f WHERE userID = " + str(userID) + ") f " \
-                                "INNER JOIN (SELECT hwid, minTravelTime_H_W AS travelTime FROM new_traveltimes_h_w_u) g " \
+                                "FROM (SELECT * FROM public.altice_" + city + "_possible_routes f WHERE userID = " + str(userID) + ") f " \
+                                "INNER JOIN (SELECT hwid, minTravelTime_H_W AS travelTime FROM altice_new_traveltimes_h_w_u) g " \
                                         "ON hwid = userid AND commutingtype = 'H_W' " \
                                 "GROUP BY userID, commutingType, routenumber, transportmodes, duration,travelTime " \
                                 "" \
                                 "UNION ALL " \
                                 "" \
                                 "SELECT userID, commutingType, routenumber, transportmodes, duration,travelTime " \
-                                "FROM (SELECT * FROM public." + city + "_possible_routes f WHERE userID = " + str(userID) + ") f " \
-                                "INNER JOIN (SELECT whid, minTravelTime_W_H AS travelTime FROM new_traveltimes_w_h_u) g " \
+                                "FROM (SELECT * FROM public.altice_" + city + "_possible_routes f WHERE userID = " + str(userID) + ") f " \
+                                "INNER JOIN (SELECT whid, minTravelTime_W_H AS travelTime FROM altice_new_traveltimes_w_h_u) g " \
                                         "ON whid = userid AND commutingtype = 'W_H' " \
                                 "GROUP BY userID, commutingType, routenumber, transportmodes, duration, travelTime " \
                         ") t) l " \
@@ -326,13 +331,15 @@ def calculatingExactRoutes(city, userID):
 
     cur.execute(query)
     conn.commit()
+    print(query)
+    return
 
 
-    query = "INSERT INTO public.finalroutes_" + city + " (userID, commutingType, routeNumber, duration, transportModes, latitude, longitude, sequenceNumber, geom_point_orig) " \
-            "(SELECT g.* FROM (SELECT * FROM public." + city + "_possible_routes f WHERE userID = " + str(userID) + ") g, (   SELECT userid, commutingtype, routenumber, transportmodes, duration, finalscore " \
-                                                                                                           "FROM (SELECT * FROM public.finalscores_" + city + " WHERE userID = " + str(userID) + ") f " \
+    query = "INSERT INTO public.altice_finalroutes_" + city + " (userID, commutingType, routeNumber, duration, transportModes, latitude, longitude, sequenceNumber, geom_point_orig) " \
+            "(SELECT g.* FROM (SELECT * FROM public.altice_" + city + "_possible_routes f WHERE userID = " + str(userID) + ") g, (   SELECT userid, commutingtype, routenumber, transportmodes, duration, finalscore " \
+                                                                                                           "FROM (SELECT * FROM public.altice_finalscores_" + city + " WHERE userID = " + str(userID) + ") f " \
                                                                                                            "WHERE (userid, commutingType, finalscore) IN ( SELECT userid, commutingType, min(finalscore) " \
-                                                                                                                                                          "FROM (SELECT DISTINCT ON (finalscore) * FROM public.finalscores_" + city + " " \
+                                                                                                                                                          "FROM (SELECT DISTINCT ON (finalscore) * FROM public.altice_finalscores_" + city + " " \
                                                                                                                                                           "WHERE userID = " + str(userID) + ") f " \
                                                                                                            "GROUP BY userID, commutingType)) f " \
              "WHERE f.userid = g.userid " \
@@ -342,6 +349,7 @@ def calculatingExactRoutes(city, userID):
     cur.execute(query)
     conn.commit()
 
+
 """ Once the final routes were calculated and store in postgreSQL, it is needed to render the shapefiles of the final routes.
     Inputs: city - string of the city
             userID - user from which we want to infer the exact route points
@@ -349,14 +357,14 @@ def calculatingExactRoutes(city, userID):
 def renderFinalRoutes(city, userID):
 
 
-    query1 = "SELECT DISTINCT ON(userID, commutingType) * FROM public.finalRoutes_" + city + " WHERE userID = " + str(userID)
+    query1 = "SELECT DISTINCT ON(userID, commutingType) * FROM public.altice_finalRoutes_" + city + " WHERE userID = " + str(userID)
 
     cur.execute(query1)
     differentRoutes = cur.fetchall()
 
 
     for route, value in enumerate(differentRoutes):
-        query2 = "SELECT * FROM public.finalRoutes_" + city + " WHERE userID = " + str(userID) + " AND commutingType = \'" + str(differentRoutes[route][1]) + "\' ORDER BY sequencenumber ASC"
+        query2 = "SELECT * FROM public.altice_finalRoutes_" + city + " WHERE userID = " + str(userID) + " AND commutingType = \'" + str(differentRoutes[route][1]) + "\' ORDER BY sequencenumber ASC"
 
         cur.execute(query2)
         fetched = cur.fetchall()
@@ -368,7 +376,7 @@ def renderFinalRoutes(city, userID):
         transport_modes = transport_modes.replace(",", "_")
 
         filename1 = city + "_" + str(differentRoutes[route][1]) + "_" + str(differentRoutes[route][0]) + "_" + transport_modes + "_final_routes_points_" + str(differentRoutes[route][2])
-        path_csvs = "C:\Users\Joel\Documents\ArcGIS\\ODPaths\\" + city + "\\" + str(differentRoutes[route][1]) + "\\final_routes_csvs\\"
+        path_csvs = "C:\Users\Joel\Documents\\altice_ODPaths\\" + city + "\\" + str(differentRoutes[route][1]) + "\\final_routes_csvs\\"
 
         with open(path_csvs + filename1 + ".csv", mode='w') as fp:
             fp.write("latitude, longitude, sequence")
@@ -388,63 +396,66 @@ def renderFinalRoutes(city, userID):
                                           "sequence")
 
         # Creating a shapefile of the final route...
-        path_shapefile1 = "C:/Users/Joel/Documents/ArcGIS/ODPaths/" + city + "/" + differentRoutes[route][1] + "/final_routes_points/"
+        path_shapefile1 = "C:/Users/Joel/Documents/altice_ODPaths/" + city + "/" + differentRoutes[route][1] + "/final_routes_points/"
         arcpy.FeatureClassToFeatureClass_conversion(filename1 + "_Layer",
                                                     path_shapefile1,
                                                     filename1)
 
         # Rendering the route line...
         filename2 = city + "_" + differentRoutes[route][1] + "_" + str(userID) + "_" + transport_modes + "_final_route_line_" + str(differentRoutes[route][2])
-        path_shapefile2 = "C:/Users/Joel/Documents/ArcGIS/ODPaths/" + city + "/" + differentRoutes[route][1] + "/final_routes_lines/"
+        path_shapefile2 = "C:/Users/Joel/Documents/altice_ODPaths/" + city + "/" + differentRoutes[route][1] + "/final_routes_lines/"
         arcpy.PointsToLine_management(path_shapefile1 + filename1 + ".shp",
                                       path_shapefile2 + filename2,
                                       "",
                                       "sequence")
 
+
+
 """ This method serves to create the necessary folders to store all the shapefiles created relative to a certain city"""
 def archivesCity(city):
-    os.mkdir("C:/Users/Joel/Documents/ArcGIS/ODPaths/" + city, 0777)
-    os.mkdir("C:/Users/Joel/Documents/ArcGIS/ODPaths/" + city + "/H_W", 0777)
-    os.mkdir("C:/Users/Joel/Documents/ArcGIS/ODPaths/" + city + "/H_W/interpolated_route_points_shapefiles", 0777)
-    os.mkdir("C:/Users/Joel/Documents/ArcGIS/ODPaths/" + city + "/H_W/non_interpolated_route_points_csvs", 0777)
-    os.mkdir("C:/Users/Joel/Documents/ArcGIS/ODPaths/" + city + "/H_W/non_interpolated_route_points_shapefiles", 0777)
-    os.mkdir("C:/Users/Joel/Documents/ArcGIS/ODPaths/" + city + "/H_W/route_lines_shapefiles", 0777)
-    os.mkdir("C:/Users/Joel/Documents/ArcGIS/ODPaths/" + city + "/H_W/final_routes_csvs", 0777)
-    os.mkdir("C:/Users/Joel/Documents/ArcGIS/ODPaths/" + city + "/H_W/final_routes_points", 0777)
-    os.mkdir("C:/Users/Joel/Documents/ArcGIS/ODPaths/" + city + "/H_W/final_routes_lines", 0777)
-    os.mkdir("C:/Users/Joel/Documents/ArcGIS/ODPaths/" + city + "/W_H", 0777)
-    os.mkdir("C:/Users/Joel/Documents/ArcGIS/ODPaths/" + city + "/W_H/interpolated_route_points_shapefiles", 0777)
-    os.mkdir("C:/Users/Joel/Documents/ArcGIS/ODPaths/" + city + "/W_H/non_interpolated_route_points_csvs", 0777)
-    os.mkdir("C:/Users/Joel/Documents/ArcGIS/ODPaths/" + city + "/W_H/non_interpolated_route_points_shapefiles", 0777)
-    os.mkdir("C:/Users/Joel/Documents/ArcGIS/ODPaths/" + city + "/W_H/route_lines_shapefiles", 0777)
-    os.mkdir("C:/Users/Joel/Documents/ArcGIS/ODPaths/" + city + "/W_H/final_routes_csvs", 0777)
-    os.mkdir("C:/Users/Joel/Documents/ArcGIS/ODPaths/" + city + "/W_H/final_routes_points", 0777)
-    os.mkdir("C:/Users/Joel/Documents/ArcGIS/ODPaths/" + city + "/W_H/final_routes_lines", 0777)
+    os.mkdir("C:/Users/Joel/Documents/altice_ODPaths/" + city, 0777)
+    os.mkdir("C:/Users/Joel/Documents/altice_ODPaths/" + city + "/H_W", 0777)
+    os.mkdir("C:/Users/Joel/Documents/altice_ODPaths/" + city + "/H_W/interpolated_route_points_shapefiles", 0777)
+    os.mkdir("C:/Users/Joel/Documents/altice_ODPaths/" + city + "/H_W/non_interpolated_route_points_csvs", 0777)
+    os.mkdir("C:/Users/Joel/Documents/altice_ODPaths/" + city + "/H_W/non_interpolated_route_points_shapefiles", 0777)
+    os.mkdir("C:/Users/Joel/Documents/altice_ODPaths/" + city + "/H_W/route_lines_shapefiles", 0777)
+    os.mkdir("C:/Users/Joel/Documents/altice_ODPaths/" + city + "/H_W/final_routes_csvs", 0777)
+    os.mkdir("C:/Users/Joel/Documents/altice_ODPaths/" + city + "/H_W/final_routes_points", 0777)
+    os.mkdir("C:/Users/Joel/Documents/altice_ODPaths/" + city + "/H_W/final_routes_lines", 0777)
+    os.mkdir("C:/Users/Joel/Documents/altice_ODPaths/" + city + "/W_H", 0777)
+    os.mkdir("C:/Users/Joel/Documents/altice_ODPaths/" + city + "/W_H/interpolated_route_points_shapefiles", 0777)
+    os.mkdir("C:/Users/Joel/Documents/altice_ODPaths/" + city + "/W_H/non_interpolated_route_points_csvs", 0777)
+    os.mkdir("C:/Users/Joel/Documents/altice_ODPaths/" + city + "/W_H/non_interpolated_route_points_shapefiles", 0777)
+    os.mkdir("C:/Users/Joel/Documents/altice_ODPaths/" + city + "/W_H/route_lines_shapefiles", 0777)
+    os.mkdir("C:/Users/Joel/Documents/altice_ODPaths/" + city + "/W_H/final_routes_csvs", 0777)
+    os.mkdir("C:/Users/Joel/Documents/altice_ODPaths/" + city + "/W_H/final_routes_points", 0777)
+    os.mkdir("C:/Users/Joel/Documents/altice_ODPaths/" + city + "/W_H/final_routes_lines", 0777)
 
     #print("[DIRECTORIES CREATED]")
 
     # Type "MODES" needs to be previously created
 
-    query13 = "CREATE TABLE IF NOT EXISTS public." + city + "_possible_routes (userID INTEGER, commutingType TEXT, routeNumber INTEGER, duration INTEGER, transportModes MODES, latitude NUMERIC, longitude NUMERIC, sequenceNumber INTEGER, geom_point_orig GEOMETRY(Point, 4326))"
+    query13 = "CREATE TABLE IF NOT EXISTS public.altice_" + city + "_possible_routes (userID INTEGER, commutingType TEXT, routeNumber INTEGER, duration INTEGER, transportModes altice_MODES, latitude NUMERIC, longitude NUMERIC, sequenceNumber INTEGER, geom_point_orig GEOMETRY(Point, 4326))"
     cur.execute(query13)
     conn.commit()
 
-    query2 = "CREATE TABLE IF NOT EXISTS public.OD" + city + "_users_characterization AS (SELECT * FROM users_characterization_final WHERE user_id IN (SELECT id FROM final_eligibleUsers WHERE municipal = \'" + city + "\'))"
+    query2 = "CREATE TABLE IF NOT EXISTS public.altice_OD" + city + "_users_characterization AS (SELECT * FROM users_characterization_final WHERE user_id IN (SELECT id FROM final_eligibleUsers WHERE municipal = \'" + city + "\'))"
     cur.execute(query2)
     conn.commit()
 
-    query11 = "CREATE TABLE IF NOT EXISTS public.finalScores_" + city + " (userID INTEGER, commutingType TEXT, routeNumber INTEGER, transportmodes MODES, duration INTEGER, finalscore NUMERIC)"
+    query11 = "CREATE TABLE IF NOT EXISTS public.altice_finalScores_" + city + " (userID INTEGER, commutingType TEXT, routeNumber INTEGER, transportmodes altice_MODES, duration INTEGER, finalscore NUMERIC)"
     cur.execute(query11)
     conn.commit()
 
 
-    query13 = "CREATE TABLE IF NOT EXISTS public.finalRoutes_" + city + " (userID INTEGER, commutingType TEXT, routeNumber INTEGER, duration INTEGER, transportModes MODES, latitude NUMERIC, longitude NUMERIC, sequenceNumber INTEGER, geom_point_orig GEOMETRY(Point, 4326))"
+    query13 = "CREATE TABLE IF NOT EXISTS public.altice_finalRoutes_" + city + " (userID INTEGER, commutingType TEXT, routeNumber INTEGER, duration INTEGER, transportModes altice_MODES, latitude NUMERIC, longitude NUMERIC, sequenceNumber INTEGER, geom_point_orig GEOMETRY(Point, 4326))"
     cur.execute(query13)
     conn.commit()
 
+
 """ This method serves just to make a graph of the distribution of the users in each municipal"""
 def charts():
-    query = "SELECT * FROM public.eligibleUsers_byMunicipal"
+    query = "SELECT * FROM public.altice_eligibleUsers_byMunicipal"
     cur.execute(query)
 
     fetched = cur.fetchall()
@@ -530,7 +541,7 @@ def main():
         # create a cursor
         cur = conn.cursor()
 
-        query = "SELECT * FROM public.final_eligibleUsers_byMunicipal"  #query needed just to retrieve all the municipals under evaluation
+        query = "SELECT * FROM public.altice_final_eligibleUsers_byMunicipal"  #query needed just to retrieve all the municipals under evaluation
         cur.execute(query)
 
         fetched = cur.fetchall()
@@ -545,16 +556,20 @@ def main():
         for index, elem in enumerate(temp):
             new_municipals.append((elem.replace(" ", "_")).replace("-", "_"))
 
-        #Main loop that will create routes for the users of each municipal
         countCity = 0
+
+        #WARNING: ARCGIS FROM TIME TO TIME GIVES AN UNEXPLAINABLE ERROR 99999. WE HAVE TO RUN AGAIN THE PROGRAM BUT DOING THE NECESSARY ADJUSTMENTS IN ORDER TO BEGIN IN THE LAST CITY AND LAST USER PROCESSED
+                 # ANOTHER ERROR THAT CAN SPORADICALLY OCCUR IS: [Errno 10051] A socket operation was attempted to an unreachable network
+
+        # Main loop that will create routes for the users of each municipal
         for index, city in enumerate(new_municipals):
 
-            archivesCity(city)
+            archivesCity(city)  #WARNING: Certify that the archives (folders and subfolders) don't exist yet, in order to be created
 
             countUsers = 0
 
             #Retrieving the users of each city. Information about their home and work location is also retrieved
-            query2 = "SELECT * FROM public.OD" + city + "_users_characterization"
+            query2 = "SELECT * FROM public.altice_OD" + city + "_users_characterization"
             cur.execute(query2)
             fetched_users = cur.fetchall()
 
@@ -587,9 +602,9 @@ def main():
 
             countCity += 1
 
-            logfile.write("\n==================== The city " + str(countCity) + "/274 (name:" + city + ") was processed =====================\n\n\n")
+            logfile.write("\n==================== The city " + city + ") was processed =====================\n\n\n")
 
-            query1 = "DROP TABLE IF EXISTS public.OD" + city + "_users_characterization"    #We don't need this temporary table anymore
+            query1 = "DROP TABLE IF EXISTS public.altice_OD" + city + "_users_characterization"    #We don't need this temporary table anymore
             cur.execute(query1)
             conn.commit()
 
