@@ -28,8 +28,8 @@ countRequests = 0
 
 # WARNING: BEFORE STARTING THE PROGRAM, VERIFY THE API LIMITS AND CREDENTIALS. AT LEAST A GOOGLE API ACCOUNT NEEDS TO BE CREATED AND STORED AS A ENVIRONMENT VARIABLE OF THE SYSTEM
 geralAPILIMIT = 58500  #THIS IS THE THEORETICAL LIMIT FOR EVERY NEW ACCOUNT, HAVING INTO ACCOUNT THE NEEDED CALLS AND BUDJET AVAILABLE
-apiKeys = ["AIzaSyDcSMSUzS-3sLt5rInwnYTj7gQOcg07TzM"]  #THIS IS AN ARRAY OF All the Google API keys available in the system. THE APY KEY USED WILL BE CHANGED ONCE THE LIMIT VALUE OF THE ACTUAL API IS REACHED.
-
+apiKeys = ["THIS IS WHERE THE API KEYS COME IN"]  #THIS IS AN ARRAY OF All the Google API keys available in the system. THE APY KEY USED WILL BE CHANGED ONCE THE LIMIT VALUE OF THE ACTUAL API IS REACHED.
+                                                  #THE BETTER WAY TO DO THIS IS RECURRING TO ENVIRONMENT VARIABLES
 atualAPILimit = 58500           #THE ACTUAL LIMIT DEPENDS ON THE AVAILABLE BUDJET FOR THE ACCOUNT
 keyNumber = initialNumber = 0   #decide which api key the program should start use
 
@@ -120,7 +120,7 @@ def calculate_routes(origin, destination, city, userID, commutingtype):
                     mobilityUser['routeNumber'] += 1
                     routesCounter += 1
 
-""" 
+"""
    Method that analyze deeply the information obtained from the API and extract all the route points of a possible route of the google API
    Inputs: mode - travel mode under analysis
            route - possible route under analysis
@@ -204,7 +204,7 @@ def analyzeLegs(mode, route, mobilityUser, multimode, origin, destination):
 
 
 """Method responsible for interpolating the route points of each possible possible route given by the Google API. The points become equally
-   spaced by 20 meters. Shapefiles before the interpolation and after the interpolation are created.  
+   spaced by 20 meters. Shapefiles before the interpolation and after the interpolation are created.
 """
 # WARNING: OS DIRETÓRIOS PROVAVELMENTE TERÂO QUE SER ADAPTADOS "C:\Users\Joel\Documents\\altice_ODPaths...."
 def interpolate(mobilityUser, city, userID, commutingtype):
