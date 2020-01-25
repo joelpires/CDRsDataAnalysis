@@ -35,7 +35,7 @@
 #### Prerequisites for running the program:
   - **ArcGIS** installed
   - **Python** installed (and PyCharm preferably)
-  - **PostgreSQL** installed (DataGrip and preferably)
+  - **PostgreSQL** installed (and DataGrip preferably)
   - Account Google Cloud Platforms with key access to the **Directions API**.
 
 #### Dataset used belongs to Orange/Altice Labs and it's classified. The dataset was manipulated remotely through a Database that belongs to CISUC Laboratories.
